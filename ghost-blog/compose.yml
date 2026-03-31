@@ -1,0 +1,36 @@
+services:
+  ghost:
+    image: ghost:5
+    ports:
+      - "2368:2368"
+    environment:
+      - url=http://localhost:2368
+      - database__client=mysql
+      - database__connection__host=db
+      - database__connection__user=ghost
+      - database__connection__password=${GHOST_DB_PASSWORD:-ghost}
+      - database__connection__database=ghost
+    volumes:
+      - ghost_data:/var/lib/ghost/content
+    depends_on:
+      db:
+        condition: service_healthy
+
+  db:
+    image: mysql:8.0
+    environment:
+      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD:-rootpassword}
+      - MYSQL_DATABASE=ghost
+      - MYSQL_USER=ghost
+      - MYSQL_PASSWORD=${GHOST_DB_PASSWORD:-ghost}
+    volumes:
+      - db_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  ghost_data:
+  db_data:
