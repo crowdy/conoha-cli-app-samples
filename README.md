@@ -52,6 +52,7 @@ conoha app logs myserver --app-name hello-world
 | [gitea](gitea/) | Gitea + PostgreSQL | セルフホスティング Git | g2l-t-2 (2GB) |
 | [minio-n8n](minio-n8n/) | MinIO + n8n | S3 ストレージ + ワークフロー自動化 | g2l-t-2 (2GB) |
 | [ollama-webui](ollama-webui/) | Ollama + Open WebUI | ローカル LLM チャット | g2l-t-4 (4GB) |
+| [hydra-python-api](hydra-python-api/) | Ory Hydra + FastAPI | OAuth2 認可サーバー + API | g2l-t-2 (2GB) |
 
 ## 自分のアプリをデプロイするには
 
