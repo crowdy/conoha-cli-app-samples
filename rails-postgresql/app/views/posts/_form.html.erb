@@ -1,0 +1,5 @@
+<%= form_with model: post do |f| %>
+  <%= f.text_field :title, placeholder: "Title" %>
+  <%= f.text_area :body, placeholder: "Body (optional)" %>
+  <%= f.submit "Create Post" %>
+<% end %>

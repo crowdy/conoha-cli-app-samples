@@ -1,0 +1,7 @@
+#!/bin/bash
+set -e
+
+# Run database migrations automatically
+rails db:prepare
+
+exec "$@"
