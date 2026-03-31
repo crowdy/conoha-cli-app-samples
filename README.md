@@ -38,6 +38,10 @@ conoha app logs myserver --app-name hello-world
 | [fastapi-ai-chatbot](fastapi-ai-chatbot/) | FastAPI + Ollama | AI チャットボット | g2l-t-4 (4GB) |
 | [rails-postgresql](rails-postgresql/) | Rails + PostgreSQL | Rails scaffold アプリ | g2l-t-2 (2GB) |
 | [wordpress-mysql](wordpress-mysql/) | WordPress + MySQL | WordPress ブログ | g2l-t-2 (2GB) |
+| [spring-boot-postgresql](spring-boot-postgresql/) | Spring Boot + PostgreSQL | JPA CRUD アプリ | g2l-t-2 (2GB) |
+| [express-mongodb](express-mongodb/) | Express.js + MongoDB | Mongoose CRUD アプリ | g2l-t-2 (2GB) |
+| [laravel-mysql](laravel-mysql/) | Laravel + MySQL | Eloquent CRUD アプリ | g2l-t-2 (2GB) |
+| [django-postgresql](django-postgresql/) | Django + PostgreSQL | Django ORM アプリ + 管理画面 | g2l-t-2 (2GB) |
 
 ## 自分のアプリをデプロイするには
 
