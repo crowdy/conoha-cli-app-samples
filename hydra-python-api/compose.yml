@@ -1,0 +1,57 @@
+services:
+  # Ory Hydra — OAuth2 / OpenID Connect server
+  hydra:
+    image: oryd/hydra:v2.2
+    ports:
+      - "4444:4444"   # Public API (OAuth2 endpoints)
+      - "4445:4445"   # Admin API (login/consent provider calls)
+    environment:
+      - DSN=postgres://hydra:hydra@db:5432/hydra?sslmode=disable
+      - URLS_SELF_ISSUER=http://localhost:4444
+      - URLS_LOGIN=http://localhost:9010/login
+      - URLS_CONSENT=http://localhost:9010/consent
+      - SECRETS_SYSTEM=a-very-secret-key-that-must-be-changed
+      - LOG_LEVEL=info
+    command: serve all --dev
+    depends_on:
+      hydra-migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  # Run database migrations before Hydra starts
+  hydra-migrate:
+    image: oryd/hydra:v2.2
+    environment:
+      - DSN=postgres://hydra:hydra@db:5432/hydra?sslmode=disable
+    command: migrate sql -e --yes
+    depends_on:
+      db:
+        condition: service_healthy
+
+  # Python app — Login/consent provider + protected API
+  app:
+    build: .
+    ports:
+      - "9010:9010"
+    environment:
+      - HYDRA_ADMIN_URL=http://hydra:4445
+    depends_on:
+      - hydra
+
+  # PostgreSQL for Hydra
+  db:
+    image: postgres:17-alpine
+    environment:
+      - POSTGRES_USER=hydra
+      - POSTGRES_PASSWORD=hydra
+      - POSTGRES_DB=hydra
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U hydra"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  db_data:
