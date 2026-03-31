@@ -47,6 +47,11 @@ conoha app logs myserver --app-name hello-world
 | [go-fiber](go-fiber/) | Go + Fiber | 高速 REST API | g2l-t-1 (1GB) |
 | [nestjs-postgresql](nestjs-postgresql/) | NestJS + PostgreSQL | TypeORM CRUD アプリ | g2l-t-2 (2GB) |
 | [rust-actix-web](rust-actix-web/) | Rust + Actix-web | 高速 REST API | g2l-t-2 (2GB) |
+| [nginx-reverse-proxy](nginx-reverse-proxy/) | nginx リバースプロキシ | マルチアプリ運用 | g2l-t-1 (1GB) |
+| [ghost-blog](ghost-blog/) | Ghost + MySQL | ブログプラットフォーム | g2l-t-2 (2GB) |
+| [gitea](gitea/) | Gitea + PostgreSQL | セルフホスティング Git | g2l-t-2 (2GB) |
+| [minio-n8n](minio-n8n/) | MinIO + n8n | S3 ストレージ + ワークフロー自動化 | g2l-t-2 (2GB) |
+| [ollama-webui](ollama-webui/) | Ollama + Open WebUI | ローカル LLM チャット | g2l-t-4 (4GB) |
 
 ## 自分のアプリをデプロイするには
 
