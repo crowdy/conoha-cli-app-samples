@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Laravel on ConoHa</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      max-width: 700px;
+      margin: 2rem auto;
+      padding: 0 1rem;
+      background: #f5f5f5;
+      color: #333;
+    }
+    h1 { margin-bottom: 1rem; }
+    .post { background: #fff; padding: 1rem; border-radius: 8px; margin-bottom: 1rem; }
+    .post h2 { margin: 0 0 0.5rem; font-size: 1.2rem; }
+    .post p { margin: 0; color: #666; }
+    .form-box { background: #fff; padding: 1rem; border-radius: 8px; margin-bottom: 2rem; }
+    input, textarea { width: 100%; padding: 0.5rem; margin-bottom: 0.5rem; border: 1px solid #ddd; border-radius: 4px; font-size: 1rem; box-sizing: border-box; }
+    textarea { height: 80px; resize: vertical; }
+    button { padding: 0.5rem 1.5rem; background: #1976d2; color: #fff; border: none; border-radius: 4px; cursor: pointer; font-size: 1rem; }
+    .delete { background: #d32f2f; font-size: 0.85rem; padding: 0.3rem 0.8rem; }
+    form.inline { display: inline; }
+  </style>
+</head>
+<body>
+  <h1>Laravel on ConoHa</h1>
+  <div class="form-box">
+    <form action="/posts" method="post">
+      @csrf
+      <input type="text" name="title" placeholder="Title" required>
+      <textarea name="body" placeholder="Body (optional)"></textarea>
+      <button type="submit">Create Post</button>
+    </form>
+  </div>
+  @foreach ($posts as $post)
+    <div class="post">
+      <h2>{{ $post->title }}</h2>
+      <p>{{ $post->body }}</p>
+      <form action="/posts/{{ $post->id }}" method="post" class="inline">
+        @csrf
+        @method('DELETE')
+        <button type="submit" class="delete">Delete</button>
+      </form>
+    </div>
+  @endforeach
+</body>
+</html>

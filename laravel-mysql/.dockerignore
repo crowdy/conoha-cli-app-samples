@@ -1,0 +1,5 @@
+README.md
+.git
+vendor
+node_modules
+storage/logs/*
