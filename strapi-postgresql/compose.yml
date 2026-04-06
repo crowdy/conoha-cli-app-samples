@@ -1,6 +1,6 @@
 services:
   strapi:
-    image: strapi/strapi:5-alpine
+    image: elestio/strapi:v4.25
     ports:
       - "1337:1337"
     environment:
@@ -20,6 +20,7 @@ services:
     depends_on:
       db:
         condition: service_healthy
+    restart: unless-stopped
 
   db:
     image: postgres:16-alpine
@@ -34,6 +35,7 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+    restart: unless-stopped
 
 volumes:
   strapi_uploads:

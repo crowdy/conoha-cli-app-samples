@@ -1,6 +1,6 @@
 services:
   nginx:
-    image: nginx:alpine
+    image: nginx:1.27-alpine
     ports:
       - "80:80"
     volumes:
@@ -32,6 +32,7 @@ services:
         condition: service_healthy
       redis:
         condition: service_started
+    restart: unless-stopped
 
   worker:
     image: langgenius/dify-api:0.15
@@ -55,12 +56,14 @@ services:
         condition: service_healthy
       redis:
         condition: service_started
+    restart: unless-stopped
 
   web:
     image: langgenius/dify-web:0.15
     environment:
       - CONSOLE_API_URL=
       - APP_API_URL=
+    restart: unless-stopped
 
   db:
     image: postgres:16-alpine

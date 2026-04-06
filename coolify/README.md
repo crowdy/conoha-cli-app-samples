@@ -31,6 +31,7 @@ conoha app init myserver --app-name coolify
 
 # 環境変数を設定
 conoha app env set myserver --app-name coolify \
+  APP_KEY=$(echo "base64:$(openssl rand -base64 32)") \
   DB_PASSWORD=your-secure-password \
   REDIS_PASSWORD=your-secure-password
 
@@ -47,4 +48,5 @@ conoha app deploy myserver --app-name coolify
 - Coolify UI からアプリケーション・データベース・サービスをワンクリックでデプロイ可能
 - GitHub / GitLab 連携で Push 時の自動デプロイを設定
 - Let's Encrypt による自動 HTTPS 証明書取得をサポート
+- `APP_KEY` は初回起動時に自動生成されますが、環境変数で事前に設定することも可能
 - 本番環境では `DB_PASSWORD`、`REDIS_PASSWORD` を必ず変更してください

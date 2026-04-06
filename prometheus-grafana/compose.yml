@@ -14,6 +14,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    restart: unless-stopped
 
   grafana:
     image: grafana/grafana:11.6.0
@@ -27,6 +28,7 @@ services:
     depends_on:
       prometheus:
         condition: service_healthy
+    restart: unless-stopped
 
   node-exporter:
     image: prom/node-exporter:v1.9.0
@@ -40,6 +42,7 @@ services:
       - "--path.sysfs=/host/sys"
       - "--path.rootfs=/rootfs"
       - "--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)"
+    restart: unless-stopped
 
 volumes:
   prometheus_data:
