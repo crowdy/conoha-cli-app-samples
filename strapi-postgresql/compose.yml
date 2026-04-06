@@ -1,0 +1,40 @@
+services:
+  strapi:
+    image: strapi/strapi:5-alpine
+    ports:
+      - "1337:1337"
+    environment:
+      - DATABASE_CLIENT=postgres
+      - DATABASE_HOST=db
+      - DATABASE_PORT=5432
+      - DATABASE_NAME=strapi
+      - DATABASE_USERNAME=strapi
+      - DATABASE_PASSWORD=${DB_PASSWORD:-strapi}
+      - APP_KEYS=${APP_KEYS:-key1,key2,key3,key4}
+      - API_TOKEN_SALT=${API_TOKEN_SALT:-change-me}
+      - ADMIN_JWT_SECRET=${ADMIN_JWT_SECRET:-change-me}
+      - TRANSFER_TOKEN_SALT=${TRANSFER_TOKEN_SALT:-change-me}
+      - JWT_SECRET=${JWT_SECRET:-change-me}
+    volumes:
+      - strapi_uploads:/opt/app/public/uploads
+    depends_on:
+      db:
+        condition: service_healthy
+
+  db:
+    image: postgres:16-alpine
+    environment:
+      - POSTGRES_USER=strapi
+      - POSTGRES_PASSWORD=${DB_PASSWORD:-strapi}
+      - POSTGRES_DB=strapi
+    volumes:
+      - strapi_db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U strapi"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  strapi_uploads:
+  strapi_db:
