@@ -1,0 +1,17 @@
+services:
+  runner:
+    image: myoung34/github-runner:latest
+    environment:
+      - REPO_URL=${REPO_URL}
+      - ACCESS_TOKEN=${ACCESS_TOKEN}
+      - RUNNER_NAME=${RUNNER_NAME:-conoha-runner}
+      - RUNNER_WORKDIR=/tmp/runner/work
+      - LABELS=${RUNNER_LABELS:-self-hosted,linux,x64}
+      - DISABLE_AUTO_UPDATE=1
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - runner_work:/tmp/runner/work
+    restart: unless-stopped
+
+volumes:
+  runner_work:
