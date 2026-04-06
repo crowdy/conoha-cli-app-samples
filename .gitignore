@@ -1,5 +1,6 @@
 .env
 .env.server
+!hydra-python-api/.env
 .DS_Store
 node_modules/
 tmp/

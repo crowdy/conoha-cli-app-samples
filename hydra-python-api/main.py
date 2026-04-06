@@ -17,7 +17,7 @@ from fastapi.templating import Jinja2Templates
 app = FastAPI()
 templates = Jinja2Templates(directory="templates")
 
-HYDRA_ADMIN_URL = os.environ.get("HYDRA_ADMIN_URL", "http://hydra:4445")
+HYDRA_ADMIN_URL = os.environ.get("HYDRA_ADMIN_URL", "http://hydra:4445/admin")
 
 
 # --- Login provider ---
@@ -161,6 +161,14 @@ async def api_me(authorization: str = Header(default="")):
 async def api_public():
     """Public endpoint — no authentication required."""
     return {"message": "This is a public endpoint. No token needed."}
+
+
+@app.get("/callback")
+async def callback(request: Request, code: str = "", error: str = "", error_description: str = "", state: str = ""):
+    """OAuth2 callback — receives the authorization code or error."""
+    if error:
+        return JSONResponse({"error": error, "error_description": error_description}, status_code=400)
+    return {"authorization_code": code, "state": state, "hint": "Exchange this code for a token via POST /oauth2/token on Hydra"}
 
 
 @app.get("/health")
