@@ -1,0 +1,51 @@
+services:
+  immich-server:
+    image: ghcr.io/immich-app/immich-server:v1.131.3
+    ports:
+      - "2283:2283"
+    environment:
+      - DB_HOSTNAME=db
+      - DB_USERNAME=immich
+      - DB_PASSWORD=${DB_PASSWORD:-immich}
+      - DB_DATABASE_NAME=immich
+      - REDIS_HOSTNAME=redis
+    volumes:
+      - immich_uploads:/usr/src/app/upload
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    restart: unless-stopped
+
+  immich-machine-learning:
+    image: ghcr.io/immich-app/immich-machine-learning:v1.131.3
+    volumes:
+      - immich_ml_cache:/cache
+    restart: unless-stopped
+
+  db:
+    image: tensorchord/pgvecto-rs:pg16-v0.4.0
+    environment:
+      - POSTGRES_USER=immich
+      - POSTGRES_PASSWORD=${DB_PASSWORD:-immich}
+      - POSTGRES_DB=immich
+      - POSTGRES_INITDB_ARGS=--data-checksums
+    volumes:
+      - immich_db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U immich"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    volumes:
+      - immich_redis:/data
+
+volumes:
+  immich_uploads:
+  immich_ml_cache:
+  immich_db:
+  immich_redis:
