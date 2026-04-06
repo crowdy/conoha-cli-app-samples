@@ -1,0 +1,45 @@
+services:
+  coolify:
+    image: ghcr.io/coollabsio/coolify:4
+    ports:
+      - "8000:8000"
+      - "6001:6001"
+      - "6002:6002"
+    environment:
+      - APP_ID=${APP_ID:-coolify}
+      - APP_KEY=${APP_KEY:-base64:generated-key-placeholder}
+      - APP_URL=${APP_URL:-http://localhost:8000}
+      - DB_PASSWORD=${DB_PASSWORD:-coolify}
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-coolify}
+    volumes:
+      - /data/coolify:/data/coolify
+      - /var/run/docker.sock:/var/run/docker.sock
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      - POSTGRES_USER=coolify
+      - POSTGRES_PASSWORD=${DB_PASSWORD:-coolify}
+      - POSTGRES_DB=coolify
+    volumes:
+      - coolify_db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U coolify"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    command: redis-server --requirepass ${REDIS_PASSWORD:-coolify}
+    volumes:
+      - coolify_redis:/data
+
+volumes:
+  coolify_db:
+  coolify_redis:
