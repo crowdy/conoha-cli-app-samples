@@ -25,10 +25,10 @@ cd "$WORK_DIR"
 if [ -n "$SERVER_HOST" ] && [ "$SERVER_HOST" != "localhost" ]; then
   HOST="$SERVER_HOST"
   echo "==> Using provided SERVER_HOST=$HOST"
-elif IP=$(curl -s --max-time 3 ifconfig.me 2>/dev/null) && [ -n "$IP" ]; then
+elif IP=$(curl -4 -s --max-time 3 ifconfig.me 2>/dev/null) && [ -n "$IP" ]; then
   HOST="$IP"
   echo "==> Detected public IP: $HOST"
-elif IP=$(hostname -I 2>/dev/null | awk '{print $1}') && [ -n "$IP" ]; then
+elif IP=$(hostname -I 2>/dev/null | grep -oE '([0-9]{1,3}\.){3}[0-9]{1,3}' | head -1) && [ -n "$IP" ]; then
   HOST="$IP"
   echo "==> Detected host IP: $HOST"
 else
