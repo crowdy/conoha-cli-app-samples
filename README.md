@@ -54,6 +54,17 @@ conoha app logs myserver --app-name hello-world
 | [ollama-webui](ollama-webui/) | Ollama + Open WebUI | ローカル LLM チャット | g2l-t-4 (4GB) |
 | [hydra-python-api](hydra-python-api/) | Ory Hydra + FastAPI | OAuth2 認可サーバー + API | g2l-t-2 (2GB) |
 | [quickwit-otel](quickwit-otel/) | Quickwit + OpenTelemetry + Grafana | ログ・トレース収集・検索基盤 | g2l-t-2 (2GB) |
+| [uptime-kuma](uptime-kuma/) | Uptime Kuma | セルフホスティング稼働監視 | g2l-t-1 (1GB) |
+| [prometheus-grafana](prometheus-grafana/) | Prometheus + Grafana + Node Exporter | メトリクス監視・可視化 | g2l-t-2 (2GB) |
+| [github-actions-runner](github-actions-runner/) | GitHub Actions Runner | セルフホステッド CI/CD ランナー | g2l-t-2 (2GB) |
+| [coolify](coolify/) | Coolify + PostgreSQL + Redis | セルフホスティング PaaS | g2l-t-4 (4GB) |
+| [dify-https](dify-https/) | Dify + PostgreSQL + Redis + nginx | AI ワークフロープラットフォーム | g2l-t-4 (4GB) |
+| [strapi-postgresql](strapi-postgresql/) | Strapi + PostgreSQL | ヘッドレス CMS | g2l-t-2 (2GB) |
+| [supabase-selfhost](supabase-selfhost/) | Supabase (Studio + Kong + GoTrue + PostgREST + PostgreSQL) | セルフホスティング BaaS | g2l-t-4 (4GB) |
+| [immich](immich/) | Immich + PostgreSQL + Redis | セルフホスティング写真管理 | g2l-t-4 (4GB) |
+| [plausible-analytics](plausible-analytics/) | Plausible CE + PostgreSQL + ClickHouse | プライバシー重視 Web アナリティクス | g2l-t-2 (2GB) |
+| [outline](outline/) | Outline + PostgreSQL + Redis | セルフホスティングチーム Wiki | g2l-t-2 (2GB) |
+| [meilisearch](meilisearch/) | Meilisearch | セルフホスティング全文検索エンジン | g2l-t-1 (1GB) |
 
 ## 自分のアプリをデプロイするには
 
