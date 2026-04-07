@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import PostForm from "@/app/components/PostForm";
+import Link from "next/link";
 
 type Post = {
   id: number;
@@ -15,7 +16,7 @@ async function getPost(id: string): Promise<Post | null> {
   return res.json();
 }
 
-export default async function EditPost({
+export default async function EditNews({
   params,
 }: {
   params: Promise<{ id: string }>;
@@ -25,9 +26,15 @@ export default async function EditPost({
   if (!post) notFound();
 
   return (
-    <div>
-      <h1 className="text-2xl font-bold text-gray-900 mb-6">投稿を編集</h1>
-      <div className="bg-white rounded-lg shadow p-6">
+    <div className="max-w-3xl mx-auto px-4 py-12">
+      <Link
+        href="/news"
+        className="text-sm text-primary hover:underline mb-6 inline-block"
+      >
+        &larr; ニュース一覧に戻る
+      </Link>
+      <h1 className="text-3xl font-bold text-gray-900 mb-8">ニュースを編集</h1>
+      <div className="bg-white border border-gray-200 rounded-xl p-6">
         <PostForm post={post} />
       </div>
     </div>
