@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Next.js on ConoHa",
-  description: "Next.js app deployed with conoha app deploy",
+  title: "conoha-cli Download Stats",
+  description: "Download statistics for crowdy/conoha-cli GitHub releases",
 };
 
 export default function RootLayout({
