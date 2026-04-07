@@ -1,19 +1,5 @@
 import Link from "next/link";
-
-type Post = {
-  id: number;
-  title: string;
-  body: string;
-  created_at: string;
-};
-
-async function getPosts(): Promise<Post[]> {
-  const res = await fetch("http://backend:8000/api/posts", {
-    cache: "no-store",
-  });
-  if (!res.ok) return [];
-  return res.json();
-}
+import { getPosts } from "./lib/api";
 
 const services = [
   {

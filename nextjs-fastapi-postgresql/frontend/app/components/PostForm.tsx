@@ -12,26 +12,41 @@ export default function PostForm({ post }: Props) {
   const [title, setTitle] = useState(post?.title ?? "");
   const [body, setBody] = useState(post?.body ?? "");
   const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setSubmitting(true);
+    setError("");
 
-    const url = post ? `/api/posts/${post.id}` : "/api/posts";
-    const method = post ? "PUT" : "POST";
+    try {
+      const url = post ? `/api/posts/${post.id}` : "/api/posts";
+      const method = post ? "PUT" : "POST";
 
-    await fetch(url, {
-      method,
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ title, body }),
-    });
+      const res = await fetch(url, {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title, body }),
+      });
 
-    router.push("/news");
-    router.refresh();
+      if (!res.ok) throw new Error("保存に失敗しました");
+
+      router.push("/news");
+      router.refresh();
+    } catch {
+      setError("保存に失敗しました。もう一度お試しください。");
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   return (
     <form onSubmit={handleSubmit} className="space-y-5">
+      {error && (
+        <div className="bg-red-50 text-red-700 text-sm px-4 py-3 rounded-lg border border-red-200">
+          {error}
+        </div>
+      )}
       <div>
         <label
           htmlFor="title"

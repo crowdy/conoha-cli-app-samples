@@ -1,24 +1,12 @@
 import Link from "next/link";
-
-type Post = {
-  id: number;
-  title: string;
-  body: string;
-  created_at: string;
-};
-
-async function getPosts(): Promise<Post[]> {
-  const res = await fetch("http://backend:8000/api/posts", {
-    cache: "no-store",
-  });
-  if (!res.ok) return [];
-  return res.json();
-}
+import { getPosts } from "@/app/lib/api";
+import DeleteButton from "@/app/components/DeleteButton";
 
 async function deletePost(formData: FormData) {
   "use server";
   const id = formData.get("id");
-  await fetch(`http://backend:8000/api/posts/${id}`, { method: "DELETE" });
+  const res = await fetch(`http://backend:8000/api/posts/${id}`, { method: "DELETE" });
+  if (!res.ok) throw new Error("Failed to delete post");
   const { redirect } = await import("next/navigation");
   redirect("/news");
 }
@@ -90,15 +78,7 @@ export default async function NewsPage() {
                   >
                     編集
                   </Link>
-                  <form action={deletePost}>
-                    <input type="hidden" name="id" value={post.id} />
-                    <button
-                      type="submit"
-                      className="text-xs text-gray-500 hover:text-red-600 border border-gray-200 rounded px-3 py-1.5 hover:border-red-200 transition"
-                    >
-                      削除
-                    </button>
-                  </form>
+                  <DeleteButton id={post.id} action={deletePost} />
                 </div>
               </div>
             </article>
