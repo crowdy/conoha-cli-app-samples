@@ -3,7 +3,7 @@ WORKDIR /app
 COPY composer.json ./
 RUN composer install --no-dev --no-scripts --prefer-dist
 
-FROM php:8.3-apache
+FROM php:8.4-apache
 RUN docker-php-ext-install pdo_mysql
 RUN a2enmod rewrite
 ENV APACHE_DOCUMENT_ROOT=/var/www/html/public

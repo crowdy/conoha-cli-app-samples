@@ -1,8 +1,13 @@
 #!/bin/bash
 set -e
 
+# Create .env file with APP_KEY placeholder if it does not exist
+if [ ! -f .env ]; then
+    echo "APP_KEY=" > .env
+fi
+
 # Generate app key if not set
-if [ -z "$APP_KEY" ]; then
+if [ -z "$APP_KEY" ] && ! grep -q "APP_KEY=base64:" .env; then
     php artisan key:generate --force
 fi
 

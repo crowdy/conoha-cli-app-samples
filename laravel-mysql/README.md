@@ -4,8 +4,8 @@ Laravel と MySQL を使ったシンプルな投稿アプリです。Eloquent OR
 
 ## 構成
 
-- PHP 8.3 + Laravel 11
-- MySQL 8.0
+- PHP 8.4 + Laravel 13
+- MySQL 8.4
 - ポート: 80
 
 ## 前提条件
