@@ -12,30 +12,45 @@ export default function PostForm({ post }: Props) {
   const [title, setTitle] = useState(post?.title ?? "");
   const [body, setBody] = useState(post?.body ?? "");
   const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setSubmitting(true);
+    setError("");
 
-    const url = post ? `/api/posts/${post.id}` : "/api/posts";
-    const method = post ? "PUT" : "POST";
+    try {
+      const url = post ? `/api/posts/${post.id}` : "/api/posts";
+      const method = post ? "PUT" : "POST";
 
-    await fetch(url, {
-      method,
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ title, body }),
-    });
+      const res = await fetch(url, {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title, body }),
+      });
 
-    router.push("/");
-    router.refresh();
+      if (!res.ok) throw new Error("保存に失敗しました");
+
+      router.push("/news");
+      router.refresh();
+    } catch {
+      setError("保存に失敗しました。もう一度お試しください。");
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
+    <form onSubmit={handleSubmit} className="space-y-5">
+      {error && (
+        <div className="bg-red-50 text-red-700 text-sm px-4 py-3 rounded-lg border border-red-200">
+          {error}
+        </div>
+      )}
       <div>
         <label
           htmlFor="title"
-          className="block text-sm font-medium text-gray-700 mb-1"
+          className="block text-sm font-medium text-gray-700 mb-1.5"
         >
           タイトル
         </label>
@@ -45,36 +60,38 @@ export default function PostForm({ post }: Props) {
           required
           value={title}
           onChange={(e) => setTitle(e.target.value)}
-          className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          placeholder="ニュースのタイトルを入力"
+          className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition"
         />
       </div>
       <div>
         <label
           htmlFor="body"
-          className="block text-sm font-medium text-gray-700 mb-1"
+          className="block text-sm font-medium text-gray-700 mb-1.5"
         >
           本文
         </label>
         <textarea
           id="body"
           required
-          rows={6}
+          rows={8}
           value={body}
           onChange={(e) => setBody(e.target.value)}
-          className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          placeholder="ニュースの本文を入力"
+          className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition"
         />
       </div>
       <div className="flex gap-3">
         <button
           type="submit"
           disabled={submitting}
-          className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition disabled:opacity-50"
+          className="bg-primary text-white text-sm font-medium px-5 py-2.5 rounded-lg hover:bg-primary-dark transition disabled:opacity-50"
         >
-          {submitting ? "送信中..." : post ? "更新" : "作成"}
+          {submitting ? "送信中..." : post ? "更新する" : "投稿する"}
         </button>
         <a
-          href="/"
-          className="px-4 py-2 rounded-lg border text-gray-700 hover:bg-gray-50 transition"
+          href="/news"
+          className="px-5 py-2.5 rounded-lg border border-gray-300 text-sm text-gray-600 hover:bg-gray-50 transition"
         >
           キャンセル
         </a>

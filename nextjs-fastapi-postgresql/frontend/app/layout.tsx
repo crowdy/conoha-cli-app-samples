@@ -1,9 +1,12 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import Header from "./components/Header";
+import Footer from "./components/Footer";
 
 export const metadata: Metadata = {
-  title: "Posts App",
-  description: "Next.js + FastAPI + PostgreSQL sample app",
+  title: "CLI Internet Group",
+  description:
+    "CLI Internet Group - すべての人に CLI",
 };
 
 export default function RootLayout({
@@ -13,15 +16,10 @@ export default function RootLayout({
 }) {
   return (
     <html lang="ja">
-      <body className="bg-gray-50 min-h-screen">
-        <header className="bg-white border-b">
-          <div className="max-w-3xl mx-auto px-4 py-4">
-            <a href="/" className="text-xl font-bold text-gray-900">
-              Posts App
-            </a>
-          </div>
-        </header>
-        <main className="max-w-3xl mx-auto px-4 py-8">{children}</main>
+      <body className="bg-white min-h-screen flex flex-col">
+        <Header />
+        <main className="flex-1">{children}</main>
+        <Footer />
       </body>
     </html>
   );
