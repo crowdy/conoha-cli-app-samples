@@ -1,6 +1,6 @@
 services:
   studio:
-    image: supabase/studio:20250317-6be1014
+    image: supabase/studio:latest
     ports:
       - "3000:3000"
     environment:
@@ -81,6 +81,7 @@ services:
       - JWT_SECRET=${JWT_SECRET:-super-secret-jwt-token-with-at-least-32-characters}
     volumes:
       - supabase_db:/var/lib/postgresql/data
+      - ./init/set-role-passwords.sh:/docker-entrypoint-initdb.d/zzz-set-role-passwords.sh:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U supabase_admin"]
       interval: 5s
