@@ -41,6 +41,7 @@ conoha app logs myserver --app-name hello-world
 | [spring-boot-postgresql](spring-boot-postgresql/) | Spring Boot + PostgreSQL | JPA CRUD アプリ | g2l-t-2 (2GB) |
 | [express-mongodb](express-mongodb/) | Express.js + MongoDB | Mongoose CRUD アプリ | g2l-t-2 (2GB) |
 | [laravel-mysql](laravel-mysql/) | Laravel + MySQL | Eloquent CRUD アプリ | g2l-t-2 (2GB) |
+| [nextjs-fastapi-postgresql](nextjs-fastapi-postgresql/) | Next.js + FastAPI + PostgreSQL | フルスタック CRUD アプリ | g2l-t-2 (2GB) |
 | [django-postgresql](django-postgresql/) | Django + PostgreSQL | Django ORM アプリ + 管理画面 | g2l-t-2 (2GB) |
 | [vite-react](vite-react/) | Vite + React (静的SPA) | カウンターアプリ | g2l-t-1 (1GB) |
 | [sveltekit](sveltekit/) | SvelteKit (SSR) | カウンターアプリ | g2l-t-2 (2GB) |
