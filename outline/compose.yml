@@ -11,13 +11,22 @@ services:
       - URL=${URL:-http://localhost:3000}
       - FILE_STORAGE=local
       - FILE_STORAGE_LOCAL_ROOT_DIR=/var/lib/outline/data
+      - PGSSLMODE=${PGSSLMODE:-disable}
       - FORCE_HTTPS=false
+      - OIDC_CLIENT_ID=outline
+      - OIDC_CLIENT_SECRET=outline-dex-secret
+      - OIDC_AUTH_URI=${OIDC_AUTH_URI:-http://localhost:5556/dex/auth}
+      - OIDC_TOKEN_URI=http://dex:5556/dex/token
+      - OIDC_USERINFO_URI=http://dex:5556/dex/userinfo
+      - OIDC_DISPLAY_NAME=Dex Login
     volumes:
       - outline_data:/var/lib/outline/data
     depends_on:
       db:
         condition: service_healthy
       redis:
+        condition: service_started
+      dex:
         condition: service_started
     restart: unless-stopped
 
@@ -40,7 +49,17 @@ services:
     volumes:
       - outline_redis:/data
 
+  dex:
+    image: dexidp/dex:v2.39.1
+    ports:
+      - "5556:5556"
+    volumes:
+      - ./dex-config.yml:/etc/dex/config.docker.yaml
+      - dex_data:/var/dex
+    command: ["dex", "serve", "/etc/dex/config.docker.yaml"]
+
 volumes:
   outline_data:
   outline_db:
   outline_redis:
+  dex_data:
