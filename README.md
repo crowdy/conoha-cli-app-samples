@@ -63,7 +63,7 @@ conoha app logs myserver --app-name hello-world
 | [supabase-selfhost](supabase-selfhost/) | Supabase (Studio + Kong + GoTrue + PostgREST + PostgreSQL) | セルフホスティング BaaS | g2l-t-4 (4GB) |
 | [immich](immich/) | Immich + PostgreSQL + Redis | セルフホスティング写真管理 | g2l-t-4 (4GB) |
 | [plausible-analytics](plausible-analytics/) | Plausible CE + PostgreSQL + ClickHouse | プライバシー重視 Web アナリティクス | g2l-t-2 (2GB) |
-| [outline](outline/) | Outline + PostgreSQL + Redis | セルフホスティングチーム Wiki | g2l-t-2 (2GB) |
+| [outline](outline/) | Outline + PostgreSQL + Redis + Dex | セルフホスティングチーム Wiki（OIDC認証付き） | g2l-t-2 (2GB) |
 | [meilisearch](meilisearch/) | Meilisearch | セルフホスティング全文検索エンジン | g2l-t-1 (1GB) |
 
 ## 自分のアプリをデプロイするには
