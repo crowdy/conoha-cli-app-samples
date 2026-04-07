@@ -1,6 +1,6 @@
 services:
   strapi:
-    image: elestio/strapi:v4.25
+    build: .
     ports:
       - "1337:1337"
     environment:
