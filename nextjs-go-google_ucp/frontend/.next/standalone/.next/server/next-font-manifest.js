@@ -1,1 +1,0 @@
-self.__NEXT_FONT_MANIFEST='{"pages":{},"app":{"/home/tkim/dev/crowdy/conoha-cli-app-samples/nextjs-go-google_ucp/frontend/app/layout":["static/media/4cf2300e9c8272f7-s.p.woff2"]},"appUsingSizeAdjust":true,"pagesUsingSizeAdjust":false}';
