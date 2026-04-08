@@ -1,0 +1,41 @@
+# Dex OIDC Provider Configuration
+# https://dexidp.io/docs/
+# Placeholders (__VAR__) are replaced by sed in compose.yml entrypoint.
+
+issuer: http://__DEX_ISSUER_HOST__:5556/dex
+
+storage:
+  type: postgres
+  config:
+    host: db
+    port: 5432
+    database: __DEX_DB_NAME__
+    user: __DEX_DB_USER__
+    password: __DEX_DB_PASSWORD__
+    ssl:
+      mode: disable
+
+web:
+  http: 0.0.0.0:5556
+
+telemetry:
+  http: 0.0.0.0:5558
+
+oauth2:
+  skipApprovalScreen: true
+
+staticClients:
+  - id: __GITEA_OAUTH2_CLIENT_ID__
+    redirectURIs:
+      - "http://__GITEA_HOST__:3000/user/oauth2/dex/callback"
+    name: "Gitea"
+    secret: __GITEA_OAUTH2_CLIENT_SECRET__
+
+enablePasswordDB: true
+
+staticPasswords:
+  - email: "admin@example.com"
+    # bcrypt hash of "password" — change in production
+    hash: "$2a$10$2b2cU8CPhOTaGrs1HRQuAueS7JTT5ZHsHSzYiFPm1leZck7Mc8T4W"
+    username: "admin"
+    userID: "08a8684b-db88-4b73-90a9-3cd1661f5466"
