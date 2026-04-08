@@ -1,0 +1,15 @@
+default: &default
+  adapter: postgresql
+  encoding: unicode
+  pool: 5
+  host: <%= ENV.fetch("DB_HOST", "db") %>
+  username: <%= ENV.fetch("DB_USER", "postgres") %>
+  password: <%= ENV.fetch("DB_PASSWORD", "postgres") %>
+
+production:
+  <<: *default
+  database: <%= ENV.fetch("DB_NAME", "app_production") %>
+
+development:
+  <<: *default
+  database: mercari_development

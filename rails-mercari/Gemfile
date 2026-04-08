@@ -1,0 +1,9 @@
+source "https://rubygems.org"
+
+gem "rails", "~> 8.1"
+gem "pg", "~> 1.6"
+gem "puma", "~> 7.2"
+gem "sidekiq", "~> 7.3"
+gem "omniauth", "~> 2.1"
+gem "omniauth_openid_connect", "~> 0.8"
+gem "omniauth-rails_csrf_protection", "~> 1.0"
