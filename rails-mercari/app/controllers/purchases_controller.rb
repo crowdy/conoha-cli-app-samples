@@ -2,7 +2,7 @@ class PurchasesController < ApplicationController
   before_action :require_login
 
   def create
-    @item = Item.find(params[:item_id])
+    @item = Item.lock.find(params[:item_id])
 
     if @item.seller == current_user
       redirect_to root_path, alert: "自分の商品は購入できません"
@@ -24,5 +24,7 @@ class PurchasesController < ApplicationController
     end
 
     redirect_to root_path, notice: "購入しました！"
+  rescue ActiveRecord::RecordNotUnique
+    redirect_to root_path, alert: "この商品は売り切れです"
   end
 end

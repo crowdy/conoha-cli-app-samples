@@ -9,8 +9,7 @@ require "action_view/railtie"
 module MercariApp
   class Application < Rails::Application
     config.load_defaults 8.1
-    config.eager_load = true
-    config.secret_key_base = ENV.fetch("SECRET_KEY_BASE") { SecureRandom.hex(64) }
+    config.secret_key_base = ENV.fetch("SECRET_KEY_BASE")
     config.active_job.queue_adapter = :sidekiq
   end
 end
