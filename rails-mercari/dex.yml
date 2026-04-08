@@ -1,0 +1,45 @@
+# Dex OIDC Provider Configuration
+# Placeholders (__VAR__) are replaced by sed in compose.yml entrypoint.
+
+issuer: http://__DEX_ISSUER_HOST__/dex
+
+storage:
+  type: postgres
+  config:
+    host: db
+    port: 5432
+    database: dex
+    user: dex
+    password: __DEX_DB_PASSWORD__
+    ssl:
+      mode: disable
+
+web:
+  http: 0.0.0.0:5556
+
+telemetry:
+  http: 0.0.0.0:5558
+
+oauth2:
+  skipApprovalScreen: true
+
+staticClients:
+  - id: __RAILS_OIDC_CLIENT_ID__
+    redirectURIs:
+      - "http://__RAILS_HOST__/auth/dex/callback"
+    name: "Mercari App"
+    secret: __RAILS_OIDC_CLIENT_SECRET__
+
+enablePasswordDB: true
+
+staticPasswords:
+  - email: "seller@example.com"
+    # bcrypt hash of "password"
+    hash: "$2b$10$XGMG1ahO/4deJwCMTEr0EuMyX1zZolLqDz4.Jvg6aunUIq.gJF6Re"
+    username: "seller"
+    userID: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+  - email: "buyer@example.com"
+    # bcrypt hash of "password"
+    hash: "$2b$10$XGMG1ahO/4deJwCMTEr0EuMyX1zZolLqDz4.Jvg6aunUIq.gJF6Re"
+    username: "buyer"
+    userID: "b2c3d4e5-f6a7-8901-bcde-f12345678901"

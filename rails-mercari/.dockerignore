@@ -1,0 +1,6 @@
+README.md
+.git
+.gitignore
+tmp
+log
+node_modules
