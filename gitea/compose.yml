@@ -1,31 +1,77 @@
 services:
   gitea:
-    image: gitea/gitea:latest
+    image: gitea/gitea:${GITEA_VERSION:-latest}
     ports:
-      - "3000:3000"
-      - "2222:22"
+      - "${GITEA_HTTP_PORT:-3000}:3000"
+      - "${GITEA_SSH_PORT:-2222}:22"
     environment:
       - GITEA__database__DB_TYPE=postgres
       - GITEA__database__HOST=db:5432
-      - GITEA__database__NAME=gitea
-      - GITEA__database__USER=gitea
-      - GITEA__database__PASSWD=${DB_PASSWORD:-gitea}
+      - GITEA__database__NAME=${GITEA_DB_NAME:-gitea}
+      - GITEA__database__USER=${GITEA_DB_USER:-gitea}
+      - GITEA__database__PASSWD=${GITEA_DB_PASSWORD:-gitea}
+      - GITEA__service__DISABLE_REGISTRATION=${GITEA_DISABLE_REGISTRATION:-false}
+      - GITEA__service__ALLOW_ONLY_EXTERNAL_REGISTRATION=${GITEA_ALLOW_ONLY_EXTERNAL:-false}
+      - GITEA__openid__ENABLE_OPENID_SIGNIN=${GITEA_ENABLE_OPENID:-true}
+      - GITEA__oauth2__ENABLED=${GITEA_OAUTH2_ENABLED:-true}
     volumes:
       - gitea_data:/data
     depends_on:
       db:
         condition: service_healthy
+      dex:
+        condition: service_healthy
+
+  dex:
+    image: dexidp/dex:${DEX_VERSION:-v2.45.1}
+    entrypoint: ["sh", "-c"]
+    command:
+      - |
+        sed \
+          -e "s|__DEX_ISSUER_HOST__|$$DEX_ISSUER_HOST|g" \
+          -e "s|__DEX_DB_NAME__|$$DEX_DB_NAME|g" \
+          -e "s|__DEX_DB_USER__|$$DEX_DB_USER|g" \
+          -e "s|__DEX_DB_PASSWORD__|$$DEX_DB_PASSWORD|g" \
+          -e "s|__GITEA_OAUTH2_CLIENT_ID__|$$GITEA_OAUTH2_CLIENT_ID|g" \
+          -e "s|__GITEA_OAUTH2_CLIENT_SECRET__|$$GITEA_OAUTH2_CLIENT_SECRET|g" \
+          -e "s|__GITEA_HOST__|$$GITEA_HOST|g" \
+          /etc/dex/dex.yml > /tmp/dex.yml &&
+        exec dex serve /tmp/dex.yml
+    ports:
+      - "${DEX_HTTP_PORT:-5556}:5556"
+    environment:
+      - DEX_ISSUER_HOST=${DEX_ISSUER_HOST:-localhost}
+      - DEX_DB_NAME=${DEX_DB_NAME:-dex}
+      - DEX_DB_USER=${DEX_DB_USER:-dex}
+      - DEX_DB_PASSWORD=${DEX_DB_PASSWORD:-dex}
+      - GITEA_HOST=${GITEA_HOST:-localhost}
+      - GITEA_OAUTH2_CLIENT_ID=${GITEA_OAUTH2_CLIENT_ID:-gitea}
+      - GITEA_OAUTH2_CLIENT_SECRET=${GITEA_OAUTH2_CLIENT_SECRET:-gitea-dex-secret}
+    volumes:
+      - ./dex.yml:/etc/dex/dex.yml:ro
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:5558/healthz"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
   db:
-    image: postgres:17-alpine
+    image: postgres:${POSTGRES_VERSION:-17-alpine}
     environment:
-      - POSTGRES_USER=gitea
-      - POSTGRES_PASSWORD=${DB_PASSWORD:-gitea}
-      - POSTGRES_DB=gitea
+      - POSTGRES_USER=${GITEA_DB_USER:-gitea}
+      - POSTGRES_PASSWORD=${GITEA_DB_PASSWORD:-gitea}
+      - POSTGRES_DB=${GITEA_DB_NAME:-gitea}
+      - DEX_DB_NAME=${DEX_DB_NAME:-dex}
+      - DEX_DB_USER=${DEX_DB_USER:-dex}
+      - DEX_DB_PASSWORD=${DEX_DB_PASSWORD:-dex}
     volumes:
       - db_data:/var/lib/postgresql/data
+      - ./init-db.sh:/docker-entrypoint-initdb.d/init-db.sh:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U gitea"]
+      test: ["CMD-SHELL", "pg_isready -U ${GITEA_DB_USER:-gitea}"]
       interval: 5s
       timeout: 5s
       retries: 5
