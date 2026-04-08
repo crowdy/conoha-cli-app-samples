@@ -6,6 +6,8 @@ require "active_job/railtie"
 require "action_controller/railtie"
 require "action_view/railtie"
 
+Bundler.require(*Rails.groups)
+
 module MercariApp
   class Application < Rails::Application
     config.load_defaults 8.1
