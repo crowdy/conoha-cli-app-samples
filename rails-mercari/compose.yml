@@ -20,9 +20,10 @@ services:
       - SECRET_KEY_BASE=placeholder_change_me_in_production
       - REDIS_URL=redis://redis:6379/0
       - OIDC_ISSUER=http://dex:5556/dex
+      - OIDC_EXTERNAL_HOST=${RAILS_HOST:-localhost}
       - OIDC_CLIENT_ID=mercari-app
       - OIDC_CLIENT_SECRET=mercari-dex-secret
-      - OIDC_REDIRECT_URI=http://localhost/auth/dex/callback
+      - OIDC_REDIRECT_URI=http://${RAILS_HOST:-localhost}/auth/dex/callback
     depends_on:
       db:
         condition: service_healthy

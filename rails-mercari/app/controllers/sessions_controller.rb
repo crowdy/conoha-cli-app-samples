@@ -10,6 +10,10 @@ class SessionsController < ApplicationController
     redirect_to root_path, notice: "ログインしました"
   end
 
+  def failure
+    redirect_to root_path, alert: "ログインに失敗しました: #{params[:message]}"
+  end
+
   def destroy
     session.delete(:user_id)
     redirect_to root_path, notice: "ログアウトしました"
