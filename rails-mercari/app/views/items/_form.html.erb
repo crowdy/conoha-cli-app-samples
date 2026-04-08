@@ -1,0 +1,9 @@
+<div class="form-card">
+  <h2>商品を出品</h2>
+  <%= form_with model: @item, url: items_path do |f| %>
+    <%= f.text_field :title, placeholder: "商品名", required: true %>
+    <%= f.text_area :description, placeholder: "商品の説明" %>
+    <%= f.number_field :price, placeholder: "価格（円）", min: 1, required: true %>
+    <%= f.submit "出品する", class: "btn" %>
+  <% end %>
+</div>

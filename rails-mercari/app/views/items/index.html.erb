@@ -1,0 +1,23 @@
+<h1>商品一覧</h1>
+
+<% @items.each do |item| %>
+  <div class="item">
+    <div class="item-info">
+      <h2><%= item.title %></h2>
+      <p><%= item.description %></p>
+      <span class="seller">出品者: <%= item.seller.name %></span>
+    </div>
+    <div style="text-align: right;">
+      <div class="item-price"><%= number_with_delimiter(item.price) %>円</div>
+      <% if item.sold? %>
+        <span class="sold-badge">SOLD</span>
+      <% elsif logged_in? && item.seller != current_user %>
+        <%= button_to "購入する", buy_item_path(item), method: :post, class: "btn btn-buy" %>
+      <% end %>
+    </div>
+  </div>
+<% end %>
+
+<% if @items.empty? %>
+  <p style="color: #999;">まだ商品がありません。ログインして出品してみましょう。</p>
+<% end %>

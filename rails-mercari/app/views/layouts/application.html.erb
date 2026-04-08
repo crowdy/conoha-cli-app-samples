@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mercari on ConoHa</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 0 1rem;
+      background: #f5f5f5;
+      color: #333;
+    }
+    nav {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 1rem 0;
+      border-bottom: 1px solid #ddd;
+      margin-bottom: 1.5rem;
+    }
+    nav a { color: #1976d2; text-decoration: none; margin-left: 1rem; }
+    .flash {
+      padding: 0.75rem 1rem;
+      border-radius: 4px;
+      margin-bottom: 1rem;
+    }
+    .flash.notice { background: #e8f5e9; color: #2e7d32; }
+    .flash.alert { background: #ffebee; color: #c62828; }
+    .item {
+      background: #fff;
+      padding: 1rem;
+      border-radius: 8px;
+      margin-bottom: 1rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .item-info h2 { margin: 0 0 0.25rem; font-size: 1.1rem; }
+    .item-info p { margin: 0; color: #666; font-size: 0.9rem; }
+    .item-price { font-size: 1.2rem; font-weight: bold; color: #e65100; }
+    .sold-badge {
+      display: inline-block;
+      background: #d32f2f;
+      color: #fff;
+      padding: 0.2rem 0.6rem;
+      border-radius: 4px;
+      font-size: 0.8rem;
+    }
+    form.inline { display: inline; }
+    input, textarea {
+      width: 100%;
+      padding: 0.5rem;
+      margin-bottom: 0.5rem;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      font-size: 1rem;
+      box-sizing: border-box;
+    }
+    textarea { height: 80px; resize: vertical; }
+    .btn {
+      padding: 0.5rem 1.5rem;
+      background: #1976d2;
+      color: #fff;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 1rem;
+    }
+    .btn-buy { background: #e65100; }
+    .btn-login { background: #1976d2; }
+    .form-card {
+      background: #fff;
+      padding: 1rem;
+      border-radius: 8px;
+      margin-bottom: 2rem;
+    }
+    .seller { font-size: 0.8rem; color: #999; }
+  </style>
+</head>
+<body>
+  <%= render "shared/navbar" %>
+
+  <% if flash[:notice] %>
+    <div class="flash notice"><%= flash[:notice] %></div>
+  <% end %>
+  <% if flash[:alert] %>
+    <div class="flash alert"><%= flash[:alert] %></div>
+  <% end %>
+
+  <%= yield %>
+</body>
+</html>

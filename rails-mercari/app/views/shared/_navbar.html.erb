@@ -1,0 +1,12 @@
+<nav>
+  <strong>Mercari on ConoHa</strong>
+  <div>
+    <% if logged_in? %>
+      <span><%= current_user.name %></span>
+      <a href="/items/new">出品する</a>
+      <a href="/logout">ログアウト</a>
+    <% else %>
+      <%= button_to "Dexでログイン", "/auth/dex", method: :post, class: "btn btn-login", form: { style: "display:inline" } %>
+    <% end %>
+  </div>
+</nav>
