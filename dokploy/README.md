@@ -66,7 +66,7 @@ dokploy/
 - ConoHa VPS3 アカウント
 - SSH キー設定済み
 - **`g2l-t-4` (4GB) 以上推奨** — Dokploy 本体 + 同梱 Postgres/Redis/Traefik + 最初のアプリのビルドで概ね 2-3 GB を使う
-- ConoHa Ubuntu 24.04 イメージ (`ss` などの `iproute2` コマンドが標準で利用可能)
+- ConoHa Ubuntu 24.04 イメージ (`iproute2` の `ip` コマンドが利用可能、`ADVERTISE_ADDR` の自動検出に使用)
 
 ## デプロイ
 
@@ -207,9 +207,9 @@ sudo rm -rf /etc/dokploy
 
 ## トラブルシューティング
 
-### ポート競合で install-on-conoha.sh が落ちる
+### ポート競合でインストールが落ちる
 
-`install-on-conoha.sh` は :80 / :443 / :3000 のいずれかが既に使われていると即座に終了します。`ss -tulnp` で何が使っているか確認し、`systemctl stop` 等で止めてから再実行してください。
+公式 `install.sh` は :80 / :443 / :3000 のいずれかが既に使われていると `Error: something is already running on port ...` で停止します。`ss -tulnp` で何が使っているか確認し、`systemctl stop` 等で止めてから `install-on-conoha.sh` を再実行してください。
 
 ### Swarm overlay の CIDR が他のネットワークと衝突する
 
