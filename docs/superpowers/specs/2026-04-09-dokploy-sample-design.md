@@ -67,9 +67,11 @@ that is specific to ConoHa VPS or to reproducibility, then delegate.
 2. Verify the script is running as root (the upstream installer requires it).
 3. Pre-check that ports 80, 443, and 3000 are free; fail fast with a clear
    message if not.
-4. Honor `DOKPLOY_VERSION` if the user exported it; otherwise pin to a known
-   stable version (not "latest") for reproducibility. The pinned version
-   string lives at the top of the script as a single editable variable.
+4. Honor `DOKPLOY_VERSION` if the user exported it; otherwise default to a
+   specific tagged release (the latest stable Dokploy release at the time of
+   implementation, e.g. `v0.26.x`) — never `latest` or `canary`. The pinned
+   version string lives at the top of the script as a single editable
+   variable so future bumps are a one-line change.
 5. Set `DOCKER_SWARM_INIT_ARGS="--default-addr-pool 10.20.0.0/16
    --default-addr-pool-mask-length 24"` by default to leave room around
    ConoHa's private network. Allow the user to override by exporting the
@@ -130,8 +132,12 @@ Sections (in order):
     template marketplace.
 11. **Production notes** — custom domain + automatic HTTPS via Let's Encrypt,
     backups, pinning `DOKPLOY_VERSION`.
-12. **Uninstall** — `docker stack rm` / `docker service rm` / volume removal /
-    `/etc/dokploy` cleanup as a copy-pasteable command block.
+12. **Uninstall** — copy-pasteable command block that mirrors the upstream
+    installer's structure: `docker service rm dokploy dokploy-postgres
+    dokploy-redis`, `docker rm -f dokploy-traefik`, `docker secret rm
+    dokploy_postgres_password`, `docker network rm dokploy-network`, `docker
+    volume rm dokploy dokploy-postgres dokploy-redis`, `docker swarm leave
+    --force`, and `rm -rf /etc/dokploy`.
 13. **Troubleshooting** — port conflicts, Swarm CIDR collisions, the meaning
     of `chmod 777 /etc/dokploy`.
 14. **Related links** — Dokploy official docs.
