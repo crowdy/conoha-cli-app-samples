@@ -89,22 +89,24 @@ conoha server ssh dokploy-host
 
 # 接続後（サーバー内で実行）
 curl -fsSL https://raw.githubusercontent.com/crowdy/conoha-cli-app-samples/main/dokploy/install-on-conoha.sh \
-  | sudo bash
+  | sudo -E bash
 ```
+
+> **`sudo -E` の理由**: 後述の `DOKPLOY_VERSION` や `DOCKER_SWARM_INIT_ARGS` などの環境変数を override したい場合、`-E` がないと sudo が環境変数を剥がしてしまい override が無視されます。常に `-E` を付ける運用にしておくと安全です。
 
 スクリプトは以下を行います:
 
-1. root 権限と ports 80 / 443 / 3000 の空き状況を事前チェック
-2. 環境変数 `DOKPLOY_VERSION` (デフォルト `v0.28.8`) と `DOCKER_SWARM_INIT_ARGS` を設定
-3. 公式 `https://dokploy.com/install.sh` を呼び出す (Docker のインストール、Swarm init、3 つの Swarm サービスと Traefik コンテナの起動を全自動で実施)
-4. 完了後にダッシュボード URL と次のステップを表示
+1. root 権限を確認
+2. `ADVERTISE_ADDR` を自動検出 (ConoHa VPS3 のように public IPv4 のみのホストで公式 install.sh が止まる問題を回避)
+3. 環境変数 `DOKPLOY_VERSION` (デフォルト `v0.28.8`) と `DOCKER_SWARM_INIT_ARGS` を設定
+4. 公式 `https://dokploy.com/install.sh` を呼び出す (Docker のインストール、Swarm init、3 つの Swarm サービスと Traefik コンテナの起動を全自動で実施)
 
 ### 代替: リポをクローンして実行
 
 ```bash
 git clone https://github.com/crowdy/conoha-cli-app-samples.git
 cd conoha-cli-app-samples/dokploy
-sudo bash install-on-conoha.sh
+sudo -E bash install-on-conoha.sh
 ```
 
 ### バージョンを変更したい場合
@@ -149,7 +151,7 @@ curl -fsSL https://raw.githubusercontent.com/crowdy/conoha-cli-app-samples/main/
 
 **Domains** タブを開き、**Add Domain** をクリック。Dokploy が自動生成する `*.traefik.me` のホスト名 (例: `<random>.traefik.me`) を採用すると、外部 DNS なしでアクセスできます。
 
-> `*.traefik.me` が解決しない場合は、サーバーの IP アドレスをホスト名にして、Dokploy が割り当てた内部ポートで直接アクセスする方法もあります。`Show Logs` で割り当てポートを確認できます。
+> `*.traefik.me` が解決しない環境では、`<server-ip>.nip.io` (例: `203.0.113.42.nip.io`) を Domain に指定してください。`nip.io` は任意の IP に対するワイルドカード DNS を無料で提供しており、外部 DNS 設定なしで即座に動作します。
 
 ### 5. デプロイ
 
@@ -178,7 +180,7 @@ Dokploy には Pocketbase / Plausible / Cal.com など人気の OSS をワンク
 
 ## アンインストール
 
-完全に元に戻したい場合は以下を順に実行します:
+完全に元に戻したい場合は以下を順に実行します。すべて root 権限で実行してください (例: `sudo -i` で root シェルに入った後に貼り付け):
 
 ```bash
 # Dokploy のサービスを削除
@@ -222,6 +224,16 @@ sudo -E bash install-on-conoha.sh
 
 公式 `install.sh` がそのように作成します。Dokploy 本体および Traefik コンテナがそれぞれ非 root ユーザでこのディレクトリを読み書きするためです。本番運用時に懸念がある場合は、Dokploy のドキュメントを参照して所有者・モードを調整してください。
 
+### `ADVERTISE_ADDR` を手動で指定したい
+
+`install-on-conoha.sh` はホストに RFC1918 (10.x / 172.16-31.x / 192.168.x) の私設 IP がない場合、自動的に public IPv4 を検出して `ADVERTISE_ADDR` に設定します。社内ネットワーク経由で別の IP を使いたい場合は、明示的に渡してください:
+
+```bash
+ADVERTISE_ADDR=10.20.30.40 sudo -E bash install-on-conoha.sh
+```
+
+`sudo -E` で環境変数を維持するのを忘れないでください (`-E` がないと sudo が `ADVERTISE_ADDR` を剥がしてしまいます)。
+
 ### 動作確認チェックリスト
 
 - [ ] `conoha server create --flavor g2l-t-4 ...` が成功する
@@ -229,7 +241,7 @@ sudo -E bash install-on-conoha.sh
 - [ ] `http://<IP>:3000` で Dokploy のダッシュボードが見える
 - [ ] 初期管理者アカウントを作成できる
 - [ ] hello-world ウォークスルーで `Hello World` ページが表示される
-- [ ] アンインストール手順で完全に元に戻る (`docker info | grep Swarm` が `inactive`)
+- [ ] アンインストール手順で完全に元に戻る (`docker info | grep "Swarm: inactive"` が一致する)
 
 ## 関連リンク
 
