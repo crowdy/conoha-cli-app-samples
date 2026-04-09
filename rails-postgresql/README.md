@@ -4,7 +4,7 @@ Rails と PostgreSQL を使ったシンプルな投稿アプリです。scaffold
 
 ## 構成
 
-- Ruby 3.3 + Rails 8.0
+- Ruby 3.4 + Rails 8.1
 - PostgreSQL 17
 - ポート: 3000
 

@@ -2,6 +2,6 @@
 set -e
 
 # Run database migrations automatically
-rails db:prepare
+./bin/rails db:prepare
 
 exec "$@"
