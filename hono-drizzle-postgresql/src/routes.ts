@@ -61,12 +61,19 @@ const ErrorSchema = z
   .openapi("Error");
 
 const IdParamSchema = z.object({
-  id: z.coerce
-    .number()
-    .int()
-    .positive()
-    .openapi({ param: { name: "id", in: "path" }, example: 1 }),
+  id: z
+    .string()
+    .openapi({ param: { name: "id", in: "path" }, example: "1" }),
 });
+
+// Parse a path-param id to a positive integer, or null if invalid.
+// We do this in handlers rather than with z.coerce in the schema because
+// coerced number schemas don't round-trip cleanly through @hono/zod-openapi's
+// OpenAPI spec generation.
+function parseId(raw: string): number | null {
+  const n = Number(raw);
+  return Number.isInteger(n) && n > 0 ? n : null;
+}
 
 const listRoute = createRoute({
   method: "get",
@@ -231,7 +238,8 @@ export function registerRoutes(app: OpenAPIHono) {
   });
 
   app.openapi(getRoute, async (c) => {
-    const { id } = c.req.valid("params");
+    const id = parseId(c.req.valid("param").id);
+    if (id === null) return c.json({ message: "Not found" }, 404);
     const [row] = await db
       .select()
       .from(bookmarks)
@@ -255,7 +263,8 @@ export function registerRoutes(app: OpenAPIHono) {
   });
 
   app.openapi(updateRoute, async (c) => {
-    const { id } = c.req.valid("params");
+    const id = parseId(c.req.valid("param").id);
+    if (id === null) return c.json({ message: "Not found" }, 404);
     const body = c.req.valid("json");
     const [updated] = await db
       .update(bookmarks)
@@ -273,7 +282,8 @@ export function registerRoutes(app: OpenAPIHono) {
   });
 
   app.openapi(deleteRoute, async (c) => {
-    const { id } = c.req.valid("params");
+    const id = parseId(c.req.valid("param").id);
+    if (id === null) return c.json({ message: "Not found" }, 404);
     const [deleted] = await db
       .delete(bookmarks)
       .where(eq(bookmarks.id, id))

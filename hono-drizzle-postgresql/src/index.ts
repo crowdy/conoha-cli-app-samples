@@ -5,7 +5,24 @@ import { OpenAPIHono } from "@hono/zod-openapi";
 import { initDb } from "./db/index";
 import { registerRoutes } from "./routes";
 
-const app = new OpenAPIHono();
+// defaultHook formats zod validation failures as clean JSON instead of
+// leaking the raw ZodError dump to clients.
+const app = new OpenAPIHono({
+  defaultHook: (result, c) => {
+    if (!result.success) {
+      return c.json(
+        {
+          message: "Validation failed",
+          errors: result.error.issues.map((issue) => ({
+            path: issue.path.join("."),
+            message: issue.message,
+          })),
+        },
+        400
+      );
+    }
+  },
+});
 
 registerRoutes(app);
 
