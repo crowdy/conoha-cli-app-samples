@@ -41,16 +41,20 @@ DOCKER_SWARM_INIT_ARGS="${DOCKER_SWARM_INIT_ARGS:-$DEFAULT_SWARM_INIT_ARGS}"
 
 require_root() {
     if [ "$(id -u)" -ne 0 ]; then
-        echo "Error: this script must be run as root (try: sudo bash install-on-conoha.sh)" >&2
+        echo "Error: this script must be run as root. Re-run with sudo (e.g. 'curl -fsSL <url> | sudo bash' or 'sudo bash install-on-conoha.sh')." >&2
         exit 1
     fi
 }
 
 require_free_ports() {
+    if ! command -v ss >/dev/null 2>&1; then
+        echo "Error: 'ss' command not found. Install 'iproute2' and retry." >&2
+        exit 1
+    fi
     local conflicts=()
     local port
-    for port in 80 443 3000; do
-        if ss -tulnH 2>/dev/null | awk '{print $5}' | grep -Eq ":${port}$"; then
+    for port in 80 443 3000; do  # 80/443 = Traefik, 3000 = Dokploy dashboard
+        if ss -tulnH | awk '{print $5}' | grep -Eq ":${port}$"; then
             conflicts+=("${port}")
         fi
     done
@@ -98,4 +102,9 @@ main() {
     print_next_steps
 }
 
-main "$@"
+# Brace group ensures bash reads the entire script before executing,
+# which is the standard mitigation for `curl ... | bash` pipe-truncation.
+{
+    main "$@"
+    exit $?
+}
