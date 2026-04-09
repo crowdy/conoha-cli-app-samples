@@ -10,6 +10,36 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
+type productResp struct {
+	ID          uuid.UUID `json:"id"`
+	Name        string    `json:"name"`
+	Description string    `json:"description"`
+	PriceCents  int32     `json:"price_cents"`
+	Currency    string    `json:"currency"`
+	ImageUrl    string    `json:"image_url"`
+	InStock     bool      `json:"in_stock"`
+}
+
+func productToResp(p generated.Product) productResp {
+	desc := ""
+	if p.Description.Valid {
+		desc = p.Description.String
+	}
+	imgUrl := ""
+	if p.ImageUrl.Valid {
+		imgUrl = p.ImageUrl.String
+	}
+	return productResp{
+		ID:          uuidFromPgtype(p.ID),
+		Name:        p.Name,
+		Description: desc,
+		PriceCents:  p.PriceCents,
+		Currency:    p.Currency,
+		ImageUrl:    imgUrl,
+		InStock:     p.InStock,
+	}
+}
+
 type ProductsHandler struct {
 	queries *generated.Queries
 }
@@ -24,8 +54,12 @@ func (h *ProductsHandler) List(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, `{"error":"failed to list products"}`, http.StatusInternalServerError)
 		return
 	}
+	resp := make([]productResp, len(products))
+	for i, p := range products {
+		resp[i] = productToResp(p)
+	}
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(products)
+	json.NewEncoder(w).Encode(resp)
 }
 
 func (h *ProductsHandler) Get(w http.ResponseWriter, r *http.Request) {
@@ -42,5 +76,5 @@ func (h *ProductsHandler) Get(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(product)
+	json.NewEncoder(w).Encode(productToResp(product))
 }
