@@ -1,5 +1,12 @@
 import { Database } from "bun:sqlite";
 
+export type Message = {
+  id: number;
+  nickname: string;
+  content: string;
+  created_at: string;
+};
+
 const DB_PATH = process.env.DB_PATH || "/data/chat.db";
 const db = new Database(DB_PATH, { create: true });
 
@@ -12,29 +19,14 @@ db.run(`
   )
 `);
 
-export function saveMessage(
-  nickname: string,
-  content: string
-): { id: number; nickname: string; content: string; created_at: string } {
+export function saveMessage(nickname: string, content: string): Message {
   const stmt = db.prepare(
     "INSERT INTO messages (nickname, content) VALUES (?, ?) RETURNING *"
   );
-  return stmt.get(nickname, content) as {
-    id: number;
-    nickname: string;
-    content: string;
-    created_at: string;
-  };
+  return stmt.get(nickname, content) as Message;
 }
 
-export function getMessages(limit = 50): {
-  id: number;
-  nickname: string;
-  content: string;
-  created_at: string;
-}[] {
-  const stmt = db.prepare(
-    "SELECT * FROM messages ORDER BY id DESC LIMIT ?"
-  );
-  return (stmt.all(limit) as any[]).reverse();
+export function getMessages(limit = 50): Message[] {
+  const stmt = db.prepare("SELECT * FROM messages ORDER BY id DESC LIMIT ?");
+  return (stmt.all(limit) as Message[]).reverse();
 }
