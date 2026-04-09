@@ -27,12 +27,24 @@ const server = http.createServer((req, res) => {
     <button onclick="callApi()">Call API</button>
     <div id="result"></div>
   </div>
+  <div class="card">
+    <p>Check proxy headers via <code>/debug/headers</code></p>
+    <button onclick="debugHeaders()">Show Headers</button>
+    <pre id="headers" style="margin-top:0.5rem;background:#222;color:#0f0;padding:1rem;border-radius:4px;overflow-x:auto;display:none"></pre>
+  </div>
   <script>
     async function callApi() {
       const res = await fetch("/api/hello");
       const data = await res.json();
       document.getElementById("result").innerHTML =
         '<p style="margin-top:0.5rem">Response: <code>' + JSON.stringify(data) + '</code></p>';
+    }
+    async function debugHeaders() {
+      const res = await fetch("/debug/headers");
+      const data = await res.json();
+      const el = document.getElementById("headers");
+      el.style.display = "block";
+      el.textContent = JSON.stringify(data, null, 2);
     }
   </script>
 </body>

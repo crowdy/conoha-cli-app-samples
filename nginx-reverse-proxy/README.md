@@ -33,6 +33,63 @@ conoha app deploy myserver --app-name reverse-proxy
 - `http://<サーバーIP>/` → App 1（Node.js フロントエンド）
 - `http://<サーバーIP>/api/hello` → App 2（Python API）
 - `http://<サーバーIP>/health` → nginx ヘルスチェック
+- `http://<サーバーIP>/debug/headers` → プロキシ転送ヘッダーの確認
+
+## リバースプロキシ機能
+
+`nginx.conf` には以下のリバースプロキシ設定が含まれています。
+
+### Forwarded Headers
+
+バックエンドにクライアント情報を転送するヘッダー群です。
+
+| ヘッダー | 内容 |
+|---------|------|
+| `X-Real-IP` | クライアントの実 IP アドレス |
+| `X-Forwarded-For` | プロキシチェーン全体の IP リスト |
+| `X-Forwarded-Proto` | クライアントが使用したプロトコル（http/https） |
+| `X-Forwarded-Host` | クライアントがリクエストしたホスト名 |
+| `X-Forwarded-Port` | クライアントがアクセスしたポート番号 |
+| `X-Request-ID` | リクエストごとのユニーク ID（トレーシング用） |
+
+`/debug/headers` エンドポイントでバックエンドが受け取ったヘッダーを確認できます。
+
+### Security Headers
+
+すべてのレスポンスに付与されるセキュリティヘッダーです。
+
+- `X-Content-Type-Options: nosniff` — MIME タイプスニッフィング防止
+- `X-Frame-Options: SAMEORIGIN` — クリックジャッキング防止
+- `X-XSS-Protection: 1; mode=block` — XSS フィルター有効化
+- `Referrer-Policy: strict-origin-when-cross-origin` — リファラー情報の制御
+- `X-Served-By: nginx-reverse-proxy-demo` — 経由プロキシの識別
+
+### Rate Limiting
+
+IP アドレスごとにリクエストレートを制限します。
+
+- フロントエンド（`/`）: 10 リクエスト/秒、バースト 20
+- API（`/api/`）: 5 リクエスト/秒、バースト 10
+
+### IP Filtering
+
+`geo $blocked_ip` ブロックで IP アドレスやサブネット単位のアクセスブロックが可能です。
+
+```nginx
+geo $blocked_ip {
+    default 0;
+    192.168.100.0/24 1;   # このサブネットをブロック
+    10.0.0.5 1;            # この IP をブロック
+}
+```
+
+### 機密パスのブロック
+
+`/.env`、`/.git`、`/.htpasswd` へのアクセスは 404 を返します。
+
+### CORS
+
+`/api/` パスには CORS ヘッダーが付与されます。`OPTIONS` リクエストにはプリフライト応答（204）を返します。
 
 ## カスタマイズ
 
