@@ -96,7 +96,7 @@ curl -fsSL https://raw.githubusercontent.com/crowdy/conoha-cli-app-samples/main/
 
 1. root 権限と ports 80 / 443 / 3000 の空き状況を事前チェック
 2. 環境変数 `DOKPLOY_VERSION` (デフォルト `v0.28.8`) と `DOCKER_SWARM_INIT_ARGS` を設定
-3. 公式 `https://dokploy.com/install.sh` を呼び出す (Docker のインストール、Swarm init、4 サービス起動を全自動で実施)
+3. 公式 `https://dokploy.com/install.sh` を呼び出す (Docker のインストール、Swarm init、3 つの Swarm サービスと Traefik コンテナの起動を全自動で実施)
 4. 完了後にダッシュボード URL と次のステップを表示
 
 ### 代替: リポをクローンして実行
