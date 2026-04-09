@@ -186,6 +186,11 @@ Dokploy には Pocketbase / Plausible / Cal.com など人気の OSS をワンク
 # Dokploy のサービスを削除
 docker service rm dokploy dokploy-postgres dokploy-redis
 
+# Swarm はサービス削除後もタスクコンテナを非同期に reap するため、
+# 全タスクコンテナが消えるまで待つ (これがないと次の volume rm が
+# "volume is in use" で失敗します)
+while docker ps -aq --filter "label=com.docker.swarm.service.name" | grep -q .; do sleep 1; done
+
 # Traefik コンテナを削除
 docker rm -f dokploy-traefik
 
@@ -202,7 +207,7 @@ docker volume rm dokploy dokploy-postgres dokploy-redis
 docker swarm leave --force
 
 # Dokploy の設定ディレクトリを削除
-sudo rm -rf /etc/dokploy
+rm -rf /etc/dokploy
 ```
 
 ## トラブルシューティング
