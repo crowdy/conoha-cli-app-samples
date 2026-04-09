@@ -90,7 +90,7 @@
     <div class="row">
       <input type="text" id="search" placeholder="Search bookmarks...">
       <input type="text" id="tag-filter" placeholder="Filter by tag">
-      <button onclick="loadBookmarks()">Search</button>
+      <button id="search-btn">Search</button>
     </div>
   </div>
 
@@ -102,7 +102,30 @@
     const container = document.getElementById('bookmarks');
     const pagination = document.getElementById('pagination');
     const submitBtn = document.getElementById('submit-btn');
+    const searchInput = document.getElementById('search');
+    const tagFilterInput = document.getElementById('tag-filter');
+    document.getElementById('search-btn').addEventListener('click', () => loadBookmarks());
+
+    // Keep the last-loaded bookmarks for event-delegation lookups.
+    let currentBookmarks = [];
     let currentPage = 1;
+
+    function escapeHtml(s) {
+      const d = document.createElement('div');
+      d.textContent = s == null ? '' : String(s);
+      return d.innerHTML;
+    }
+
+    // Only allow http/https URLs in href attributes.
+    function safeHref(u) {
+      try {
+        const parsed = new URL(u);
+        if (parsed.protocol === 'http:' || parsed.protocol === 'https:') {
+          return escapeHtml(parsed.href);
+        }
+      } catch {}
+      return '#';
+    }
 
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
@@ -114,14 +137,20 @@
         description: fd.get('description') || undefined,
         tags: fd.get('tags') ? fd.get('tags').split(',').map(t => t.trim()).filter(Boolean) : [],
       };
-      if (id) {
-        await fetch(`/api/bookmarks/${id}`, {
-          method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
-        });
-      } else {
-        await fetch('/api/bookmarks', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
-        });
+      const res = id
+        ? await fetch(`/api/bookmarks/${id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+          })
+        : await fetch('/api/bookmarks', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+          });
+      if (!res.ok) {
+        alert('Failed to save bookmark');
+        return;
       }
       form.reset();
       submitBtn.textContent = 'Add Bookmark';
@@ -139,44 +168,78 @@
     }
 
     async function deleteBookmark(id) {
-      await fetch(`/api/bookmarks/${id}`, { method: 'DELETE' });
+      const res = await fetch(`/api/bookmarks/${id}`, { method: 'DELETE' });
+      if (!res.ok && res.status !== 404) {
+        alert('Failed to delete bookmark');
+        return;
+      }
       loadBookmarks();
     }
 
     function filterByTag(tag) {
-      document.getElementById('tag-filter').value = tag;
+      tagFilterInput.value = tag;
       loadBookmarks();
     }
 
+    // Event delegation: one handler for the whole list, looking up data from
+    // dataset attributes. Avoids inline handlers and JSON-in-HTML injection.
+    container.addEventListener('click', (e) => {
+      const target = e.target;
+      if (!(target instanceof HTMLElement)) return;
+      if (target.matches('.edit')) {
+        const id = Number(target.dataset.id);
+        const b = currentBookmarks.find((x) => x.id === id);
+        if (b) editBookmark(b);
+      } else if (target.matches('.delete')) {
+        const id = Number(target.dataset.id);
+        if (Number.isInteger(id)) deleteBookmark(id);
+      } else if (target.matches('.tag')) {
+        filterByTag(target.dataset.tag || '');
+      }
+    });
+
+    pagination.addEventListener('click', (e) => {
+      const target = e.target;
+      if (target instanceof HTMLElement && target.dataset.page) {
+        loadBookmarks(Number(target.dataset.page));
+      }
+    });
+
     async function loadBookmarks(page = 1) {
       currentPage = page;
-      const q = document.getElementById('search').value;
-      const tag = document.getElementById('tag-filter').value;
+      const q = searchInput.value;
+      const tag = tagFilterInput.value;
       const params = new URLSearchParams();
       if (q) params.set('q', q);
       if (tag) params.set('tag', tag);
-      params.set('page', page);
+      params.set('page', String(page));
       params.set('limit', '20');
 
       const res = await fetch(`/api/bookmarks?${params}`);
+      if (!res.ok) {
+        container.innerHTML = '<div class="empty">Failed to load bookmarks.</div>';
+        pagination.innerHTML = '';
+        return;
+      }
       const data = await res.json();
+      currentBookmarks = data.bookmarks;
 
-      if (data.bookmarks.length === 0) {
+      if (currentBookmarks.length === 0) {
         container.innerHTML = '<div class="empty">No bookmarks yet. Add one above!</div>';
         pagination.innerHTML = '';
         return;
       }
 
-      container.innerHTML = data.bookmarks.map(b => `
+      container.innerHTML = currentBookmarks.map((b) => `
         <div class="bookmark">
-          <h3><a href="${b.url}" target="_blank">${b.title}</a></h3>
-          ${b.description ? `<p>${b.description}</p>` : ''}
+          <h3><a href="${safeHref(b.url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(b.title)}</a></h3>
+          ${b.description ? `<p>${escapeHtml(b.description)}</p>` : ''}
           <div class="tags">
-            ${(b.tags || []).map(t => `<span class="tag" onclick="filterByTag('${t}')">${t}</span>`).join('')}
+            ${(b.tags || []).map((t) => `<span class="tag" data-tag="${escapeHtml(t)}">${escapeHtml(t)}</span>`).join('')}
           </div>
           <div class="actions">
-            <button class="edit" onclick='editBookmark(${JSON.stringify(b)})'>Edit</button>
-            <button class="delete" onclick="deleteBookmark(${b.id})">Delete</button>
+            <button class="edit" data-id="${b.id}">Edit</button>
+            <button class="delete" data-id="${b.id}">Delete</button>
           </div>
         </div>
       `).join('');
@@ -185,7 +248,7 @@
       if (totalPages > 1) {
         let html = '';
         for (let i = 1; i <= totalPages; i++) {
-          html += `<button onclick="loadBookmarks(${i})" ${i === page ? 'disabled' : ''}>${i}</button>`;
+          html += `<button data-page="${i}" ${i === page ? 'disabled' : ''}>${i}</button>`;
         }
         pagination.innerHTML = html;
       } else {

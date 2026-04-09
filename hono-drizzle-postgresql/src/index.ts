@@ -24,9 +24,20 @@ app.get("/health", (c) => c.json({ status: "ok" }));
 
 app.get("/", serveStatic({ path: "./public/index.html" }));
 
-const port = 3000;
-initDb().then(() => {
-  serve({ fetch: app.fetch, port }, () => {
-    console.log(`Server running on port ${port}`);
-  });
+// Global error handler — prevents raw stack traces from leaking to clients.
+app.onError((err, c) => {
+  console.error("Unhandled error:", err);
+  return c.json({ message: "Internal server error" }, 500);
 });
+
+const port = 3000;
+initDb()
+  .then(() => {
+    serve({ fetch: app.fetch, port }, () => {
+      console.log(`Server running on port ${port}`);
+    });
+  })
+  .catch((err) => {
+    console.error("Failed to initialize database:", err);
+    process.exit(1);
+  });

@@ -1,7 +1,23 @@
 import { OpenAPIHono, createRoute, z } from "@hono/zod-openapi";
-import { eq, like, sql, and, or, desc, count } from "drizzle-orm";
+import { eq, ilike, sql, and, or, desc, count } from "drizzle-orm";
 import { db } from "./db/index";
 import { bookmarks } from "./db/schema";
+
+// Only allow http/https URLs (prevents javascript: and data: URLs)
+const httpUrl = z
+  .string()
+  .url()
+  .refine(
+    (u) => {
+      try {
+        const proto = new URL(u).protocol;
+        return proto === "http:" || proto === "https:";
+      } catch {
+        return false;
+      }
+    },
+    { message: "URL must use http or https protocol" }
+  );
 
 const BookmarkSchema = z
   .object({
@@ -22,16 +38,35 @@ const BookmarkSchema = z
 
 const CreateBookmarkSchema = z
   .object({
-    url: z.string().url().openapi({ example: "https://hono.dev" }),
-    title: z.string().min(1).openapi({ example: "Hono" }),
-    description: z.string().optional().openapi({ example: "Web framework" }),
+    url: httpUrl.openapi({ example: "https://hono.dev" }),
+    title: z.string().min(1).max(200).openapi({ example: "Hono" }),
+    description: z
+      .string()
+      .max(2000)
+      .optional()
+      .openapi({ example: "Web framework" }),
     tags: z
-      .array(z.string())
+      .array(z.string().max(50))
+      .max(20)
       .optional()
       .default([])
       .openapi({ example: ["typescript"] }),
   })
   .openapi("CreateBookmark");
+
+const ErrorSchema = z
+  .object({
+    message: z.string().openapi({ example: "Not found" }),
+  })
+  .openapi("Error");
+
+const IdParamSchema = z.object({
+  id: z.coerce
+    .number()
+    .int()
+    .positive()
+    .openapi({ param: { name: "id", in: "path" }, example: 1 }),
+});
 
 const listRoute = createRoute({
   method: "get",
@@ -72,15 +107,16 @@ const getRoute = createRoute({
   method: "get",
   path: "/api/bookmarks/{id}",
   tags: ["Bookmarks"],
-  request: {
-    params: z.object({ id: z.string().openapi({ example: "1" }) }),
-  },
+  request: { params: IdParamSchema },
   responses: {
     200: {
       content: { "application/json": { schema: BookmarkSchema } },
       description: "Bookmark detail",
     },
-    404: { description: "Not found" },
+    404: {
+      content: { "application/json": { schema: ErrorSchema } },
+      description: "Not found",
+    },
   },
 });
 
@@ -106,7 +142,7 @@ const updateRoute = createRoute({
   path: "/api/bookmarks/{id}",
   tags: ["Bookmarks"],
   request: {
-    params: z.object({ id: z.string().openapi({ example: "1" }) }),
+    params: IdParamSchema,
     body: {
       content: { "application/json": { schema: CreateBookmarkSchema } },
     },
@@ -116,7 +152,10 @@ const updateRoute = createRoute({
       content: { "application/json": { schema: BookmarkSchema } },
       description: "Updated bookmark",
     },
-    404: { description: "Not found" },
+    404: {
+      content: { "application/json": { schema: ErrorSchema } },
+      description: "Not found",
+    },
   },
 });
 
@@ -124,15 +163,16 @@ const deleteRoute = createRoute({
   method: "delete",
   path: "/api/bookmarks/{id}",
   tags: ["Bookmarks"],
-  request: {
-    params: z.object({ id: z.string().openapi({ example: "1" }) }),
-  },
+  request: { params: IdParamSchema },
   responses: {
     200: {
       content: { "application/json": { schema: BookmarkSchema } },
       description: "Deleted bookmark",
     },
-    404: { description: "Not found" },
+    404: {
+      content: { "application/json": { schema: ErrorSchema } },
+      description: "Not found",
+    },
   },
 });
 
@@ -148,22 +188,25 @@ function formatBookmark(row: typeof bookmarks.$inferSelect) {
   };
 }
 
+// Escape LIKE wildcards so user input is treated literally
+function escapeLike(s: string): string {
+  return s.replace(/[\\%_]/g, (c) => "\\" + c);
+}
+
 export function registerRoutes(app: OpenAPIHono) {
   app.openapi(listRoute, async (c) => {
     const { tag, q, page: pageStr, limit: limitStr } = c.req.valid("query");
-    const page = Number(pageStr) || 1;
-    const limit = Math.min(Number(limitStr) || 20, 100);
+    const page = Math.max(Number(pageStr) || 1, 1);
+    const limit = Math.min(Math.max(Number(limitStr) || 20, 1), 100);
 
     const conditions = [];
     if (tag) {
       conditions.push(sql`${bookmarks.tags} @> ARRAY[${tag}]::text[]`);
     }
     if (q) {
+      const pattern = `%${escapeLike(q)}%`;
       conditions.push(
-        or(
-          like(bookmarks.title, `%${q}%`),
-          like(bookmarks.url, `%${q}%`)
-        )
+        or(ilike(bookmarks.title, pattern), ilike(bookmarks.url, pattern))
       );
     }
     const where = conditions.length > 0 ? and(...conditions) : undefined;
@@ -188,7 +231,7 @@ export function registerRoutes(app: OpenAPIHono) {
   });
 
   app.openapi(getRoute, async (c) => {
-    const id = Number(c.req.valid("params").id);
+    const { id } = c.req.valid("params");
     const [row] = await db
       .select()
       .from(bookmarks)
@@ -205,14 +248,14 @@ export function registerRoutes(app: OpenAPIHono) {
         url: body.url,
         title: body.title,
         description: body.description ?? null,
-        tags: body.tags ?? [],
+        tags: body.tags,
       })
       .returning();
     return c.json(formatBookmark(created), 201);
   });
 
   app.openapi(updateRoute, async (c) => {
-    const id = Number(c.req.valid("params").id);
+    const { id } = c.req.valid("params");
     const body = c.req.valid("json");
     const [updated] = await db
       .update(bookmarks)
@@ -220,7 +263,7 @@ export function registerRoutes(app: OpenAPIHono) {
         url: body.url,
         title: body.title,
         description: body.description ?? null,
-        tags: body.tags ?? [],
+        tags: body.tags,
         updatedAt: new Date(),
       })
       .where(eq(bookmarks.id, id))
@@ -230,7 +273,7 @@ export function registerRoutes(app: OpenAPIHono) {
   });
 
   app.openapi(deleteRoute, async (c) => {
-    const id = Number(c.req.valid("params").id);
+    const { id } = c.req.valid("params");
     const [deleted] = await db
       .delete(bookmarks)
       .where(eq(bookmarks.id, id))
