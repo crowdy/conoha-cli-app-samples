@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Bookmarks - Hono on ConoHa</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      max-width: 800px;
+      margin: 2rem auto;
+      padding: 0 1rem;
+      background: #f5f5f5;
+      color: #333;
+    }
+    h1 { margin-bottom: 0.5rem; }
+    .subtitle { color: #666; margin-bottom: 1.5rem; }
+    .subtitle a { color: #1976d2; }
+    .form-box, .search-box {
+      background: #fff;
+      padding: 1rem;
+      border-radius: 8px;
+      margin-bottom: 1rem;
+    }
+    input, textarea {
+      width: 100%;
+      padding: 0.5rem;
+      margin-bottom: 0.5rem;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      font-size: 1rem;
+      box-sizing: border-box;
+    }
+    textarea { height: 60px; resize: vertical; }
+    .row { display: flex; gap: 0.5rem; }
+    .row input { flex: 1; }
+    button {
+      padding: 0.5rem 1.5rem;
+      background: #1976d2;
+      color: #fff;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 1rem;
+    }
+    button:hover { background: #1565c0; }
+    .delete { background: #d32f2f; font-size: 0.85rem; padding: 0.3rem 0.8rem; }
+    .delete:hover { background: #c62828; }
+    .edit { background: #f57c00; font-size: 0.85rem; padding: 0.3rem 0.8rem; }
+    .bookmark {
+      background: #fff;
+      padding: 1rem;
+      border-radius: 8px;
+      margin-bottom: 0.75rem;
+    }
+    .bookmark h3 { margin: 0 0 0.3rem; font-size: 1.1rem; }
+    .bookmark h3 a { color: #1976d2; text-decoration: none; }
+    .bookmark p { margin: 0.3rem 0; color: #666; font-size: 0.95rem; }
+    .tags { display: flex; gap: 0.3rem; flex-wrap: wrap; margin-top: 0.5rem; }
+    .tag {
+      background: #e3f2fd;
+      color: #1565c0;
+      padding: 0.15rem 0.5rem;
+      border-radius: 12px;
+      font-size: 0.8rem;
+      cursor: pointer;
+    }
+    .actions { margin-top: 0.5rem; display: flex; gap: 0.5rem; }
+    .empty { text-align: center; color: #999; padding: 2rem; }
+    .pagination { text-align: center; margin-top: 1rem; }
+    .pagination button { margin: 0 0.25rem; }
+  </style>
+</head>
+<body>
+  <h1>Bookmarks</h1>
+  <p class="subtitle">Hono + Drizzle + PostgreSQL &mdash; <a href="/doc">Swagger UI</a></p>
+
+  <div class="form-box">
+    <form id="bookmark-form">
+      <input type="url" name="url" placeholder="URL" required>
+      <input type="text" name="title" placeholder="Title" required>
+      <textarea name="description" placeholder="Description (optional)"></textarea>
+      <input type="text" name="tags" placeholder="Tags (comma separated)">
+      <input type="hidden" name="id">
+      <button type="submit" id="submit-btn">Add Bookmark</button>
+    </form>
+  </div>
+
+  <div class="search-box">
+    <div class="row">
+      <input type="text" id="search" placeholder="Search bookmarks...">
+      <input type="text" id="tag-filter" placeholder="Filter by tag">
+      <button id="search-btn">Search</button>
+    </div>
+  </div>
+
+  <div id="bookmarks"></div>
+  <div class="pagination" id="pagination"></div>
+
+  <script>
+    const form = document.getElementById('bookmark-form');
+    const container = document.getElementById('bookmarks');
+    const pagination = document.getElementById('pagination');
+    const submitBtn = document.getElementById('submit-btn');
+    const searchInput = document.getElementById('search');
+    const tagFilterInput = document.getElementById('tag-filter');
+    document.getElementById('search-btn').addEventListener('click', () => loadBookmarks());
+
+    // Keep the last-loaded bookmarks for event-delegation lookups.
+    let currentBookmarks = [];
+    let currentPage = 1;
+
+    function escapeHtml(s) {
+      const d = document.createElement('div');
+      d.textContent = s == null ? '' : String(s);
+      return d.innerHTML;
+    }
+
+    // Only allow http/https URLs in href attributes.
+    function safeHref(u) {
+      try {
+        const parsed = new URL(u);
+        if (parsed.protocol === 'http:' || parsed.protocol === 'https:') {
+          return escapeHtml(parsed.href);
+        }
+      } catch {}
+      return '#';
+    }
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const fd = new FormData(form);
+      const id = fd.get('id');
+      const body = {
+        url: fd.get('url'),
+        title: fd.get('title'),
+        description: fd.get('description') || undefined,
+        tags: fd.get('tags') ? fd.get('tags').split(',').map(t => t.trim()).filter(Boolean) : [],
+      };
+      const res = id
+        ? await fetch(`/api/bookmarks/${id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+          })
+        : await fetch('/api/bookmarks', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+          });
+      if (!res.ok) {
+        alert('Failed to save bookmark');
+        return;
+      }
+      form.reset();
+      submitBtn.textContent = 'Add Bookmark';
+      loadBookmarks();
+    });
+
+    function editBookmark(b) {
+      form.url.value = b.url;
+      form.title.value = b.title;
+      form.description.value = b.description || '';
+      form.tags.value = (b.tags || []).join(', ');
+      form.id.value = b.id;
+      submitBtn.textContent = 'Update Bookmark';
+      window.scrollTo(0, 0);
+    }
+
+    async function deleteBookmark(id) {
+      const res = await fetch(`/api/bookmarks/${id}`, { method: 'DELETE' });
+      if (!res.ok && res.status !== 404) {
+        alert('Failed to delete bookmark');
+        return;
+      }
+      loadBookmarks();
+    }
+
+    function filterByTag(tag) {
+      tagFilterInput.value = tag;
+      loadBookmarks();
+    }
+
+    // Event delegation: one handler for the whole list, looking up data from
+    // dataset attributes. Avoids inline handlers and JSON-in-HTML injection.
+    container.addEventListener('click', (e) => {
+      const target = e.target;
+      if (!(target instanceof HTMLElement)) return;
+      if (target.matches('.edit')) {
+        const id = Number(target.dataset.id);
+        const b = currentBookmarks.find((x) => x.id === id);
+        if (b) editBookmark(b);
+      } else if (target.matches('.delete')) {
+        const id = Number(target.dataset.id);
+        if (Number.isInteger(id)) deleteBookmark(id);
+      } else if (target.matches('.tag')) {
+        filterByTag(target.dataset.tag || '');
+      }
+    });
+
+    pagination.addEventListener('click', (e) => {
+      const target = e.target;
+      if (target instanceof HTMLElement && target.dataset.page) {
+        loadBookmarks(Number(target.dataset.page));
+      }
+    });
+
+    async function loadBookmarks(page = 1) {
+      currentPage = page;
+      const q = searchInput.value;
+      const tag = tagFilterInput.value;
+      const params = new URLSearchParams();
+      if (q) params.set('q', q);
+      if (tag) params.set('tag', tag);
+      params.set('page', String(page));
+      params.set('limit', '20');
+
+      const res = await fetch(`/api/bookmarks?${params}`);
+      if (!res.ok) {
+        container.innerHTML = '<div class="empty">Failed to load bookmarks.</div>';
+        pagination.innerHTML = '';
+        return;
+      }
+      const data = await res.json();
+      currentBookmarks = data.bookmarks;
+
+      if (currentBookmarks.length === 0) {
+        container.innerHTML = '<div class="empty">No bookmarks yet. Add one above!</div>';
+        pagination.innerHTML = '';
+        return;
+      }
+
+      container.innerHTML = currentBookmarks.map((b) => `
+        <div class="bookmark">
+          <h3><a href="${safeHref(b.url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(b.title)}</a></h3>
+          ${b.description ? `<p>${escapeHtml(b.description)}</p>` : ''}
+          <div class="tags">
+            ${(b.tags || []).map((t) => `<span class="tag" data-tag="${escapeHtml(t)}">${escapeHtml(t)}</span>`).join('')}
+          </div>
+          <div class="actions">
+            <button class="edit" data-id="${b.id}">Edit</button>
+            <button class="delete" data-id="${b.id}">Delete</button>
+          </div>
+        </div>
+      `).join('');
+
+      const totalPages = Math.ceil(data.total / data.limit);
+      if (totalPages > 1) {
+        let html = '';
+        for (let i = 1; i <= totalPages; i++) {
+          html += `<button data-page="${i}" ${i === page ? 'disabled' : ''}>${i}</button>`;
+        }
+        pagination.innerHTML = html;
+      } else {
+        pagination.innerHTML = '';
+      }
+    }
+
+    loadBookmarks();
+  </script>
+</body>
+</html>

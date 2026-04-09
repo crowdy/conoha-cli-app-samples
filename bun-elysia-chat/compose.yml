@@ -1,0 +1,11 @@
+services:
+  web:
+    build: .
+    ports:
+      - "3000:3000"
+    volumes:
+      - chat_data:/data
+    restart: unless-stopped
+
+volumes:
+  chat_data:

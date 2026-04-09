@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Chat - Elysia on ConoHa</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #1a1a2e;
+      color: #eee;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+    header {
+      background: #16213e;
+      padding: 1rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    header h1 { font-size: 1.2rem; }
+    #status {
+      font-size: 0.85rem;
+      padding: 0.3rem 0.8rem;
+      border-radius: 12px;
+      background: #0f3460;
+    }
+    #status.connected { background: #1b5e20; }
+    #messages {
+      flex: 1;
+      overflow-y: auto;
+      padding: 1rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+    .msg {
+      max-width: 80%;
+      padding: 0.5rem 0.75rem;
+      border-radius: 8px;
+      background: #16213e;
+    }
+    .msg .nick {
+      font-size: 0.8rem;
+      color: #64b5f6;
+      margin-bottom: 0.2rem;
+    }
+    .msg .text { word-break: break-word; }
+    .msg .time {
+      font-size: 0.7rem;
+      color: #666;
+      margin-top: 0.2rem;
+    }
+    .msg.self { align-self: flex-end; background: #0f3460; }
+    .msg.system {
+      align-self: center;
+      background: transparent;
+      color: #666;
+      font-size: 0.85rem;
+      max-width: 100%;
+    }
+    #chat-form {
+      display: flex;
+      gap: 0.5rem;
+      padding: 1rem;
+      background: #16213e;
+    }
+    #message-input {
+      flex: 1;
+      padding: 0.75rem;
+      border: 1px solid #333;
+      border-radius: 8px;
+      background: #1a1a2e;
+      color: #eee;
+      font-size: 1rem;
+      outline: none;
+    }
+    #message-input:focus { border-color: #1976d2; }
+    #chat-form button {
+      padding: 0.75rem 1.5rem;
+      background: #1976d2;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 1rem;
+    }
+    #chat-form button:hover { background: #1565c0; }
+    .overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.7);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 10;
+    }
+    .overlay-box {
+      background: #16213e;
+      padding: 2rem;
+      border-radius: 12px;
+      text-align: center;
+    }
+    .overlay-box input {
+      padding: 0.75rem;
+      border: 1px solid #333;
+      border-radius: 8px;
+      background: #1a1a2e;
+      color: #eee;
+      font-size: 1rem;
+      margin: 1rem 0;
+      outline: none;
+      width: 200px;
+    }
+    .overlay-box button {
+      padding: 0.75rem 2rem;
+      background: #1976d2;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 1rem;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Elysia Chat on ConoHa</h1>
+    <div id="status">Connecting...</div>
+  </header>
+  <div id="messages"></div>
+  <form id="chat-form">
+    <input type="text" id="message-input" placeholder="Type a message..." autocomplete="off" disabled>
+    <button type="submit" disabled>Send</button>
+  </form>
+
+  <div class="overlay" id="nickname-overlay">
+    <div class="overlay-box">
+      <h2>Enter your nickname</h2>
+      <form id="nickname-form">
+        <input type="text" id="nickname-input" placeholder="Nickname" maxlength="20" autofocus required>
+        <br>
+        <button type="submit">Join Chat</button>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    const messagesEl = document.getElementById('messages');
+    const statusEl = document.getElementById('status');
+    const chatForm = document.getElementById('chat-form');
+    const messageInput = document.getElementById('message-input');
+    const sendBtn = chatForm.querySelector('button');
+    const nicknameOverlay = document.getElementById('nickname-overlay');
+    const nicknameForm = document.getElementById('nickname-form');
+    const nicknameInput = document.getElementById('nickname-input');
+
+    let ws;
+    let myNickname = '';
+
+    function addMessage(html, cls = '') {
+      const div = document.createElement('div');
+      div.className = `msg ${cls}`;
+      div.innerHTML = html;
+      messagesEl.appendChild(div);
+      messagesEl.scrollTop = messagesEl.scrollHeight;
+    }
+
+    function formatTime(t) {
+      const d = new Date(t.endsWith('Z') ? t : t + 'Z');
+      return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    }
+
+    async function loadHistory() {
+      const res = await fetch('/api/messages?limit=50');
+      const msgs = await res.json();
+      msgs.forEach(m => {
+        const isSelf = m.nickname === myNickname;
+        addMessage(
+          `<div class="nick">${m.nickname}</div><div class="text">${escapeHtml(m.content)}</div><div class="time">${formatTime(m.created_at)}</div>`,
+          isSelf ? 'self' : ''
+        );
+      });
+    }
+
+    function escapeHtml(s) {
+      const d = document.createElement('div');
+      d.textContent = s;
+      return d.innerHTML;
+    }
+
+    function connect() {
+      const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+      ws = new WebSocket(`${proto}//${location.host}/ws`);
+
+      ws.onopen = () => {
+        ws.send(JSON.stringify({ type: 'join', nickname: myNickname }));
+      };
+
+      ws.onmessage = (e) => {
+        const data = JSON.parse(e.data);
+        if (data.type === 'join') {
+          statusEl.textContent = `Online: ${data.online}`;
+          statusEl.className = 'connected';
+          addMessage(`${escapeHtml(data.nickname)} joined`, 'system');
+        } else if (data.type === 'leave') {
+          statusEl.textContent = `Online: ${data.online}`;
+          addMessage(`${escapeHtml(data.nickname)} left`, 'system');
+        } else if (data.type === 'message') {
+          const isSelf = data.nickname === myNickname;
+          addMessage(
+            `<div class="nick">${escapeHtml(data.nickname)}</div><div class="text">${escapeHtml(data.content)}</div><div class="time">${formatTime(data.createdAt)}</div>`,
+            isSelf ? 'self' : ''
+          );
+        }
+      };
+
+      ws.onclose = () => {
+        statusEl.textContent = 'Disconnected. Reconnecting...';
+        statusEl.className = '';
+        setTimeout(connect, 2000);
+      };
+    }
+
+    nicknameForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      myNickname = nicknameInput.value.trim();
+      if (!myNickname) return;
+      nicknameOverlay.style.display = 'none';
+      messageInput.disabled = false;
+      sendBtn.disabled = false;
+      messageInput.focus();
+      await loadHistory();
+      connect();
+    });
+
+    chatForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const content = messageInput.value.trim();
+      if (!content || !ws || ws.readyState !== WebSocket.OPEN) return;
+      ws.send(JSON.stringify({ type: 'message', content }));
+      messageInput.value = '';
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,16 @@
+{
+  "name": "conoha-elysia-sample",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "bun run --watch src/index.ts",
+    "start": "bun run src/index.ts"
+  },
+  "dependencies": {
+    "elysia": "^1.4.28",
+    "@elysiajs/static": "^1.4.7"
+  },
+  "devDependencies": {
+    "typescript": "^5.8.0"
+  }
+}
