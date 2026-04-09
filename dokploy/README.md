@@ -6,7 +6,7 @@
 
 > **このサンプルは他のサンプルと違い、`conoha app deploy` を使いません。**
 >
-> Dokploy 自体が PaaS コントローラであり、内部で Docker Swarm を必須としています。公式 `install.sh` が Swarm 初期化、overlay ネットワーク作成、Swarm secret の生成、4 つのサービス起動を一括で行うため、`docker compose up` だけで再現するのは現実的ではありません。
+> Dokploy 自体が PaaS コントローラであり、内部で Docker Swarm を必須としています。公式 `install.sh` が Swarm 初期化、overlay ネットワーク作成、Swarm secret の生成、3 つの Swarm サービスと Traefik コンテナの起動を一括で行うため、`docker compose up` だけで再現するのは現実的ではありません。
 >
 > このサンプルでは公式インストーラを ConoHa 向けに薄くラップした `install-on-conoha.sh` を提供します。
 
@@ -47,6 +47,8 @@
 - **dokploy**: メインのコントロールプレーン。Web UI を :3000 で公開 (`docker service`)
 - **dokploy-postgres**: Dokploy 自身のメタデータ用 (`docker service`)
 - **dokploy-redis**: Dokploy 自身のキュー用 (`docker service`)
+
+> **補足**: Dokploy ダッシュボード (`:3000`) は Traefik を経由せず、Swarm ingress mesh で直接公開されます。
 
 ## ディレクトリ構成
 
@@ -109,7 +111,7 @@ sudo bash install-on-conoha.sh
 
 ```bash
 export DOKPLOY_VERSION=v0.28.8
-curl -fsSL https://raw.githubusercontent.com/.../install-on-conoha.sh | sudo -E bash
+curl -fsSL https://raw.githubusercontent.com/crowdy/conoha-cli-app-samples/main/dokploy/install-on-conoha.sh | sudo -E bash
 ```
 
 ## 動作確認
@@ -172,7 +174,7 @@ Dokploy には Pocketbase / Plausible / Cal.com など人気の OSS をワンク
 - **独自ドメイン + 自動 HTTPS**: ドメイン DNS の A レコードをサーバー IP に向けたうえで、Dokploy の Domain 設定で **HTTPS** と **Certificate Provider: Let's Encrypt** を選ぶだけで Traefik が自動取得・更新します
 - **バックアップ**: Dokploy の **Settings** から `dokploy-postgres` ボリュームの定期バックアップを設定できます
 - **バージョン固定**: `install-on-conoha.sh` の `DEFAULT_DOKPLOY_VERSION` を編集するか、環境変数 `DOKPLOY_VERSION` で明示的に固定してください。`latest` や `canary` は再現性を損ねるため非推奨です
-- **アップグレード**: 既存ホストでは `curl -fsSL https://dokploy.com/install.sh | bash -s update` でメジャーバージョンを上げられます
+- **アップグレード**: 既存ホストのアップグレードは `curl -fsSL https://dokploy.com/install.sh | bash -s update` で行えます。事前に `DOKPLOY_VERSION` を export しておくと、そのバージョンへ更新されます。指定がない場合は最新安定版に更新されます
 
 ## アンインストール
 
