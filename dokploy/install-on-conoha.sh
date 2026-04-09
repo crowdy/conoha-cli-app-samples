@@ -5,15 +5,20 @@
 # Thin wrapper around the upstream installer (https://dokploy.com/install.sh)
 # that adds value specific to ConoHa VPS or to reproducibility:
 #
-#   - Root check and port 80/443/3000 pre-check (fail fast on conflicts)
 #   - Pinned DOKPLOY_VERSION for reproducibility (override via env var)
 #   - DOCKER_SWARM_INIT_ARGS default that avoids 10.0.0.0/24 to leave room
 #     around future ConoHa private networks
+#   - ADVERTISE_ADDR auto-detection for ConoHa VPS3 hosts that only expose
+#     a public IPv4 (upstream's get_private_ip() fails on these by default)
 #
 # Usage (recommended — run inside the ConoHa VPS via `conoha server ssh`):
 #
 #   curl -fsSL https://raw.githubusercontent.com/crowdy/conoha-cli-app-samples/main/dokploy/install-on-conoha.sh \
-#     | sudo bash
+#     | sudo -E bash
+#
+# Note: `-E` preserves exported env vars through sudo. Without it, any
+# DOKPLOY_VERSION / DOCKER_SWARM_INIT_ARGS / ADVERTISE_ADDR you set will
+# be silently dropped before the wrapper sees them.
 #
 # Usage (with a custom Dokploy version):
 #
@@ -26,7 +31,7 @@ set -euo pipefail
 
 # ----------------------------------------------------------------------------
 # Pinned defaults — bump these single lines to upgrade.
-# Both can be overridden by exporting the matching env var before running.
+# All can be overridden by exporting the matching env var before running.
 # ----------------------------------------------------------------------------
 
 DEFAULT_DOKPLOY_VERSION="v0.28.8"
@@ -36,38 +41,54 @@ DEFAULT_SWARM_INIT_ARGS="--default-addr-pool 10.20.0.0/16 --default-addr-pool-ma
 DOCKER_SWARM_INIT_ARGS="${DOCKER_SWARM_INIT_ARGS:-$DEFAULT_SWARM_INIT_ARGS}"
 
 # ----------------------------------------------------------------------------
-# Pre-flight checks
+# Pre-flight
 # ----------------------------------------------------------------------------
 
 require_root() {
     if [ "$(id -u)" -ne 0 ]; then
-        echo "Error: this script must be run as root. Re-run with sudo (e.g. 'curl -fsSL <url> | sudo bash' or 'sudo bash install-on-conoha.sh')." >&2
+        echo "Error: this script must be run as root. Re-run with sudo (e.g. 'curl -fsSL <url> | sudo -E bash' or 'sudo -E bash install-on-conoha.sh')." >&2
         exit 1
     fi
 }
 
-require_free_ports() {
-    if ! command -v ss >/dev/null 2>&1; then
-        echo "Error: 'ss' command not found. Install 'iproute2' and retry." >&2
-        exit 1
+# Upstream's install.sh derives --advertise-addr from a private RFC1918 IP.
+# ConoHa VPS3's default network only exposes a public IPv4, so upstream's
+# detection fails before Swarm init. Detect this case and pre-set
+# ADVERTISE_ADDR so upstream skips its (failing) get_private_ip() path.
+ensure_advertise_addr() {
+    if [ -n "${ADVERTISE_ADDR:-}" ]; then
+        echo "Using ADVERTISE_ADDR from environment: ${ADVERTISE_ADDR}"
+        return
     fi
-    local conflicts=()
-    local port
-    for port in 80 443 3000; do  # 80/443 = Traefik, 3000 = Dokploy dashboard
-        if ss -tulnH | awk '{print $5}' | grep -Eq ":${port}$"; then
-            conflicts+=("${port}")
+
+    if ip addr show 2>/dev/null | grep -qE "inet (192\.168\.|10\.|172\.1[6-9]\.|172\.2[0-9]\.|172\.3[0-1]\.)"; then
+        # A private address exists; upstream's get_private_ip() will find it.
+        return
+    fi
+
+    local public_ip=""
+    local url
+    for url in https://ifconfig.io https://icanhazip.com https://ipecho.net/plain; do
+        public_ip="$(curl -4fsS --connect-timeout 5 "$url" 2>/dev/null | tr -d '[:space:]' || true)"
+        if [ -n "$public_ip" ]; then
+            break
         fi
     done
-    if [ "${#conflicts[@]}" -gt 0 ]; then
-        echo "Error: the following port(s) are already in use: ${conflicts[*]}" >&2
-        echo "Dokploy needs ports 80, 443, and 3000 to be free." >&2
-        echo "Stop the conflicting service(s) and retry." >&2
+
+    if [ -z "$public_ip" ]; then
+        echo "Error: could not auto-detect a public IPv4 for ADVERTISE_ADDR." >&2
+        echo "Set it manually and retry:" >&2
+        echo "  ADVERTISE_ADDR=<your-server-ip> sudo -E bash install-on-conoha.sh" >&2
         exit 1
     fi
+
+    ADVERTISE_ADDR="$public_ip"
+    export ADVERTISE_ADDR
+    echo "No private IP found on host. Using detected public IPv4 for ADVERTISE_ADDR: ${ADVERTISE_ADDR}"
 }
 
 # ----------------------------------------------------------------------------
-# Install + post-install
+# Install
 # ----------------------------------------------------------------------------
 
 run_upstream_installer() {
@@ -78,32 +99,15 @@ run_upstream_installer() {
     curl -fsSL https://dokploy.com/install.sh | bash
 }
 
-print_next_steps() {
-    local public_ip
-    public_ip="$(curl -4fsS --connect-timeout 5 https://ifconfig.io 2>/dev/null || echo '<server-ip>')"
-    cat <<EOF
-
-==============================================================
-Dokploy installation complete.
-
-Next steps:
-  1. Open the dashboard:  http://${public_ip}:3000
-  2. Create the initial admin user on first visit.
-  3. Follow the README walkthrough to deploy your first app
-     (hello-world from this repo) via the dashboard.
-==============================================================
-EOF
-}
-
 main() {
     require_root
-    require_free_ports
+    ensure_advertise_addr
     run_upstream_installer
-    print_next_steps
 }
 
-# Brace group ensures bash reads the entire script before executing,
-# which is the standard mitigation for `curl ... | bash` pipe-truncation.
+# Brace group ensures `main` is fully parsed before invocation, the standard
+# mitigation for `curl ... | bash` pipe-truncation. Keep destructive logic
+# inside main(), not at top level.
 {
     main "$@"
     exit $?
