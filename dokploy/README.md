@@ -254,3 +254,4 @@ ADVERTISE_ADDR=10.20.30.40 sudo -E bash install-on-conoha.sh
 - [Dokploy ドキュメント](https://docs.dokploy.com/)
 - [Dokploy GitHub](https://github.com/dokploy/dokploy)
 - [conoha-cli](https://github.com/crowdy/conoha-cli)
+- [Qiita 記事: conoha-cli で Dokploy を ConoHa VPS にインストール](https://qiita.com/crowdy/items/33ebac26f8ec3f002a6e)
