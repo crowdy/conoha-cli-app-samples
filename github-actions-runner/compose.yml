@@ -1,6 +1,6 @@
 services:
   runner:
-    image: myoung34/github-runner:2.322.0
+    image: myoung34/github-runner:2.333.1
     environment:
       - REPO_URL=${REPO_URL}
       - ACCESS_TOKEN=${ACCESS_TOKEN}
