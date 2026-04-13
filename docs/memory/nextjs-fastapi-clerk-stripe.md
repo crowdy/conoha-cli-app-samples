@@ -111,3 +111,75 @@ gh auth switch --user crowdy
 # 元に戻す
 gh auth switch --user t-kim-planitai
 ```
+
+## 別のマシンで作業を続ける場合のセットアップ
+
+### 1. 前提ツールのインストール
+
+- [conoha-cli](https://github.com/crowdy/conoha-cli) — `conoha auth login` で認証
+- [gh](https://cli.github.com/) — `gh auth login` で認証（crowdy アカウント）
+- SSH キー — ConoHa VPS への接続用。`conoha keypair list` で確認し、秘密鍵をローカルに配置
+
+### 2. リポジトリのクローンとブランチ切替
+
+```bash
+git clone https://github.com/crowdy/conoha-cli-app-samples.git
+cd conoha-cli-app-samples
+git checkout feat/nextjs-fastapi-clerk-stripe
+```
+
+### 3. API キーの配置
+
+以下のファイルを手動で作成する必要がある（セキュリティのためリポジトリには含まれていない）:
+
+```bash
+# Clerk キー
+mkdir -p ~/.config/planitai/clerk
+cat > ~/.config/planitai/clerk/keys << 'EOF'
+NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_xxxxx
+CLERK_SECRET_KEY=sk_test_xxxxx
+EOF
+
+# Stripe キー
+mkdir -p ~/.config/planitai/stripe
+echo "sk_test_xxxxx" > ~/.config/planitai/stripe/secret-key
+```
+
+実際のキー値は Clerk Dashboard (API Keys) と Stripe Dashboard (API Keys) から取得する。
+
+### 4. .env.server の再作成
+
+本ファイルの「.env.server の再構築方法」セクションを参照。Webhook secret はこのファイルに記載済み。
+
+### 5. SSH 接続の確認
+
+```bash
+# ConoHa サーバーに接続できるか確認
+ssh -i <秘密鍵パス> root@160.251.237.88 "docker compose -f /opt/conoha/nextjs-fastapi-clerk-stripe/compose.yml ps"
+```
+
+### 6. デプロイ・ログ確認
+
+```bash
+cd nextjs-fastapi-clerk-stripe
+
+# 再デプロイ
+conoha app deploy saas-demo --app-name nextjs-fastapi-clerk-stripe
+
+# ログ確認
+conoha app logs saas-demo --app-name nextjs-fastapi-clerk-stripe --follow
+
+# コンテナ状態
+conoha app status saas-demo --app-name nextjs-fastapi-clerk-stripe
+```
+
+### このマシンにしかないもの一覧
+
+| 項目 | パス | 再取得方法 |
+|------|------|-----------|
+| Clerk API キー | `~/.config/planitai/clerk/keys` | Clerk Dashboard → API Keys |
+| Stripe シークレットキー | `~/.config/planitai/stripe/secret-key` | Stripe Dashboard → API Keys |
+| SSH 秘密鍵 | `~/.ssh/conoha_tkim-cli-test-key` | ConoHa キーペア再作成、または既存キーを転送 |
+| .env.server | `nextjs-fastapi-clerk-stripe/.env.server` | 本ファイルの再構築手順で作成 |
+| gh 認証トークン | `~/.config/gh/hosts.yml` | `gh auth login` で再認証 |
+| conoha-cli 認証 | conoha-cli 設定ファイル | `conoha auth login` で再認証 |
