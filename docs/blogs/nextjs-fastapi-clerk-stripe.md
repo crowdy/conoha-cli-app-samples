@@ -44,7 +44,7 @@ SaaSアプリを作るとき、認証と決済は避けて通れない2大テー
 | レイヤー | 技術 |
 |----------|------|
 | フロントエンド | Next.js 16 + React 19 + Tailwind CSS v4 + shadcn/ui v4 |
-| 認証 | Clerk v7（@clerk/nextjs 7.0.12） |
+| 認証 | Clerk v7（@clerk/nextjs 7.1.0） |
 | バックエンドAPI | FastAPI + SQLAlchemy (async) + Pydantic |
 | 決済 | Stripe Checkout + Customer Portal（sandbox） |
 | DB | PostgreSQL 17 |
@@ -368,20 +368,23 @@ import { Show } from "@clerk/nextjs";
 
 **原因**: Next.js 16でmiddlewareファイルがproxyに改名されました。
 
-**対応**: `middleware.ts` → `proxy.ts` にリネーム。ただし、**default exportではなくnamed export `proxy` を使う必要がありました**。
+**対応**: `middleware.ts` → `proxy.ts` にリネーム。**default exportで `clerkMiddleware()` を返すだけでOKです**。
 
 ```typescript
-// ❌ 動かない（middleware-manifestが空になる）
-export default clerkMiddleware(async (auth, req) => { ... });
+// ✅ proxy.ts — シンプルなdefault export
+import { clerkMiddleware } from "@clerk/nextjs/server";
 
-// ✅ 動く
-const clerkHandler = clerkMiddleware(async (auth, req) => { ... });
-export function proxy(request: NextRequest, event: NextFetchEvent) {
-  return clerkHandler(request, event);
-}
+export default clerkMiddleware();
+
+export const config = {
+  matcher: [
+    "/((?!_next|[^?]*\\.(?:html?|css|js(?!on)|jpe?g|webp|png|gif|svg|ttf|woff2?|ico|csv|docx?|xlsx?|zip|webmanifest)).*)",
+    "/(api|trpc)(.*)",
+  ],
+};
 ```
 
-これが最もハマったポイントです。ビルドログには `ƒ Proxy (Middleware)` と表示されるのに、`middleware-manifest.json` が空のままで、`auth()` が `clerkMiddleware()` を検出できないエラーが出続けました。
+なお、`default export` を使うとedge runtimeで実行されます。named export `proxy` を使うとnode runtimeになりますが、Next.js 16の `output: "standalone"` ではnode runtimeのproxy出力にバグがあり（[vercel/next.js#91600](https://github.com/vercel/next.js/issues/91600)）、Dockerデプロイでは `default export`（edge runtime）を推奨します。
 
 ### 4. HTTP環境でClerkのサーバーサイド認証が動かない
 
@@ -435,23 +438,25 @@ backend:
 Webhook URL: http://<サーバーIP>:8000/api/webhooks/stripe
 ```
 
-### 6. Next.js 16 のTurbopackビルドでproxy.tsが正しくコンパイルされない
+### 6. 環境変数のtypoで「curlは通るのにブラウザだけエラー」になる
 
-**症状**: Turbopack（Next.js 16のデフォルトバンドラー）でビルドすると、ビルドログに `ƒ Proxy (Middleware)` と表示されるのに、`middleware-manifest.json` が空のままになる。結果として `auth()` が `clerkMiddleware()` を検出できない。
+**症状**: curlでは200が返るのに、ブラウザでアクセスするとInternal Server Errorになる。ログには `auth() was called but Clerk can't detect usage of clerkMiddleware()` が出る。
 
-**原因**: 2026年4月時点で、Next.js 16のTurbopackがproxy.tsのmanifest生成を正しく処理していない可能性がある。Turbopackを無効にしてwebpackでビルドしても manifestは依然として空だったが、proxy自体は実行されていた（レスポンスヘッダーに `x-clerk-auth-status` が付与されていた）。
+**原因**: `.env` の `CLERK_SECRET_KEY` が不正（コピペミス等）。Clerkはブラウザアクセス時にhandshakeフローを実行し、その検証に `CLERK_SECRET_KEY` を使います。キーが不正だとhandshakeが失敗し、SSRで `auth()` がmiddlewareのコンテキストを検出できなくなります。
 
-**対応**: `package.json` のビルドコマンドでTurbopackを無効化。
+curlからはhandshakeフローが発生しないため正常に200が返り、ブラウザからのみエラーになります。エラーメッセージもmiddleware設定を疑わせる内容なので、環境変数のtypoが原因だと気づきにくいのが厄介です。
 
-```json
-{
-  "scripts": {
-    "build": "NEXT_DISABLE_TURBOPACK=1 next build"
-  }
-}
+**対応**: フロントエンドのログに以下のメッセージがないか確認する。
+
+```
+Error: Clerk: Handshake token verification failed:
+  The provided Clerk Secret Key is invalid.
+  (reason=secret-key-invalid, token-carrier=undefined)
 ```
 
-webpackでビルドした場合、proxy.ts は `middleware-manifest.json` が空でも実際には動作しました。Turbopackでも動く可能性はありますが、2026年4月時点では**webpackの方がビルドが安定しており、予期しない動作が少ない**ため、Clerk v7との組み合わせではwebpackを推奨します。
+このメッセージが出ていたら、`.env` の `CLERK_SECRET_KEY` を再確認してください。キーの末尾が切れていないか、余分な空白がないか注意が必要です。
+
+> **補足**: named export `proxy`（node runtime）を使う場合、Next.js 16の `output: "standalone"` にはバグがあり（[vercel/next.js#91600](https://github.com/vercel/next.js/issues/91600)）、middleware関連ファイルがstandalone出力に含まれません。default export（edge runtime）に切り替えることで `middleware-manifest.json` が正しく生成されるようになります。
 
 ### 7. Clerkログイン後に `accounts.dev/default-redirect` に飛ばされる
 
@@ -525,24 +530,19 @@ export default function DashboardPage() {
 }
 ```
 
-### 9. Next.js 16 standaloneビルドにproxy/middlewareファイルが含まれない
+### 9. Next.js 16 standaloneビルドとproxy/middleware
 
-**症状**: ビルドは成功するが、standaloneディレクトリ内の `middleware-manifest.json` が空で、clerkMiddlewareが実行されない。
-
-**原因**: Next.js 16の `output: "standalone"` モードでは、proxy.tsのコンパイル結果（`middleware.js`）がstandalone出力に正しくコピーされないケースがある。
-
-**対応**: Dockerfileでstandalone出力をコピーする際に、middlewareファイルも明示的にコピーする。
+**注意**: `proxy.ts` で **default export**（edge runtime）を使えば、standaloneビルドにmiddlewareファイルが自動的に含まれます。Dockerfileでの手動COPYは不要です。
 
 ```dockerfile
-COPY --from=builder /app/.next/standalone ./
-COPY --from=builder /app/.next/static ./.next/static
-# middleware関連ファイルを明示的にコピー
-COPY --from=builder /app/.next/server/middleware.js ./.next/server/middleware.js
-COPY --from=builder /app/.next/server/middleware-build-manifest.js ./.next/server/middleware-build-manifest.js
-COPY --from=builder /app/.next/server/middleware-manifest.json ./.next/server/middleware-manifest.json
+# ✅ これだけでOK（edge runtimeのmiddlewareは自動包含）
+COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
+COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 ```
 
-> **注意**: これらのファイルをコピーしても `middleware-manifest.json` の中身は空のままですが、実際にはproxy関数は実行されます（レスポンスヘッダーに `x-clerk-auth-status` が付与されることで確認可能）。
+一方、**named export `proxy`**（node runtime）を使う場合は、Next.js 16のバグ（[vercel/next.js#91600](https://github.com/vercel/next.js/issues/91600)）により `middleware.js` がstandalone出力にコピーされません。手動でDockerfileにCOPY行を追加する必要がありますが、さらに `middleware-manifest.json` も空になるためClerkの `auth()` 検出にも問題が出ます。
+
+**結論**: Docker + standalone環境では **default export**（edge runtime）を使ってください。
 
 ## JWT認証のフォールバック
 
