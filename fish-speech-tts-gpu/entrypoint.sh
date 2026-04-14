@@ -1,13 +1,15 @@
 #!/bin/bash
-set -e
+set -eu
 
 MODEL_DIR="/app/checkpoints/s2-pro"
-MARKER_FILE="$MODEL_DIR/codec.pth"
+SENTINEL_FILE="$MODEL_DIR/.download_complete"
 
 # Download model only if not already present
-if [ ! -f "$MARKER_FILE" ]; then
+if [ ! -f "$SENTINEL_FILE" ]; then
     echo "=== Downloading Fish Speech s2-pro model ==="
+    rm -rf "$MODEL_DIR"
     huggingface-cli download fishaudio/s2-pro --local-dir "$MODEL_DIR"
+    touch "$SENTINEL_FILE"
     echo "=== Model download complete ==="
 else
     echo "=== Model already exists, skipping download ==="
@@ -22,6 +24,14 @@ python tools/api_server.py \
     --decoder-config-name modded_dac_vq \
     --device cuda \
     ${COMPILE:+--compile} &
+API_PID=$!
+
+# Verify API server started successfully
+sleep 5
+if ! kill -0 "$API_PID" 2>/dev/null; then
+    echo "=== ERROR: API server failed to start ===" >&2
+    exit 1
+fi
 
 # Start WebUI in foreground
 echo "=== Starting WebUI on port 7860 ==="
