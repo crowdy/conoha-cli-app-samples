@@ -1,0 +1,31 @@
+services:
+  fish-speech:
+    image: fishaudio/fish-speech:latest-webui-cuda
+    entrypoint: ["/bin/bash", "/app/custom-entrypoint.sh"]
+    ports:
+      - "7860:7860"
+      - "8080:8080"
+    volumes:
+      - ./entrypoint.sh:/app/custom-entrypoint.sh:ro
+      - model_data:/app/checkpoints
+      - references:/app/references
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    environment:
+      - COMPILE=1
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/v1/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 20
+      start_period: 600s
+    restart: unless-stopped
+
+volumes:
+  model_data:
+  references:
