@@ -1,13 +1,18 @@
+import logging
+
 import jwt
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jwt import PyJWKClient
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
 from app.database import get_db
 from app.models import User
+
+logger = logging.getLogger(__name__)
 
 security = HTTPBearer()
 
@@ -58,6 +63,7 @@ async def get_current_user(
             customer = create_customer(email=email, clerk_user_id=clerk_user_id)
             stripe_customer_id = customer.id
         except Exception:
+            logger.exception("Failed to create Stripe customer for %s", clerk_user_id)
             stripe_customer_id = None
         user = User(
             clerk_user_id=clerk_user_id,
@@ -65,6 +71,14 @@ async def get_current_user(
             email=email,
         )
         db.add(user)
-        await db.commit()
-        await db.refresh(user)
+        try:
+            await db.commit()
+            await db.refresh(user)
+        except IntegrityError:
+            # Race condition: webhook created the user concurrently
+            await db.rollback()
+            result = await db.execute(
+                select(User).where(User.clerk_user_id == clerk_user_id)
+            )
+            user = result.scalar_one()
     return user

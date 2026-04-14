@@ -116,6 +116,16 @@ async def _fetch_and_save_subscription(
 ) -> Subscription:
     import stripe
 
+    # Idempotency: skip if subscription already saved (e.g. webhook retry)
+    result = await db.execute(
+        select(Subscription).where(
+            Subscription.stripe_subscription_id == subscription_id
+        )
+    )
+    existing = result.scalar_one_or_none()
+    if existing:
+        return existing
+
     sub_data = stripe.Subscription.retrieve(subscription_id)
     price_id = sub_data["items"]["data"][0]["price"]["id"]
 

@@ -21,7 +21,7 @@ services:
   backend:
     build: ./backend
     ports:
-      - "8000:8000"
+      - "8000:8000"  # Webhook endpoints (Clerk/Stripe signature verification breaks via Next.js rewrite)
     environment:
       - DATABASE_URL=postgresql+asyncpg://appuser:apppass@db:5432/appdb
       - STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY}
