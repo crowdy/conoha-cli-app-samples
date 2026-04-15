@@ -1,5 +1,3 @@
-//go:build !nooto
-
 package audio
 
 import (

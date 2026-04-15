@@ -15,6 +15,10 @@ else
     echo "=== Model already exists, skipping download ==="
 fi
 
+# Determine compile flag
+COMPILE_FLAG=""
+[ "${COMPILE:-}" = "1" ] && COMPILE_FLAG="--compile"
+
 # Start API server in background
 echo "=== Starting API server on port 8080 ==="
 python tools/api_server.py \
@@ -23,7 +27,7 @@ python tools/api_server.py \
     --decoder-checkpoint-path "$MODEL_DIR/codec.pth" \
     --decoder-config-name modded_dac_vq \
     --device cuda \
-    ${COMPILE:+--compile} &
+    $COMPILE_FLAG &
 API_PID=$!
 
 # Verify API server started successfully
