@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fish-speech-cli/cmd"
 	"fmt"
 	"os"
 
@@ -16,6 +17,14 @@ var rootCmd = &cobra.Command{
 
 func init() {
 	rootCmd.PersistentFlags().StringVar(&serverURL, "server", "http://localhost:8080", "Fish Speech API server URL")
+
+	getServer := func() string { return serverURL }
+
+	rootCmd.AddCommand(cmd.NewHealthCmd(getServer))
+	rootCmd.AddCommand(cmd.NewTTSCmd(getServer))
+	rootCmd.AddCommand(cmd.NewRefCmd(getServer))
+	rootCmd.AddCommand(cmd.NewEncodeCmd(getServer))
+	rootCmd.AddCommand(cmd.NewDecodeCmd(getServer))
 }
 
 func main() {
