@@ -8,6 +8,7 @@ import (
 	"io"
 	"mime/multipart"
 	"net/http"
+	"time"
 )
 
 type Client struct {
@@ -18,7 +19,7 @@ type Client struct {
 func New(baseURL string) *Client {
 	return &Client{
 		BaseURL:    baseURL,
-		HTTPClient: &http.Client{},
+		HTTPClient: &http.Client{Timeout: 300 * time.Second},
 	}
 }
 
@@ -259,7 +260,10 @@ type DeleteRefResponse struct {
 
 // DeleteRef removes a stored reference voice.
 func (c *Client) DeleteRef(name string) (*DeleteRefResponse, error) {
-	body, _ := json.Marshal(map[string]string{"reference_id": name})
+	body, err := json.Marshal(map[string]string{"reference_id": name})
+	if err != nil {
+		return nil, fmt.Errorf("marshal request: %w", err)
+	}
 
 	httpReq, err := http.NewRequest(http.MethodDelete, c.BaseURL+"/v1/references/delete", bytes.NewReader(body))
 	if err != nil {
@@ -295,10 +299,13 @@ type UpdateRefResponse struct {
 
 // UpdateRef renames a stored reference voice.
 func (c *Client) UpdateRef(oldName, newName string) (*UpdateRefResponse, error) {
-	body, _ := json.Marshal(map[string]string{
+	body, err := json.Marshal(map[string]string{
 		"old_reference_id": oldName,
 		"new_reference_id": newName,
 	})
+	if err != nil {
+		return nil, fmt.Errorf("marshal request: %w", err)
+	}
 
 	httpReq, err := http.NewRequest(http.MethodPost, c.BaseURL+"/v1/references/update", bytes.NewReader(body))
 	if err != nil {
