@@ -1,0 +1,13 @@
+model:
+  provider: anthropic
+  model: claude-sonnet-4-6
+  api_key_env: ANTHROPIC_API_KEY
+  context_window: 200000
+
+terminal:
+  backend: local
+
+agent:
+  auto_approve: false
+  skill_creation: true
+  memory: true

@@ -1,0 +1,60 @@
+services:
+  gateway:
+    image: nousresearch/hermes-agent
+    command: gateway run
+    restart: unless-stopped
+    mem_limit: 4g
+    cpus: 2
+    shm_size: 1g
+    ports:
+      - "8642:8642"
+    volumes:
+      - hermes_data:/opt/data
+      - ./config/config.yaml:/opt/data/config.yaml
+      - ./config/SOUL.md:/opt/data/SOUL.md:ro
+    env_file:
+      - .env.server
+    environment:
+      - API_SERVER_ENABLED=true
+      - API_SERVER_HOST=0.0.0.0
+      - GATEWAY_ALLOW_ALL_USERS=true
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8642/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+
+  dashboard:
+    image: nousresearch/hermes-agent
+    command: dashboard --host 0.0.0.0 --insecure --no-open
+    restart: unless-stopped
+    expose:
+      - "9119"
+    volumes:
+      - hermes_data:/opt/data
+    environment:
+      - GATEWAY_HEALTH_URL=http://gateway:8642
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:9119/')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    depends_on:
+      gateway:
+        condition: service_healthy
+
+  nginx:
+    image: nginx:alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    volumes:
+      - ./config/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./config/.htpasswd:/etc/nginx/.htpasswd:ro
+    depends_on:
+      dashboard:
+        condition: service_healthy
+
+volumes:
+  hermes_data:
