@@ -7,7 +7,8 @@ Nous Research の自己学習型 AI エージェント「Hermes Agent」を Cono
 | サービス | ポート | 説明 |
 |----------|--------|------|
 | Gateway | 8642 | エージェントエンジン + OpenAI 互換 API |
-| Dashboard | 80 | Web 管理画面 |
+| Nginx | 80 | リバースプロキシ（Basic 認証付き） |
+| Dashboard | (内部) | Web 管理画面 |
 
 ## 前提条件
 
@@ -50,7 +51,7 @@ conoha app deploy hermes --app-name hermes-agent \
 
 ### Dashboard
 
-ブラウザで `http://<サーバーIP>/` にアクセスすると管理画面が表示されます。
+ブラウザで `http://<サーバーIP>/` にアクセスすると Basic 認証のダイアログが表示されます。デフォルトのユーザー名/パスワードは `admin` / `admin` です。
 
 ### API ヘルスチェック
 
@@ -59,6 +60,20 @@ curl http://<サーバーIP>:8642/health
 ```
 
 ## カスタマイズ
+
+### Basic 認証のパスワード変更
+
+デプロイ前に `config/.htpasswd` を更新してください。
+
+```bash
+# htpasswd コマンドが使える場合
+htpasswd -c config/.htpasswd admin
+
+# openssl で生成する場合
+echo "admin:$(openssl passwd -apr1 'your-password')" > config/.htpasswd
+```
+
+変更後は再デプロイしてください。
 
 ### ペルソナの変更
 
