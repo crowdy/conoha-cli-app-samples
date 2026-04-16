@@ -1,0 +1,39 @@
+services:
+  gateway:
+    image: nousresearch/hermes-agent
+    command: gateway run
+    restart: unless-stopped
+    mem_limit: 4g
+    cpus: 2
+    shm_size: 1g
+    ports:
+      - "8642:8642"
+    volumes:
+      - hermes_data:/opt/data
+      - ./config/config.yaml:/opt/data/config.yaml:ro
+      - ./config/SOUL.md:/opt/data/SOUL.md:ro
+    env_file:
+      - .env.server
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8642/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  dashboard:
+    image: nousresearch/hermes-agent
+    command: dashboard
+    restart: unless-stopped
+    ports:
+      - "80:9119"
+    volumes:
+      - hermes_data:/opt/data
+    environment:
+      - GATEWAY_HEALTH_URL=http://gateway:8642
+    depends_on:
+      gateway:
+        condition: service_healthy
+
+volumes:
+  hermes_data:
