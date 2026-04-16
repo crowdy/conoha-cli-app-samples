@@ -26,12 +26,15 @@ conoha server create --name hermes --flavor g2l-t-4 --image ubuntu-24.04 --key m
 
 ### Step 2: API キー設定
 
-`.env.server` に Anthropic API キーを設定してください。
+`.env.server` に Anthropic API キーと API サーバーキーを設定してください。
 
 ```bash
 # .env.server を編集
 ANTHROPIC_API_KEY=sk-ant-xxxxx
+API_SERVER_KEY=your-secret-key
 ```
+
+`API_SERVER_KEY` は Gateway API のアクセス制御に使用されます。任意の文字列を設定してください。
 
 ### Step 3: アプリ初期化・デプロイ
 

@@ -10,20 +10,24 @@ services:
       - "8642:8642"
     volumes:
       - hermes_data:/opt/data
-      - ./config/config.yaml:/opt/data/config.yaml:ro
+      - ./config/config.yaml:/opt/data/config.yaml
       - ./config/SOUL.md:/opt/data/SOUL.md:ro
     env_file:
       - .env.server
+    environment:
+      - API_SERVER_ENABLED=true
+      - API_SERVER_HOST=0.0.0.0
+      - GATEWAY_ALLOW_ALL_USERS=true
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8642/health"]
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8642/health')"]
       interval: 10s
       timeout: 5s
       retries: 5
-      start_period: 30s
+      start_period: 60s
 
   dashboard:
     image: nousresearch/hermes-agent
-    command: dashboard
+    command: dashboard --host 0.0.0.0 --insecure --no-open
     restart: unless-stopped
     ports:
       - "80:9119"
@@ -32,7 +36,7 @@ services:
     environment:
       - GATEWAY_HEALTH_URL=http://gateway:8642
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9119/"]
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:9119/')"]
       interval: 30s
       timeout: 5s
       retries: 3
