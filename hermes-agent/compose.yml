@@ -31,6 +31,11 @@ services:
       - hermes_data:/opt/data
     environment:
       - GATEWAY_HEALTH_URL=http://gateway:8642
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9119/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
     depends_on:
       gateway:
         condition: service_healthy

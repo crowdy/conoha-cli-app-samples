@@ -11,7 +11,7 @@ Nous Research の自己学習型 AI エージェント「Hermes Agent」を Cono
 
 ## 前提条件
 
-- conoha-cli がインストール済み
+- [conoha-cli](https://github.com/because-and/conoha-cli) がインストール済み
 - ConoHa VPS3 アカウント
 - SSH キーペア設定済み
 - Anthropic API キー（[console.anthropic.com](https://console.anthropic.com/) で取得）
