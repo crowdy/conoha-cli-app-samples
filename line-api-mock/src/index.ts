@@ -5,8 +5,10 @@ import { resolve } from "node:path";
 import { config } from "./config.js";
 import { runMigrations } from "./db/migrate.js";
 import { seedIfEmpty } from "./db/seed.js";
+import { oauthRouter } from "./mock/oauth.js";
 
 const app = new Hono();
+app.route("/", oauthRouter);
 
 app.get("/health", (c) => c.json({ status: "ok" }));
 
