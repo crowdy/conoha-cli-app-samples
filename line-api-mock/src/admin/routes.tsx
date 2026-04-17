@@ -14,6 +14,7 @@ import { config } from "../config.js";
 import { sseHandler } from "./sse.js";
 import { dispatchWebhook } from "../webhook/dispatcher.js";
 import { bus } from "../lib/events.js";
+import { checkWebhookUrl } from "../webhook/url-policy.js";
 
 export const adminRouter = new Hono();
 adminRouter.use("*", adminAuth);
@@ -114,6 +115,12 @@ adminRouter.put("/admin/channels/:id/webhook", async (c) => {
   const form = await c.req.parseBody();
   const webhookUrl = String(form.webhookUrl ?? "").trim() || null;
   const enabled = form.enabled !== undefined;
+  if (webhookUrl) {
+    const policy = checkWebhookUrl(webhookUrl);
+    if (!policy.ok) {
+      return c.text(`webhook URL rejected: ${policy.reason}`, 400);
+    }
+  }
   await db
     .update(channels)
     .set({ webhookUrl, webhookEnabled: enabled })

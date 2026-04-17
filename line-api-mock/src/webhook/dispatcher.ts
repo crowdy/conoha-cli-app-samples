@@ -3,6 +3,7 @@ import { webhookDeliveries, channels } from "../db/schema.js";
 import { eq } from "drizzle-orm";
 import { signBody } from "./signature.js";
 import { bus } from "../lib/events.js";
+import { checkWebhookUrl } from "./url-policy.js";
 
 interface WebhookEvent {
   destination: string;
@@ -31,6 +32,22 @@ export async function dispatchWebhook(
     });
     return;
   }
+  const urlCheck = checkWebhookUrl(ch.webhookUrl);
+  if (!urlCheck.ok) {
+    console.error(`[dispatcher] webhook URL rejected: ${urlCheck.reason}`);
+    await db.insert(webhookDeliveries).values({
+      channelId: channelDbId,
+      eventPayload: event,
+      signature: "",
+      targetUrl: ch.webhookUrl,
+      statusCode: null,
+      responseBody: null,
+      error: `url_rejected: ${urlCheck.reason}`,
+      durationMs: 0,
+    });
+    return;
+  }
+
   const body = JSON.stringify(event);
   const signature = signBody(ch.channelSecret, body);
   const start = Date.now();

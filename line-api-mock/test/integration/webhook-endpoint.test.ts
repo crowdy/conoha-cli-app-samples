@@ -12,6 +12,8 @@ let botUrl: string;
 let received: { signature: string; body: string } | null = null;
 
 beforeAll(async () => {
+  // Allow private/loopback webhook URLs for the test bot server.
+  process.env.MOCK_ALLOW_PRIVATE_WEBHOOKS = "1";
   container = await startDb();
   const { Hono } = await import("hono");
   const { webhookEndpointRouter } = await import(
