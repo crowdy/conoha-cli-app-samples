@@ -87,7 +87,7 @@ describe("webhook endpoint config", () => {
       body: "{}",
     });
     const json = await res.json();
-    expect(json.success).toBe("ok");
+    expect(json.success).toBe(true);
     expect(received?.signature).toBeTruthy();
     expect(received?.body).toContain("\"events\":[]");
   });

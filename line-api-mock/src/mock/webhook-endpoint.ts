@@ -76,7 +76,7 @@ webhookEndpointRouter.post(
         signal: AbortSignal.timeout(10_000),
       });
       return c.json({
-        success: r.ok ? "ok" : "failed",
+        success: r.ok,
         timestamp: new Date().toISOString(),
         statusCode: r.status,
         reason: r.ok ? "OK" : `HTTP ${r.status}`,
@@ -84,7 +84,7 @@ webhookEndpointRouter.post(
       });
     } catch (e) {
       return c.json({
-        success: "failed",
+        success: false,
         timestamp: new Date().toISOString(),
         statusCode: 0,
         reason: "network",
