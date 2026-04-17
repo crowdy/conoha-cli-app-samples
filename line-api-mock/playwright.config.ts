@@ -9,5 +9,6 @@ export default defineConfig({
     url: "http://localhost:3000/health",
     reuseExistingServer: false,
     timeout: 120_000,
+    env: { MOCK_ALLOW_PRIVATE_WEBHOOKS: "1" },
   },
 });

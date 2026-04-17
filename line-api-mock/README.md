@@ -68,7 +68,7 @@ docker compose up --build
 | `MOCK_ALLOW_PRIVATE_WEBHOOKS` | `0`                                       | `1` にするとプライベート/ループバック IP への webhook 送信を許可（ローカル開発用）|
 
 > **注意**: `ADMIN_USER` / `ADMIN_PASSWORD` を設定しない場合、起動時に自動でランダムパスワードが生成されコンテナログに出力されます。
-> `MOCK_ALLOW_PRIVATE_WEBHOOKS=1` は `compose.yml` でローカル開発向けに有効化されています。本番デプロイ時はこの環境変数を削除または `0` に設定してください。
+> `MOCK_ALLOW_PRIVATE_WEBHOOKS` は既定で無効 (`0`)。ローカルで自分の Bot (127.0.0.1 など) に webhook を飛ばす時は `MOCK_ALLOW_PRIVATE_WEBHOOKS=1 docker compose up` で起動してください。本番・公開 VPS では `0` のまま運用してください。
 
 ## ConoHa VPS にデプロイ
 
