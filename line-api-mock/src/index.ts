@@ -7,10 +7,12 @@ import { runMigrations } from "./db/migrate.js";
 import { seedIfEmpty } from "./db/seed.js";
 import { oauthRouter } from "./mock/oauth.js";
 import { oauthV3Router } from "./mock/oauth-v3.js";
+import { messageRouter } from "./mock/message.js";
 
 const app = new Hono();
 app.route("/", oauthRouter);
 app.route("/", oauthV3Router);
+app.route("/", messageRouter);
 
 app.get("/health", (c) => c.json({ status: "ok" }));
 
