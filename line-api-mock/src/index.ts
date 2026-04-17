@@ -11,6 +11,7 @@ import { messageRouter } from "./mock/message.js";
 import { quotaRouter } from "./mock/quota.js";
 import { profileRouter } from "./mock/profile.js";
 import { webhookEndpointRouter } from "./mock/webhook-endpoint.js";
+import { contentRouter } from "./mock/content.js";
 
 const app = new Hono();
 app.route("/", oauthRouter);
@@ -19,6 +20,7 @@ app.route("/", messageRouter);
 app.route("/", quotaRouter);
 app.route("/", profileRouter);
 app.route("/", webhookEndpointRouter);
+app.route("/", contentRouter);
 
 app.get("/health", (c) => c.json({ status: "ok" }));
 
