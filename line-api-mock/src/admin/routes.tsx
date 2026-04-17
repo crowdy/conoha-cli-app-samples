@@ -17,7 +17,8 @@ import { bus } from "../lib/events.js";
 import { checkWebhookUrl } from "../webhook/url-policy.js";
 
 export const adminRouter = new Hono();
-adminRouter.use("*", adminAuth);
+adminRouter.use("/admin", adminAuth);
+adminRouter.use("/admin/*", adminAuth);
 
 adminRouter.get("/admin", async (c) => {
   const chs = await db
