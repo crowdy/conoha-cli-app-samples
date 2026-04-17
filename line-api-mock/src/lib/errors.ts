@@ -1,5 +1,5 @@
 import type { Context } from "hono";
-import type { StatusCode } from "hono/utils/http-status";
+import type { ContentfulStatusCode } from "hono/utils/http-status";
 
 interface LineErrorBody {
   message: string;
@@ -8,7 +8,7 @@ interface LineErrorBody {
 
 export function lineError(
   c: Context,
-  status: StatusCode,
+  status: ContentfulStatusCode,
   body: LineErrorBody
 ) {
   return c.json(body, status);
