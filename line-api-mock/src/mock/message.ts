@@ -83,3 +83,57 @@ messageRouter.post("/v2/bot/message/push", async (c) => {
   }
   return c.json({ sentMessages: inserted });
 });
+
+/**
+ * POST /v2/bot/message/reply
+ */
+messageRouter.post("/v2/bot/message/reply", async (c) => {
+  let body: { replyToken: string; messages: Array<Record<string, unknown>> };
+  try {
+    body = await c.req.json();
+  } catch {
+    return errors.badRequest(c, "Invalid JSON body");
+  }
+  if (!body.replyToken || !Array.isArray(body.messages) || body.messages.length === 0) {
+    return errors.badRequest(c, "replyToken and messages are required");
+  }
+  const channelDbId = c.get("channelDbId");
+  const userMsgRows = await db
+    .select({ virtualUserId: messages.virtualUserId })
+    .from(messages)
+    .where(
+      and(
+        eq(messages.channelId, channelDbId),
+        eq(messages.replyToken, body.replyToken)
+      )
+    )
+    .limit(1);
+  if (userMsgRows.length === 0) {
+    return errors.badRequest(c, "Invalid reply token");
+  }
+  const virtualUserId = userMsgRows[0].virtualUserId;
+  const inserted: Array<{ id: string }> = [];
+  for (const m of body.messages) {
+    const mid = messageId();
+    const type = String((m as { type?: string }).type ?? "text");
+    const [row] = await db
+      .insert(messages)
+      .values({
+        messageId: mid,
+        channelId: channelDbId,
+        virtualUserId,
+        direction: "bot_to_user",
+        type,
+        payload: m,
+      })
+      .returning({ id: messages.id });
+    bus.emitEvent({
+      type: "message.inserted",
+      channelId: channelDbId,
+      virtualUserId,
+      id: row.id,
+    });
+    inserted.push({ id: mid });
+  }
+  return c.json({ sentMessages: inserted });
+});
