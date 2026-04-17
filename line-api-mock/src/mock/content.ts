@@ -23,9 +23,9 @@ contentRouter.get("/v2/bot/message/:messageId/content", async (c) => {
     .where(eq(messages.messageId, mid))
     .limit(1);
   const row = rows[0];
-  if (!row || !row.data) return errors.notFound(c);
+  if (!row || !row.data || !row.contentType) return errors.notFound(c);
   c.header("Content-Type", row.contentType);
-  return c.body(row.data);
+  return c.body(row.data as unknown as ArrayBuffer);
 });
 
 contentRouter.get(
