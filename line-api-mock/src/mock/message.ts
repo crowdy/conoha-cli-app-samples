@@ -4,6 +4,7 @@ import { db } from "../db/client.js";
 import { messages, virtualUsers, channelFriends } from "../db/schema.js";
 import { bearerAuth, type AuthVars } from "./middleware/auth.js";
 import { requestLog } from "./middleware/request-log.js";
+import { validate } from "./middleware/validate.js";
 import { messageId, replyToken } from "../lib/id.js";
 import { bus } from "../lib/events.js";
 import { errors } from "../lib/errors.js";
@@ -63,7 +64,13 @@ async function insertBotMessages(
 /**
  * POST /v2/bot/message/push
  */
-messageRouter.post("/v2/bot/message/push", async (c) => {
+messageRouter.post(
+  "/v2/bot/message/push",
+  validate({
+    requestSchema: "#/components/schemas/PushMessageRequest",
+    responseSchema: "#/components/schemas/PushMessageResponse",
+  }),
+  async (c) => {
   let body: PushBody;
   try {
     body = (await c.req.json()) as PushBody;
@@ -82,7 +89,8 @@ messageRouter.post("/v2/bot/message/push", async (c) => {
     return errors.badRequest(c, "Invalid user ID");
   }
   return c.json({ sentMessages: inserted });
-});
+  }
+);
 
 /**
  * POST /v2/bot/message/reply
@@ -197,7 +205,8 @@ messageRouter.post("/v2/bot/message/narrowcast", async (c) => {
   const reqId = (
     Math.random().toString(16).slice(2) + Math.random().toString(16).slice(2)
   ).slice(0, 32);
-  return c.body(null, 202, { "X-Line-Request-Id": reqId });
+  c.header("X-Line-Request-Id", reqId);
+  return c.json({}, 202);
 });
 
 /**
@@ -209,5 +218,7 @@ messageRouter.get("/v2/bot/message/progress/narrowcast", async (c) => {
     successCount: 0,
     failureCount: 0,
     targetCount: 0,
+    acceptedTime: new Date(0).toISOString(),
+    completedTime: new Date(0).toISOString(),
   });
 });
