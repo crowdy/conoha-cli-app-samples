@@ -8,11 +8,15 @@ import { seedIfEmpty } from "./db/seed.js";
 import { oauthRouter } from "./mock/oauth.js";
 import { oauthV3Router } from "./mock/oauth-v3.js";
 import { messageRouter } from "./mock/message.js";
+import { quotaRouter } from "./mock/quota.js";
+import { profileRouter } from "./mock/profile.js";
 
 const app = new Hono();
 app.route("/", oauthRouter);
 app.route("/", oauthV3Router);
 app.route("/", messageRouter);
+app.route("/", quotaRouter);
+app.route("/", profileRouter);
 
 app.get("/health", (c) => c.json({ status: "ok" }));
 
