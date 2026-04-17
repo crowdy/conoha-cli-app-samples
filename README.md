@@ -50,6 +50,7 @@ conoha app logs myserver --app-name hello-world
 | [go-fiber](go-fiber/) | Go + Fiber | 高速 REST API | g2l-t-1 (1GB) |
 | [nestjs-postgresql](nestjs-postgresql/) | NestJS + PostgreSQL | TypeORM CRUD アプリ | g2l-t-2 (2GB) |
 | [rust-actix-web](rust-actix-web/) | Rust + Actix-web | 高速 REST API | g2l-t-2 (2GB) |
+| [sendgrid-invitation](./sendgrid-invitation/) | Next.js + FastAPI + nginx Basic Auth | SendGrid 招待メール |
 | [rails-mercari](rails-mercari/) | Rails + Nginx + Sidekiq + Redis + Dex + PostgreSQL | メルカリ風マーケットプレイス（OIDC認証付き） | g2l-t-2 (2GB) |
 | [nextjs-go-google_ucp](nextjs-go-google_ucp/) | Next.js + Go + PostgreSQL | Google UCP デモ（AI エージェントコマース） | g2l-t-2 (2GB) |
 | [nginx-reverse-proxy](nginx-reverse-proxy/) | nginx リバースプロキシ | マルチアプリ運用 | g2l-t-1 (1GB) |
