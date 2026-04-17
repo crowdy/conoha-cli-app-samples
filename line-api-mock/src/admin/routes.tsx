@@ -1,12 +1,14 @@
 import { Hono } from "hono";
-import { sql, eq, inArray, and } from "drizzle-orm";
+import { sql, eq, inArray, and, desc } from "drizzle-orm";
 import { db } from "../db/client.js";
-import { channels, messages, webhookDeliveries, accessTokens, virtualUsers } from "../db/schema.js";
+import { channels, messages, webhookDeliveries, accessTokens, virtualUsers, apiLogs } from "../db/schema.js";
 import { adminAuth } from "./auth.js";
 import { Dashboard } from "./pages/Dashboard.js";
 import { Channels } from "./pages/Channels.js";
 import { Users } from "./pages/Users.js";
 import { Conversation } from "./pages/Conversation.js";
+import { WebhookLog } from "./pages/WebhookLog.js";
+import { ApiLog } from "./pages/ApiLog.js";
 import { accessTokenStr, randomHex, messageId, replyToken } from "../lib/id.js";
 import { config } from "../config.js";
 import { sseHandler } from "./sse.js";
@@ -241,4 +243,58 @@ adminRouter.post("/admin/conversations/:cid/:uid/send", async (c) => {
     ],
   }).catch((e) => console.error("dispatch failed:", e));
   return c.redirect(`/admin/conversations/${cid}/${uid}`);
+});
+
+adminRouter.get("/admin/webhook-log", async (c) => {
+  const rows = await db
+    .select({
+      id: webhookDeliveries.id,
+      targetUrl: webhookDeliveries.targetUrl,
+      statusCode: webhookDeliveries.statusCode,
+      error: webhookDeliveries.error,
+      durationMs: webhookDeliveries.durationMs,
+      createdAt: webhookDeliveries.createdAt,
+    })
+    .from(webhookDeliveries)
+    .orderBy(desc(webhookDeliveries.createdAt))
+    .limit(100);
+  return c.html(
+    <WebhookLog
+      rows={rows.map((r) => ({
+        id: r.id,
+        targetUrl: r.targetUrl,
+        statusCode: r.statusCode,
+        error: r.error,
+        durationMs: r.durationMs,
+        createdAt: r.createdAt.toISOString(),
+      }))}
+    />
+  );
+});
+
+adminRouter.get("/admin/api-log", async (c) => {
+  const rows = await db
+    .select({
+      id: apiLogs.id,
+      method: apiLogs.method,
+      path: apiLogs.path,
+      responseStatus: apiLogs.responseStatus,
+      durationMs: apiLogs.durationMs,
+      createdAt: apiLogs.createdAt,
+    })
+    .from(apiLogs)
+    .orderBy(desc(apiLogs.createdAt))
+    .limit(200);
+  return c.html(
+    <ApiLog
+      rows={rows.map((r) => ({
+        id: r.id,
+        method: r.method,
+        path: r.path,
+        responseStatus: r.responseStatus,
+        durationMs: r.durationMs,
+        createdAt: r.createdAt.toISOString(),
+      }))}
+    />
+  );
 });
