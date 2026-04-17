@@ -137,3 +137,77 @@ messageRouter.post("/v2/bot/message/reply", async (c) => {
   }
   return c.json({ sentMessages: inserted });
 });
+
+/**
+ * POST /v2/bot/message/multicast
+ */
+messageRouter.post("/v2/bot/message/multicast", async (c) => {
+  const body = (await c.req.json().catch(() => null)) as
+    | { to: string[]; messages: Array<Record<string, unknown>> }
+    | null;
+  if (!body || !Array.isArray(body.to) || !Array.isArray(body.messages)) {
+    return errors.badRequest(c, "to[] and messages[] are required");
+  }
+  if (body.to.length > 500) return errors.badRequest(c, "to must be <= 500");
+  const channelDbId = c.get("channelDbId");
+  for (const uid of body.to) {
+    await insertBotMessages(channelDbId, uid, body.messages);
+  }
+  return c.json({});
+});
+
+/**
+ * POST /v2/bot/message/broadcast
+ */
+messageRouter.post("/v2/bot/message/broadcast", async (c) => {
+  const body = (await c.req.json().catch(() => null)) as
+    | { messages: Array<Record<string, unknown>> }
+    | null;
+  if (!body || !Array.isArray(body.messages)) {
+    return errors.badRequest(c, "messages[] is required");
+  }
+  const channelDbId = c.get("channelDbId");
+  const friends = await db
+    .select({ userId: virtualUsers.userId })
+    .from(channelFriends)
+    .innerJoin(virtualUsers, eq(channelFriends.userId, virtualUsers.id))
+    .where(
+      and(
+        eq(channelFriends.channelId, channelDbId),
+        eq(channelFriends.blocked, false)
+      )
+    );
+  for (const f of friends) {
+    await insertBotMessages(channelDbId, f.userId, body.messages);
+  }
+  return c.json({});
+});
+
+/**
+ * POST /v2/bot/message/narrowcast (stub)
+ * Returns 202 Accepted with a request id; progress endpoint always succeeds.
+ */
+messageRouter.post("/v2/bot/message/narrowcast", async (c) => {
+  const body = (await c.req.json().catch(() => null)) as
+    | { messages?: Array<Record<string, unknown>> }
+    | null;
+  if (!body || !Array.isArray(body.messages)) {
+    return errors.badRequest(c, "messages[] is required");
+  }
+  const reqId = (
+    Math.random().toString(16).slice(2) + Math.random().toString(16).slice(2)
+  ).slice(0, 32);
+  return c.body(null, 202, { "X-Line-Request-Id": reqId });
+});
+
+/**
+ * GET /v2/bot/message/progress/narrowcast?requestId=...
+ */
+messageRouter.get("/v2/bot/message/progress/narrowcast", async (c) => {
+  return c.json({
+    phase: "succeeded",
+    successCount: 0,
+    failureCount: 0,
+    targetCount: 0,
+  });
+});
