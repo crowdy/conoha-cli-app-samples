@@ -7,6 +7,8 @@ services:
       - DATABASE_URL=postgres://mock:mock@db:5432/mock
       - APP_BASE_URL=http://localhost:3000
       - PORT=3000
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     depends_on:
       db:
         condition: service_healthy

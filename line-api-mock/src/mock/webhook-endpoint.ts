@@ -7,8 +7,8 @@ import { requestLog } from "./middleware/request-log.js";
 import { signBody } from "../webhook/signature.js";
 
 export const webhookEndpointRouter = new Hono<{ Variables: AuthVars }>();
-webhookEndpointRouter.use("*", requestLog);
-webhookEndpointRouter.use("*", bearerAuth);
+webhookEndpointRouter.use("/v2/*", requestLog);
+webhookEndpointRouter.use("/v2/*", bearerAuth);
 
 webhookEndpointRouter.get(
   "/v2/bot/channel/webhook/endpoint",

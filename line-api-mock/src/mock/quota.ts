@@ -6,8 +6,8 @@ import { bearerAuth, type AuthVars } from "./middleware/auth.js";
 import { requestLog } from "./middleware/request-log.js";
 
 export const quotaRouter = new Hono<{ Variables: AuthVars }>();
-quotaRouter.use("*", requestLog);
-quotaRouter.use("*", bearerAuth);
+quotaRouter.use("/v2/*", requestLog);
+quotaRouter.use("/v2/*", bearerAuth);
 
 quotaRouter.get("/v2/bot/message/quota", (c) =>
   c.json({ type: "limited", value: 1000 })
