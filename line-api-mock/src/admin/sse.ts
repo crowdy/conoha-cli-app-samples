@@ -5,6 +5,26 @@ import { db } from "../db/client.js";
 import { messages } from "../db/schema.js";
 import { eq } from "drizzle-orm";
 
+export interface MessageRow {
+  id: number;
+  direction: string;
+  type: string;
+  payload: unknown;
+  createdAt: Date;
+}
+
+export function buildMessageHtml(m: MessageRow): string {
+  return `<div class="${
+    m.direction === "user_to_bot"
+      ? "self-end bg-green-100"
+      : "self-start bg-slate-200"
+  } px-3 py-2 rounded-lg max-w-sm"><div class="text-xs text-slate-500 mb-1">${escape(
+    m.direction
+  )} · ${escape(m.type)}</div><div class="font-mono text-xs whitespace-pre-wrap">${escape(
+    JSON.stringify(m.payload)
+  )}</div></div>`;
+}
+
 export async function sseHandler(c: Context) {
   const scope = c.req.query("scope") ?? "all";
   const channel = Number(c.req.query("channel") ?? 0);
@@ -20,23 +40,15 @@ export async function sseHandler(c: Context) {
           .where(eq(messages.id, ev.id))
           .limit(1);
         if (!m) return;
-        const html = `<div class="${
-          m.direction === "user_to_bot"
-            ? "self-end bg-green-100"
-            : "self-start bg-slate-200"
-        } px-3 py-2 rounded-lg max-w-sm"><div class="text-xs text-slate-500 mb-1">${
-          m.direction
-        } · ${m.type}</div><div class="font-mono text-xs whitespace-pre-wrap">${escape(
-          JSON.stringify(m.payload)
-        )}</div></div>`;
+        const html = buildMessageHtml(m);
         await stream.writeSSE({ event: "message", data: html });
       } else if (scope === "webhook") {
         if (ev.type === "webhook.delivered") {
           await stream.writeSSE({
             event: "message",
-            data: `<tr><td class="p-2">${ev.id}</td><td class="p-2">${
-              ev.statusCode ?? "err"
-            }</td></tr>`,
+            data: `<tr><td class="p-2">${escape(String(ev.id))}</td><td class="p-2">${escape(
+              String(ev.statusCode ?? "err")
+            )}</td></tr>`,
           });
         }
       }
