@@ -1,10 +1,11 @@
 import { Hono } from "hono";
 import { sql, eq, inArray } from "drizzle-orm";
 import { db } from "../db/client.js";
-import { channels, messages, webhookDeliveries, accessTokens } from "../db/schema.js";
+import { channels, messages, webhookDeliveries, accessTokens, virtualUsers } from "../db/schema.js";
 import { adminAuth } from "./auth.js";
 import { Dashboard } from "./pages/Dashboard.js";
 import { Channels } from "./pages/Channels.js";
+import { Users } from "./pages/Users.js";
 import { accessTokenStr, randomHex } from "../lib/id.js";
 import { config } from "../config.js";
 
@@ -112,4 +113,35 @@ adminRouter.put("/admin/channels/:id/webhook", async (c) => {
     .set({ webhookUrl, webhookEnabled: enabled })
     .where(eq(channels.id, id));
   return c.redirect("/admin/channels");
+});
+
+adminRouter.get("/admin/users", async (c) => {
+  const users = await db
+    .select({
+      id: virtualUsers.id,
+      userId: virtualUsers.userId,
+      displayName: virtualUsers.displayName,
+      language: virtualUsers.language,
+    })
+    .from(virtualUsers);
+  return c.html(<Users users={users} />);
+});
+
+adminRouter.post("/admin/users", async (c) => {
+  const form = await c.req.parseBody();
+  const displayName = String(form.displayName ?? "").trim();
+  if (!displayName) return c.redirect("/admin/users");
+  const language = String(form.language ?? "ja").trim() || "ja";
+  await db.insert(virtualUsers).values({
+    userId: "U" + randomHex(16),
+    displayName,
+    language,
+  });
+  return c.redirect("/admin/users");
+});
+
+adminRouter.delete("/admin/users/:id", async (c) => {
+  const id = Number(c.req.param("id"));
+  await db.delete(virtualUsers).where(eq(virtualUsers.id, id));
+  return c.redirect("/admin/users");
 });
