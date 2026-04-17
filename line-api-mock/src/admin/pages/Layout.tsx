@@ -11,6 +11,7 @@ export const Layout: FC<{ title: string; children?: unknown }> = ({
       <title>{title} — line-api-mock</title>
       <script src="https://cdn.tailwindcss.com"></script>
       <script src="https://unpkg.com/htmx.org@2.0.4"></script>
+      <script src="https://unpkg.com/htmx-ext-sse@2.2.2/sse.js"></script>
     </head>
     <body class="bg-slate-50 text-slate-800">
       <header class="bg-green-600 text-white p-4">
