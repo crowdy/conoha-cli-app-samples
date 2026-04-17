@@ -60,6 +60,7 @@ line-api-mock/
 │   └── gen-types.sh               # openapi-typescript 実行
 ├── test/
 │   ├── unit/                      # ハンドラー単体テスト
+│   ├── sdk-compat/                # @line/bot-sdk を使った互換性検証
 │   └── e2e/                       # webhook 往復 + 管理 UI スモーク
 └── README.md
 ```
@@ -335,7 +336,8 @@ conoha app deploy line-mock --app-name line-mock
 
 - **単体 (Vitest)**: 各 mock エンドポイントを ajv 応答スキーマ検証付きで
 - **統合 (Vitest + Testcontainers-node)**: 実 Postgres 起動、webhook dispatch はローカル HTTP モックサーバーで受信して署名検証
-- **E2E スモーク (Playwright)**: 管理 UI で channel 作成 → 仮想ユーザー発言 → テスト用 Echo Bot が reply → 会話画面に反映 を 1 シナリオ
+- **SDK 互換性テスト (Vitest + `@line/bot-sdk`)**: 公式 LINE Bot SDK for Node.js を devDependency として導入し、`basePath` をモックに向けた状態で主要 API (push / reply / multicast / broadcast / profile / getMessageContent) を呼ぶ。SDK がレスポンスをパースできることが「スペック準拠」の強力な回帰テストになる。Webhook 受信側も SDK の `validateSignature` + `middleware` でシグネチャ検証して、モックが送る `X-Line-Signature` が公式ロジックで通ることを確認
+- **E2E スモーク (Playwright)**: 管理 UI で channel 作成 → 仮想ユーザー発言 → テスト用 Echo Bot(`@line/bot-sdk` で実装) が reply → 会話画面に反映 を 1 シナリオ
 
 ## What This Sample Does NOT Include
 
