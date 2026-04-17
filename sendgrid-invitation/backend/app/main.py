@@ -43,7 +43,7 @@ def invite(req: InviteRequest):
     try:
         sg = SendGridAPIClient(settings.sendgrid_api_key)
         response = sg.send(message)
-        if response.status_code not in (200, 201, 202):
+        if not (200 <= response.status_code < 300):
             raise HTTPException(status_code=502, detail="Failed to send email")
     except Exception as e:
         if isinstance(e, HTTPException):
