@@ -57,14 +57,18 @@ docker compose up --build
 
 ## 環境変数
 
-| 変数              | 既定値                                    | 説明                                        |
-|-------------------|-------------------------------------------|---------------------------------------------|
-| `DATABASE_URL`    | `postgres://mock:mock@db:5432/mock`       | PostgreSQL 接続文字列                       |
-| `PORT`            | `3000`                                    | HTTP ポート                                 |
-| `APP_BASE_URL`    | `http://localhost:3000`                   | 自己参照 URL                                |
-| `ADMIN_USER`      | (空)                                      | 管理 UI Basic Auth ユーザー                 |
-| `ADMIN_PASSWORD`  | (空)                                      | 管理 UI Basic Auth パスワード               |
-| `TOKEN_TTL_SEC`   | `2592000`                                 | 発行トークン有効期限(秒、既定 30 日)      |
+| 変数                          | 既定値                                    | 説明                                                                          |
+|-------------------------------|-------------------------------------------|-------------------------------------------------------------------------------|
+| `DATABASE_URL`                | `postgres://mock:mock@db:5432/mock`       | PostgreSQL 接続文字列                                                         |
+| `PORT`                        | `3000`                                    | HTTP ポート                                                                   |
+| `APP_BASE_URL`                | `http://localhost:3000`                   | 自己参照 URL                                                                  |
+| `ADMIN_USER`                  | `admin`                                   | 管理 UI Basic Auth ユーザー                                                   |
+| `ADMIN_PASSWORD`              | (自動生成)                                | 管理 UI Basic Auth パスワード                                                 |
+| `TOKEN_TTL_SEC`               | `2592000`                                 | 発行トークン有効期限(秒、既定 30 日)                                        |
+| `MOCK_ALLOW_PRIVATE_WEBHOOKS` | `0`                                       | `1` にするとプライベート/ループバック IP への webhook 送信を許可（ローカル開発用）|
+
+> **注意**: `ADMIN_USER` / `ADMIN_PASSWORD` を設定しない場合、起動時に自動でランダムパスワードが生成されコンテナログに出力されます。
+> `MOCK_ALLOW_PRIVATE_WEBHOOKS=1` は `compose.yml` でローカル開発向けに有効化されています。本番デプロイ時はこの環境変数を削除または `0` に設定してください。
 
 ## ConoHa VPS にデプロイ
 
@@ -109,6 +113,12 @@ Swagger UI には表示されますが、実装は v2 以降の予定です。
 ## 仕様のソース
 
 `specs/messaging-api.yml` は [line/line-openapi](https://github.com/line/line-openapi) から取得した vendored ファイルです。取得元とコミット SHA は `specs/README.md` に記録しています。
+
+## セキュリティ
+
+- **管理 UI 認証**: 常に Basic Auth が有効です。`ADMIN_USER`/`ADMIN_PASSWORD` が未設定の場合、起動時にランダムパスワードが自動生成され、コンテナログに出力されます。
+- **Webhook URL 制限**: デフォルトでプライベート IP・ループバック・リンクローカルアドレスへの送信を拒否します（SSRF 対策）。`MOCK_ALLOW_PRIVATE_WEBHOOKS=1` で解除できます（ローカル開発用途のみ）。
+- **既知の制限**: CSRF 保護なし、レート制限なし。インターネット公開環境での使用は想定していません。
 
 ## このサンプルが *含まない* もの
 

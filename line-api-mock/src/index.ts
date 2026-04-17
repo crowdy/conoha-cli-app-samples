@@ -64,6 +64,13 @@ app.onError((err, c) => {
 async function main() {
   await runMigrations();
   await seedIfEmpty();
+  if (config.adminAuthGenerated) {
+    console.log("[line-api-mock] Admin auth (generated — set ADMIN_USER/ADMIN_PASSWORD env vars to override):");
+    console.log(`  admin_user:     ${config.adminUser}`);
+    console.log(`  admin_password: ${config.adminPassword}`);
+  } else {
+    console.log("[line-api-mock] Admin auth: from ADMIN_USER/ADMIN_PASSWORD env vars");
+  }
   serve({ fetch: app.fetch, port: config.port }, (info) => {
     console.log(`[line-api-mock] listening on :${info.port}`);
     console.log(`  Admin:      ${config.appBaseUrl}/admin`);
