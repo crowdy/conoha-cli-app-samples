@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"os"
 
+	"line-cli-go/cmd/token"
+
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -23,6 +25,8 @@ func Execute() {
 
 func init() {
 	cobra.OnInitialize(initConfig)
+
+	rootCmd.AddCommand(token.TokenCmd)
 
 	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default: .line-cli.yaml)")
 	rootCmd.PersistentFlags().String("base-url", "", "mock server base URL")
