@@ -42,6 +42,7 @@ conoha app logs myserver --app-name hello-world
 | [express-mongodb](express-mongodb/) | Express.js + MongoDB | Mongoose CRUD アプリ | g2l-t-2 (2GB) |
 | [hono-drizzle-postgresql](hono-drizzle-postgresql/) | Hono + Drizzle + PostgreSQL | ブックマーク管理 REST API + Swagger UI | g2l-t-2 (2GB) |
 | [line-api-mock](line-api-mock/) | Hono + PostgreSQL + HTMX | LINE Messaging API モックサーバー(Webhook エミュレーション + 管理 UI) | g2l-t-2 (2GB) |
+| [line-cli-go](line-cli-go/) | Go + line-bot-sdk-go v8 | LINE Messaging API CLI クライアント（line-api-mock 連動） | — |
 | [bun-elysia-chat](bun-elysia-chat/) | Bun + Elysia + SQLite | リアルタイムチャット（WebSocket） | g2l-t-2 (2GB) |
 | [laravel-mysql](laravel-mysql/) | Laravel + MySQL | Eloquent CRUD アプリ | g2l-t-2 (2GB) |
 | [nextjs-fastapi-postgresql](nextjs-fastapi-postgresql/) | Next.js + FastAPI + PostgreSQL | フルスタック CRUD アプリ | g2l-t-2 (2GB) |
