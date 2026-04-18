@@ -1,6 +1,8 @@
 package token
 
 import (
+	"encoding/base64"
+	"encoding/json"
 	"fmt"
 
 	"line-cli-go/internal/client"
@@ -9,6 +11,15 @@ import (
 
 	"github.com/spf13/cobra"
 )
+
+// buildDummyJWT creates a JWT with the channel ID as the `iss` claim.
+// The mock does not verify signatures, so only the payload matters.
+func buildDummyJWT(channelID string) string {
+	header := base64.RawURLEncoding.EncodeToString([]byte(`{"alg":"RS256","typ":"JWT"}`))
+	payload, _ := json.Marshal(map[string]string{"iss": channelID})
+	body := base64.RawURLEncoding.EncodeToString(payload)
+	return header + "." + body + ".dummy-signature"
+}
 
 var issueV3Cmd = &cobra.Command{
 	Use:   "issue-v3",
@@ -24,8 +35,9 @@ var issueV3Cmd = &cobra.Command{
 			return fmt.Errorf("creating token client: %w", err)
 		}
 
-		// The mock does not verify JWT signatures, so a dummy assertion suffices.
-		assertion := "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.dummy"
+		// Build a JWT with channel ID as iss claim.
+		// The mock extracts iss to identify the channel (no signature verification).
+		assertion := buildDummyJWT(config.ChannelID())
 
 		resp, err := tokenAPI.IssueChannelTokenByJWT(
 			"client_credentials",

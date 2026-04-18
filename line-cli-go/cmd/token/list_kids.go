@@ -24,7 +24,7 @@ var listKidsCmd = &cobra.Command{
 			return fmt.Errorf("creating token client: %w", err)
 		}
 
-		assertion := "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.dummy"
+		assertion := buildDummyJWT(config.ChannelID())
 		resp, err := tokenAPI.GetsAllValidChannelAccessTokenKeyIds(
 			"urn:ietf:params:oauth:client-assertion-type:jwt-bearer",
 			assertion,
