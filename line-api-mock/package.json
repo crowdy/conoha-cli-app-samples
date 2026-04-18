@@ -1,0 +1,40 @@
+{
+  "name": "line-api-mock",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "start": "tsx src/index.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:unit": "vitest run test/unit",
+    "test:integration": "vitest run test/integration",
+    "test:sdk": "vitest run test/sdk-compat",
+    "test:e2e": "playwright test",
+    "db:generate": "drizzle-kit generate",
+    "gen:types": "bash scripts/gen-types.sh"
+  },
+  "dependencies": {
+    "@hono/node-server": "^1.19.13",
+    "ajv": "^8.17.1",
+    "ajv-formats": "^3.0.1",
+    "drizzle-orm": "^0.45.2",
+    "hono": "^4.12.12",
+    "js-yaml": "^4.1.0",
+    "postgres": "^3.4.9",
+    "tsx": "^4.21.0"
+  },
+  "devDependencies": {
+    "@line/bot-sdk": "^9.5.0",
+    "@playwright/test": "^1.49.0",
+    "@testcontainers/postgresql": "^11.14.0",
+    "@types/js-yaml": "^4.0.9",
+    "@types/node": "^22.10.0",
+    "drizzle-kit": "^0.31.10",
+    "openapi-typescript": "^7.4.4",
+    "testcontainers": "^10.16.0",
+    "typescript": "^5.8.0",
+    "vitest": "^2.1.8"
+  }
+}
