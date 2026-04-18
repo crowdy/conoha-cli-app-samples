@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 
+	"line-cli-go/cmd/message"
 	"line-cli-go/cmd/token"
 
 	"github.com/spf13/cobra"
@@ -26,6 +27,7 @@ func Execute() {
 func init() {
 	cobra.OnInitialize(initConfig)
 
+	rootCmd.AddCommand(message.MessageCmd)
 	rootCmd.AddCommand(token.TokenCmd)
 
 	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default: .line-cli.yaml)")
