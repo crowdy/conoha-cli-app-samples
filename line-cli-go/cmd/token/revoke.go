@@ -2,7 +2,6 @@ package token
 
 import (
 	"fmt"
-	"os"
 
 	"line-cli-go/internal/client"
 	"line-cli-go/internal/config"
@@ -28,7 +27,7 @@ var revokeCmd = &cobra.Command{
 		_, err = tokenAPI.RevokeChannelToken(config.AccessToken())
 		if err != nil {
 			p.Error(0, err.Error())
-			os.Exit(1)
+			return err
 		}
 
 		p.Success("Token revoked", nil)

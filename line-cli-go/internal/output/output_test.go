@@ -32,22 +32,34 @@ func TestPrintSuccess_JSON(t *testing.T) {
 }
 
 func TestPrintError_Text(t *testing.T) {
-	var buf bytes.Buffer
-	p := NewPrinter(false, &buf)
+	var errBuf bytes.Buffer
+	p := NewPrinterWithErr(false, nil, &errBuf)
 	p.Error(400, "Invalid reply token")
-	out := buf.String()
+	out := errBuf.String()
 	if !bytes.Contains([]byte(out), []byte("✗")) {
-		t.Errorf("expected cross mark in output, got: %s", out)
+		t.Errorf("expected cross mark in error output, got: %s", out)
 	}
 }
 
 func TestPrintError_JSON(t *testing.T) {
-	var buf bytes.Buffer
-	p := NewPrinter(true, &buf)
+	var errBuf bytes.Buffer
+	p := NewPrinterWithErr(true, nil, &errBuf)
 	p.Error(400, "Invalid reply token")
-	out := buf.String()
+	out := errBuf.String()
 	if !bytes.Contains([]byte(out), []byte(`"error"`)) {
-		t.Errorf("expected error key in JSON output, got: %s", out)
+		t.Errorf("expected error key in JSON error output, got: %s", out)
+	}
+}
+
+func TestPrintError_GoesToErrWriter(t *testing.T) {
+	var stdBuf, errBuf bytes.Buffer
+	p := NewPrinterWithErr(false, &stdBuf, &errBuf)
+	p.Error(500, "Internal server error")
+	if stdBuf.Len() != 0 {
+		t.Errorf("expected no output on stdout writer, got: %s", stdBuf.String())
+	}
+	if errBuf.Len() == 0 {
+		t.Error("expected output on stderr writer, got nothing")
 	}
 }
 

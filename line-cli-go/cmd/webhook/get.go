@@ -1,8 +1,6 @@
 package webhook
 
 import (
-	"os"
-
 	"line-cli-go/internal/client"
 	"line-cli-go/internal/config"
 	"line-cli-go/internal/output"
@@ -23,7 +21,7 @@ var getCmd = &cobra.Command{
 		resp, err := api.GetWebhookEndpoint()
 		if err != nil {
 			p.Error(0, err.Error())
-			os.Exit(1)
+			return err
 		}
 
 		p.Raw(map[string]any{

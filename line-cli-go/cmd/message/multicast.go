@@ -2,7 +2,6 @@ package message
 
 import (
 	"fmt"
-	"os"
 	"strings"
 
 	"line-cli-go/internal/client"
@@ -46,7 +45,7 @@ var multicastCmd = &cobra.Command{
 		)
 		if err != nil {
 			p.Error(0, err.Error())
-			os.Exit(1)
+			return err
 		}
 
 		p.Success("Multicast sent", map[string]string{

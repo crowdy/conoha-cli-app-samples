@@ -2,7 +2,6 @@ package webhook
 
 import (
 	"fmt"
-	"os"
 
 	"line-cli-go/internal/client"
 	"line-cli-go/internal/config"
@@ -33,7 +32,7 @@ var setCmd = &cobra.Command{
 		)
 		if err != nil {
 			p.Error(0, err.Error())
-			os.Exit(1)
+			return err
 		}
 
 		p.Success("Webhook endpoint updated", map[string]string{

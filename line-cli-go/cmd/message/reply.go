@@ -2,7 +2,6 @@ package message
 
 import (
 	"fmt"
-	"os"
 
 	"line-cli-go/internal/client"
 	"line-cli-go/internal/config"
@@ -43,7 +42,7 @@ var replyCmd = &cobra.Command{
 		)
 		if err != nil {
 			p.Error(0, err.Error())
-			os.Exit(1)
+			return err
 		}
 
 		sentIDs := make([]string, 0)

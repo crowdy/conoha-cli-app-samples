@@ -12,19 +12,28 @@ import (
 	"line-cli-go/cmd/webhook"
 
 	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 )
 
 var cfgFile string
 
 var rootCmd = &cobra.Command{
-	Use:   "line-cli-go",
-	Short: "LINE Messaging API CLI client for line-api-mock",
+	Use:           "line-cli-go",
+	Short:         "LINE Messaging API CLI client for line-api-mock",
+	SilenceErrors: true,
+	SilenceUsage:  true,
 }
 
 func Execute() {
 	if err := rootCmd.Execute(); err != nil {
 		os.Exit(1)
+	}
+}
+
+func mustBindPFlag(key string, flag *pflag.Flag) {
+	if err := viper.BindPFlag(key, flag); err != nil {
+		panic(fmt.Sprintf("binding flag %s: %v", key, err))
 	}
 }
 
@@ -45,11 +54,11 @@ func init() {
 	rootCmd.PersistentFlags().String("access-token", "", "channel access token")
 	rootCmd.PersistentFlags().Bool("json", false, "output as JSON")
 
-	viper.BindPFlag("base_url", rootCmd.PersistentFlags().Lookup("base-url"))
-	viper.BindPFlag("channel_id", rootCmd.PersistentFlags().Lookup("channel-id"))
-	viper.BindPFlag("channel_secret", rootCmd.PersistentFlags().Lookup("channel-secret"))
-	viper.BindPFlag("access_token", rootCmd.PersistentFlags().Lookup("access-token"))
-	viper.BindPFlag("json", rootCmd.PersistentFlags().Lookup("json"))
+	mustBindPFlag("base_url", rootCmd.PersistentFlags().Lookup("base-url"))
+	mustBindPFlag("channel_id", rootCmd.PersistentFlags().Lookup("channel-id"))
+	mustBindPFlag("channel_secret", rootCmd.PersistentFlags().Lookup("channel-secret"))
+	mustBindPFlag("access_token", rootCmd.PersistentFlags().Lookup("access-token"))
+	mustBindPFlag("json", rootCmd.PersistentFlags().Lookup("json"))
 }
 
 func initConfig() {

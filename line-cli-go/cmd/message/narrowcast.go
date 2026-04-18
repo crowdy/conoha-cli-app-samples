@@ -1,8 +1,6 @@
 package message
 
 import (
-	"os"
-
 	"line-cli-go/internal/client"
 	"line-cli-go/internal/config"
 	"line-cli-go/internal/output"
@@ -37,7 +35,7 @@ var narrowcastCmd = &cobra.Command{
 		)
 		if err != nil {
 			p.Error(0, err.Error())
-			os.Exit(1)
+			return err
 		}
 
 		p.Success("Narrowcast accepted (202)", nil)

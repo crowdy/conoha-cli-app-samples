@@ -2,7 +2,6 @@ package profile
 
 import (
 	"fmt"
-	"os"
 
 	"line-cli-go/internal/client"
 	"line-cli-go/internal/config"
@@ -29,7 +28,7 @@ var getCmd = &cobra.Command{
 		resp, err := api.GetProfile(userID)
 		if err != nil {
 			p.Error(0, err.Error())
-			os.Exit(1)
+			return err
 		}
 
 		p.Raw(map[string]any{

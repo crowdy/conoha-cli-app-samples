@@ -32,7 +32,7 @@ var getCmd = &cobra.Command{
 		resp, err := blobAPI.GetMessageContent(messageID)
 		if err != nil {
 			p.Error(0, err.Error())
-			os.Exit(1)
+			return err
 		}
 		defer resp.Body.Close()
 
@@ -51,7 +51,9 @@ var getCmd = &cobra.Command{
 				"bytes": fmt.Sprintf("%d", n),
 			})
 		} else {
-			io.Copy(os.Stdout, resp.Body)
+			if _, err := io.Copy(os.Stdout, resp.Body); err != nil {
+				return fmt.Errorf("writing content to stdout: %w", err)
+			}
 		}
 		return nil
 	},

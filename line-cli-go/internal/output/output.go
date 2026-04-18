@@ -10,13 +10,21 @@ import (
 type Printer struct {
 	jsonMode bool
 	w        io.Writer
+	errW     io.Writer
 }
 
 func NewPrinter(jsonMode bool, w io.Writer) *Printer {
+	return NewPrinterWithErr(jsonMode, w, nil)
+}
+
+func NewPrinterWithErr(jsonMode bool, w io.Writer, errW io.Writer) *Printer {
 	if w == nil {
 		w = os.Stdout
 	}
-	return &Printer{jsonMode: jsonMode, w: w}
+	if errW == nil {
+		errW = os.Stderr
+	}
+	return &Printer{jsonMode: jsonMode, w: w, errW: errW}
 }
 
 // Success prints a success message with key-value details.
@@ -35,18 +43,20 @@ func (p *Printer) Success(msg string, fields map[string]string) {
 	}
 }
 
-// Error prints an error message.
+// Error prints an error message to the error writer (stderr by default).
 func (p *Printer) Error(status int, msg string) {
 	if p.jsonMode {
-		p.writeJSON(map[string]any{
+		enc := json.NewEncoder(p.errW)
+		enc.SetIndent("", "  ")
+		enc.Encode(map[string]any{
 			"error":   true,
 			"status":  status,
 			"message": msg,
 		})
 		return
 	}
-	fmt.Fprintf(p.w, "✗ Failed (%d)\n", status)
-	fmt.Fprintf(p.w, "  %s\n", msg)
+	fmt.Fprintf(p.errW, "✗ Failed (%d)\n", status)
+	fmt.Fprintf(p.errW, "  %s\n", msg)
 }
 
 // Raw prints arbitrary data (JSON mode: marshal; text mode: formatted key-value).
