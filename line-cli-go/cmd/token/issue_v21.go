@@ -21,8 +21,8 @@ func buildDummyJWT(channelID string) string {
 	return header + "." + body + ".dummy-signature"
 }
 
-var issueV3Cmd = &cobra.Command{
-	Use:   "issue-v3",
+var issueV21Cmd = &cobra.Command{
+	Use:   "issue-v21",
 	Short: "Issue a v2.1 channel access token (JWT-based)",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if err := config.RequireTokenFields(); err != nil {

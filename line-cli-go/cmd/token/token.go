@@ -9,7 +9,7 @@ var TokenCmd = &cobra.Command{
 
 func init() {
 	TokenCmd.AddCommand(issueCmd)
-	TokenCmd.AddCommand(issueV3Cmd)
+	TokenCmd.AddCommand(issueV21Cmd)
 	TokenCmd.AddCommand(verifyCmd)
 	TokenCmd.AddCommand(revokeCmd)
 	TokenCmd.AddCommand(listKidsCmd)

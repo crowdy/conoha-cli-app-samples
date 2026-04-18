@@ -54,7 +54,7 @@ cp .line-cli.yaml.example .line-cli.yaml
 | コマンド | 説明 |
 |---------|------|
 | `token issue` | v2 チャンネルアクセストークン発行 |
-| `token issue-v3` | v2.1 JWT ベーストークン発行 |
+| `token issue-v21` | v2.1 JWT ベーストークン発行 |
 | `token verify` | トークン検証 |
 | `token revoke` | トークン失効 |
 | `token list-kids` | v2.1 有効キー ID 一覧 |
