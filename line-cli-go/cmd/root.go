@@ -4,8 +4,12 @@ import (
 	"fmt"
 	"os"
 
+	"line-cli-go/cmd/content"
 	"line-cli-go/cmd/message"
+	"line-cli-go/cmd/profile"
+	"line-cli-go/cmd/quota"
 	"line-cli-go/cmd/token"
+	"line-cli-go/cmd/webhook"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -27,8 +31,12 @@ func Execute() {
 func init() {
 	cobra.OnInitialize(initConfig)
 
+	rootCmd.AddCommand(content.ContentCmd)
 	rootCmd.AddCommand(message.MessageCmd)
+	rootCmd.AddCommand(profile.ProfileCmd)
+	rootCmd.AddCommand(quota.QuotaCmd)
 	rootCmd.AddCommand(token.TokenCmd)
+	rootCmd.AddCommand(webhook.WebhookCmd)
 
 	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default: .line-cli.yaml)")
 	rootCmd.PersistentFlags().String("base-url", "", "mock server base URL")
