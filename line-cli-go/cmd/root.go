@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"errors"
 	"fmt"
 	"os"
 
@@ -10,6 +11,7 @@ import (
 	"line-cli-go/cmd/quota"
 	"line-cli-go/cmd/token"
 	"line-cli-go/cmd/webhook"
+	"line-cli-go/internal/config"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
@@ -27,6 +29,10 @@ var rootCmd = &cobra.Command{
 
 func Execute() {
 	if err := rootCmd.Execute(); err != nil {
+		var ce *config.ClientError
+		if errors.As(err, &ce) {
+			os.Exit(2)
+		}
 		os.Exit(1)
 	}
 }

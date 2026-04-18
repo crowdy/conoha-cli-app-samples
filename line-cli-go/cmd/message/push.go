@@ -1,8 +1,6 @@
 package message
 
 import (
-	"fmt"
-
 	"line-cli-go/internal/client"
 	"line-cli-go/internal/config"
 	"line-cli-go/internal/output"
@@ -20,7 +18,7 @@ var pushCmd = &cobra.Command{
 		payloadFile, _ := cmd.Flags().GetString("payload-file")
 
 		if to == "" {
-			return fmt.Errorf("--to is required")
+			return &config.ClientError{Msg: "--to is required"}
 		}
 		p := output.NewPrinter(config.JSONMode(), nil)
 
@@ -42,7 +40,7 @@ var pushCmd = &cobra.Command{
 			"",
 		)
 		if err != nil {
-			p.Error(0, err.Error())
+			p.Error(output.ExtractHTTPStatus(err), err.Error())
 			return err
 		}
 

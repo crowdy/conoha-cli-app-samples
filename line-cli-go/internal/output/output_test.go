@@ -2,6 +2,7 @@ package output
 
 import (
 	"bytes"
+	"fmt"
 	"testing"
 )
 
@@ -28,6 +29,9 @@ func TestPrintSuccess_JSON(t *testing.T) {
 	out := buf.String()
 	if !bytes.Contains([]byte(out), []byte(`"id"`)) {
 		t.Errorf("expected JSON key in output, got: %s", out)
+	}
+	if !bytes.Contains([]byte(out), []byte(`"message"`)) {
+		t.Errorf("expected message key in JSON output, got: %s", out)
 	}
 }
 
@@ -71,5 +75,39 @@ func TestPrintRaw_JSON(t *testing.T) {
 	out := buf.String()
 	if !bytes.Contains([]byte(out), []byte("abc")) {
 		t.Errorf("expected token in output, got: %s", out)
+	}
+}
+
+func TestPrintRaw_TextSortedKeys(t *testing.T) {
+	var buf bytes.Buffer
+	p := NewPrinter(false, &buf)
+	data := map[string]any{"zebra": 1, "apple": 2, "mango": 3}
+	p.Raw(data)
+	out := buf.String()
+	expected := "  apple: 2\n  mango: 3\n  zebra: 1\n"
+	if out != expected {
+		t.Errorf("expected sorted output:\n%s\ngot:\n%s", expected, out)
+	}
+}
+
+func TestExtractHTTPStatus(t *testing.T) {
+	tests := []struct {
+		name string
+		err  error
+		want int
+	}{
+		{"nil error", nil, 0},
+		{"no status", fmt.Errorf("something went wrong"), 0},
+		{"400 status", fmt.Errorf("unexpected status code: 400, bad request"), 400},
+		{"404 status", fmt.Errorf("unexpected status code: 404, not found"), 404},
+		{"500 status", fmt.Errorf("unexpected status code: 500, internal error"), 500},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := ExtractHTTPStatus(tt.err)
+			if got != tt.want {
+				t.Errorf("ExtractHTTPStatus() = %d, want %d", got, tt.want)
+			}
+		})
 	}
 }

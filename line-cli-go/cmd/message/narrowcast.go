@@ -34,7 +34,7 @@ var narrowcastCmd = &cobra.Command{
 			"",
 		)
 		if err != nil {
-			p.Error(0, err.Error())
+			p.Error(output.ExtractHTTPStatus(err), err.Error())
 			return err
 		}
 

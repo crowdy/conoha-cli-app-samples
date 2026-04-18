@@ -1,8 +1,6 @@
 package message
 
 import (
-	"fmt"
-
 	"line-cli-go/internal/client"
 	"line-cli-go/internal/config"
 	"line-cli-go/internal/output"
@@ -20,7 +18,7 @@ var replyCmd = &cobra.Command{
 		payloadFile, _ := cmd.Flags().GetString("payload-file")
 
 		if replyToken == "" {
-			return fmt.Errorf("--reply-token is required")
+			return &config.ClientError{Msg: "--reply-token is required"}
 		}
 		p := output.NewPrinter(config.JSONMode(), nil)
 
@@ -41,7 +39,7 @@ var replyCmd = &cobra.Command{
 			},
 		)
 		if err != nil {
-			p.Error(0, err.Error())
+			p.Error(output.ExtractHTTPStatus(err), err.Error())
 			return err
 		}
 

@@ -27,7 +27,7 @@ var testCmd = &cobra.Command{
 
 		resp, err := api.TestWebhookEndpoint(req)
 		if err != nil {
-			p.Error(0, err.Error())
+			p.Error(output.ExtractHTTPStatus(err), err.Error())
 			return err
 		}
 

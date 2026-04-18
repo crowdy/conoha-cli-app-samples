@@ -1,8 +1,6 @@
 package webhook
 
 import (
-	"fmt"
-
 	"line-cli-go/internal/client"
 	"line-cli-go/internal/config"
 	"line-cli-go/internal/output"
@@ -17,7 +15,7 @@ var setCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		url, _ := cmd.Flags().GetString("url")
 		if url == "" {
-			return fmt.Errorf("--url is required")
+			return &config.ClientError{Msg: "--url is required"}
 		}
 		p := output.NewPrinter(config.JSONMode(), nil)
 		api, err := client.NewMessagingAPI()
@@ -31,7 +29,7 @@ var setCmd = &cobra.Command{
 			},
 		)
 		if err != nil {
-			p.Error(0, err.Error())
+			p.Error(output.ExtractHTTPStatus(err), err.Error())
 			return err
 		}
 

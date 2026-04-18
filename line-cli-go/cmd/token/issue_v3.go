@@ -33,7 +33,7 @@ var issueV3Cmd = &cobra.Command{
 			assertion,
 		)
 		if err != nil {
-			p.Error(0, err.Error())
+			p.Error(output.ExtractHTTPStatus(err), err.Error())
 			return err
 		}
 

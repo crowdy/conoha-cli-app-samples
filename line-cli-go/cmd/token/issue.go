@@ -30,7 +30,7 @@ var issueCmd = &cobra.Command{
 			config.ChannelSecret(),
 		)
 		if err != nil {
-			p.Error(0, err.Error())
+			p.Error(output.ExtractHTTPStatus(err), err.Error())
 			return err
 		}
 

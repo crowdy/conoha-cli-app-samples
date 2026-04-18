@@ -1,8 +1,6 @@
 package profile
 
 import (
-	"fmt"
-
 	"line-cli-go/internal/client"
 	"line-cli-go/internal/config"
 	"line-cli-go/internal/output"
@@ -16,7 +14,7 @@ var getCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		userID, _ := cmd.Flags().GetString("user-id")
 		if userID == "" {
-			return fmt.Errorf("--user-id is required")
+			return &config.ClientError{Msg: "--user-id is required"}
 		}
 		p := output.NewPrinter(config.JSONMode(), nil)
 
@@ -27,7 +25,7 @@ var getCmd = &cobra.Command{
 
 		resp, err := api.GetProfile(userID)
 		if err != nil {
-			p.Error(0, err.Error())
+			p.Error(output.ExtractHTTPStatus(err), err.Error())
 			return err
 		}
 

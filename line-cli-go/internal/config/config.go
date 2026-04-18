@@ -1,10 +1,17 @@
 package config
 
 import (
-	"fmt"
-
 	"github.com/spf13/viper"
 )
+
+// ClientError represents a client-side configuration or validation error (exit code 2).
+type ClientError struct {
+	Msg string
+}
+
+func (e *ClientError) Error() string {
+	return e.Msg
+}
 
 func BaseURL() string {
 	return viper.GetString("base_url")
@@ -29,10 +36,10 @@ func JSONMode() bool {
 // RequireTokenFields validates that channel_id and channel_secret are set (needed for OAuth).
 func RequireTokenFields() error {
 	if ChannelID() == "" {
-		return fmt.Errorf("channel_id is required (set LINE_CHANNEL_ID, config file, or --channel-id)")
+		return &ClientError{Msg: "channel_id is required (set LINE_CHANNEL_ID, config file, or --channel-id)"}
 	}
 	if ChannelSecret() == "" {
-		return fmt.Errorf("channel_secret is required (set LINE_CHANNEL_SECRET, config file, or --channel-secret)")
+		return &ClientError{Msg: "channel_secret is required (set LINE_CHANNEL_SECRET, config file, or --channel-secret)"}
 	}
 	return nil
 }
@@ -40,7 +47,7 @@ func RequireTokenFields() error {
 // RequireAccessToken validates that access_token is set (needed for API calls).
 func RequireAccessToken() error {
 	if AccessToken() == "" {
-		return fmt.Errorf("access_token is required (set LINE_ACCESS_TOKEN, config file, or --access-token)")
+		return &ClientError{Msg: "access_token is required (set LINE_ACCESS_TOKEN, config file, or --access-token)"}
 	}
 	return nil
 }

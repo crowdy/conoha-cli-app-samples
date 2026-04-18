@@ -2,6 +2,7 @@
 package integration
 
 import (
+	"bytes"
 	"encoding/json"
 	"os"
 	"os/exec"
@@ -30,12 +31,15 @@ func TestMain(m *testing.M) {
 	os.Exit(code)
 }
 
-func runCLI(t *testing.T, args ...string) (string, error) {
+func runCLI(t *testing.T, args ...string) (stdout string, stderr string, err error) {
 	t.Helper()
 	allArgs := append([]string{"--base-url", baseURL, "--json"}, args...)
 	cmd := exec.Command(binary, allArgs...)
-	out, err := cmd.CombinedOutput()
-	return string(out), err
+	var outBuf, errBuf bytes.Buffer
+	cmd.Stdout = &outBuf
+	cmd.Stderr = &errBuf
+	err = cmd.Run()
+	return outBuf.String(), errBuf.String(), err
 }
 
 func TestTokenIssueAndVerify(t *testing.T) {
@@ -45,32 +49,32 @@ func TestTokenIssueAndVerify(t *testing.T) {
 		t.Skip("TEST_CHANNEL_ID and TEST_CHANNEL_SECRET required")
 	}
 
-	out, err := runCLI(t, "--channel-id", channelID, "--channel-secret", channelSecret,
+	out, errOut, err := runCLI(t, "--channel-id", channelID, "--channel-secret", channelSecret,
 		"token", "issue")
 	if err != nil {
-		t.Fatalf("token issue failed: %s\n%s", err, out)
+		t.Fatalf("token issue failed: %s\nstdout: %s\nstderr: %s", err, out, errOut)
 	}
 
 	var issueResp map[string]any
 	if err := json.Unmarshal([]byte(out), &issueResp); err != nil {
-		t.Fatalf("failed to parse issue response: %v\noutput: %s", err, out)
+		t.Fatalf("failed to parse issue response: %v\nstdout: %s\nstderr: %s", err, out, errOut)
 	}
 	token, ok := issueResp["access_token"].(string)
 	if !ok || token == "" {
 		t.Fatalf("no access_token in response: %v", issueResp)
 	}
 
-	out, err = runCLI(t, "--access-token", token, "token", "verify")
+	out, errOut, err = runCLI(t, "--access-token", token, "token", "verify")
 	if err != nil {
-		t.Fatalf("token verify failed: %s\n%s", err, out)
+		t.Fatalf("token verify failed: %s\nstdout: %s\nstderr: %s", err, out, errOut)
 	}
 	if !strings.Contains(out, "client_id") {
 		t.Errorf("verify response missing client_id: %s", out)
 	}
 
-	out, err = runCLI(t, "--access-token", token, "token", "revoke")
+	out, errOut, err = runCLI(t, "--access-token", token, "token", "revoke")
 	if err != nil {
-		t.Fatalf("token revoke failed: %s\n%s", err, out)
+		t.Fatalf("token revoke failed: %s\nstdout: %s\nstderr: %s", err, out, errOut)
 	}
 }
 
@@ -81,19 +85,19 @@ func TestPushAndProfile(t *testing.T) {
 		t.Skip("TEST_ACCESS_TOKEN and TEST_USER_ID required")
 	}
 
-	out, err := runCLI(t, "--access-token", token,
+	out, errOut, err := runCLI(t, "--access-token", token,
 		"message", "push", "--to", userID, "--text", "hello from Go CLI test")
 	if err != nil {
-		t.Fatalf("push failed: %s\n%s", err, out)
+		t.Fatalf("push failed: %s\nstdout: %s\nstderr: %s", err, out, errOut)
 	}
 	if !strings.Contains(out, "sentMessages") {
 		t.Errorf("push response missing sentMessages: %s", out)
 	}
 
-	out, err = runCLI(t, "--access-token", token,
+	out, errOut, err = runCLI(t, "--access-token", token,
 		"profile", "get", "--user-id", userID)
 	if err != nil {
-		t.Fatalf("profile get failed: %s\n%s", err, out)
+		t.Fatalf("profile get failed: %s\nstdout: %s\nstderr: %s", err, out, errOut)
 	}
 	if !strings.Contains(out, "displayName") {
 		t.Errorf("profile response missing displayName: %s", out)
@@ -106,17 +110,17 @@ func TestQuota(t *testing.T) {
 		t.Skip("TEST_ACCESS_TOKEN required")
 	}
 
-	out, err := runCLI(t, "--access-token", token, "quota", "get")
+	out, errOut, err := runCLI(t, "--access-token", token, "quota", "get")
 	if err != nil {
-		t.Fatalf("quota get failed: %s\n%s", err, out)
+		t.Fatalf("quota get failed: %s\nstdout: %s\nstderr: %s", err, out, errOut)
 	}
 	if !strings.Contains(out, "type") {
 		t.Errorf("quota response missing type: %s", out)
 	}
 
-	out, err = runCLI(t, "--access-token", token, "quota", "consumption")
+	out, errOut, err = runCLI(t, "--access-token", token, "quota", "consumption")
 	if err != nil {
-		t.Fatalf("quota consumption failed: %s\n%s", err, out)
+		t.Fatalf("quota consumption failed: %s\nstdout: %s\nstderr: %s", err, out, errOut)
 	}
 	if !strings.Contains(out, "totalUsage") {
 		t.Errorf("consumption response missing totalUsage: %s", out)
@@ -129,17 +133,17 @@ func TestWebhookGetAndSet(t *testing.T) {
 		t.Skip("TEST_ACCESS_TOKEN required")
 	}
 
-	out, err := runCLI(t, "--access-token", token, "webhook", "get")
+	out, errOut, err := runCLI(t, "--access-token", token, "webhook", "get")
 	if err != nil {
-		t.Fatalf("webhook get failed: %s\n%s", err, out)
+		t.Fatalf("webhook get failed: %s\nstdout: %s\nstderr: %s", err, out, errOut)
 	}
 	if !strings.Contains(out, "endpoint") {
 		t.Errorf("webhook response missing endpoint: %s", out)
 	}
 
-	out, err = runCLI(t, "--access-token", token,
+	out, errOut, err = runCLI(t, "--access-token", token,
 		"webhook", "set", "--url", "https://example.com/webhook")
 	if err != nil {
-		t.Fatalf("webhook set failed: %s\n%s", err, out)
+		t.Fatalf("webhook set failed: %s\nstdout: %s\nstderr: %s", err, out, errOut)
 	}
 }

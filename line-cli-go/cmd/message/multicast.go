@@ -21,7 +21,7 @@ var multicastCmd = &cobra.Command{
 		payloadFile, _ := cmd.Flags().GetString("payload-file")
 
 		if toStr == "" {
-			return fmt.Errorf("--to is required (comma-separated user IDs)")
+			return &config.ClientError{Msg: "--to is required (comma-separated user IDs)"}
 		}
 		to := strings.Split(toStr, ",")
 		p := output.NewPrinter(config.JSONMode(), nil)
@@ -44,7 +44,7 @@ var multicastCmd = &cobra.Command{
 			"",
 		)
 		if err != nil {
-			p.Error(0, err.Error())
+			p.Error(output.ExtractHTTPStatus(err), err.Error())
 			return err
 		}
 

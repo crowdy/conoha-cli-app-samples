@@ -1,6 +1,7 @@
 package config
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/spf13/viper"
@@ -13,6 +14,10 @@ func TestRequireFields_MissingChannelID(t *testing.T) {
 	err := RequireTokenFields()
 	if err == nil {
 		t.Fatal("expected error for missing channel_id")
+	}
+	var ce *ClientError
+	if !errors.As(err, &ce) {
+		t.Fatalf("expected *ClientError, got %T", err)
 	}
 }
 
@@ -32,6 +37,10 @@ func TestRequireAccessToken_Missing(t *testing.T) {
 	err := RequireAccessToken()
 	if err == nil {
 		t.Fatal("expected error for missing access_token")
+	}
+	var ce *ClientError
+	if !errors.As(err, &ce) {
+		t.Fatalf("expected *ClientError, got %T", err)
 	}
 }
 

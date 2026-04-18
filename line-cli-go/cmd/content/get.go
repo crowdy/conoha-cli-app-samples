@@ -20,7 +20,7 @@ var getCmd = &cobra.Command{
 		outputPath, _ := cmd.Flags().GetString("output")
 
 		if messageID == "" {
-			return fmt.Errorf("--message-id is required")
+			return &config.ClientError{Msg: "--message-id is required"}
 		}
 		p := output.NewPrinter(config.JSONMode(), nil)
 
@@ -31,7 +31,7 @@ var getCmd = &cobra.Command{
 
 		resp, err := blobAPI.GetMessageContent(messageID)
 		if err != nil {
-			p.Error(0, err.Error())
+			p.Error(output.ExtractHTTPStatus(err), err.Error())
 			return err
 		}
 		defer resp.Body.Close()
