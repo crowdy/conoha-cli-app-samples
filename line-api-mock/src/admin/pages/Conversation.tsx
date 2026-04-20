@@ -47,9 +47,18 @@ export const Conversation: FC<ConversationProps> = ({
           <div class="text-xs text-slate-500 mb-1">
             {m.direction === "user_to_bot" ? userName : channelName} · {m.type}
           </div>
-          <div class="font-mono text-xs whitespace-pre-wrap">
-            {JSON.stringify(m.payload)}
-          </div>
+          {m.type === "coupon" ? (
+            <div class="text-xs">
+              <div class="text-slate-600">🎟 Coupon</div>
+              <div class="font-mono break-all">
+                {(m.payload as any)?.couponId ?? "(no couponId)"}
+              </div>
+            </div>
+          ) : (
+            <div class="font-mono text-xs whitespace-pre-wrap">
+              {JSON.stringify(m.payload)}
+            </div>
+          )}
         </div>
       ))}
     </div>
