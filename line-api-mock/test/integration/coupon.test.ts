@@ -262,3 +262,94 @@ describe("PUT /v2/bot/coupon/{couponId}/close", () => {
     expect(res.status).toBe(404);
   });
 });
+
+describe("POST /v2/bot/message/push with coupon message", () => {
+  let botUserId: string;
+  let msgApp: any;
+
+  beforeAll(async () => {
+    const { Hono } = await import("hono");
+    const { db } = await import("../../src/db/client.js");
+    const { channels, virtualUsers, channelFriends, accessTokens } =
+      await import("../../src/db/schema.js");
+    const { randomHex, accessTokenStr } = await import("../../src/lib/id.js");
+    const { couponRouter } = await import("../../src/mock/coupon.js");
+    const { messageRouter } = await import("../../src/mock/message.js");
+
+    const [ch] = await db
+      .insert(channels)
+      .values({
+        channelId: "9100000002",
+        channelSecret: randomHex(16),
+        name: "Coupon Message Test",
+      })
+      .returning();
+    const msgToken = accessTokenStr();
+    await db.insert(accessTokens).values({
+      channelId: ch.id,
+      token: msgToken,
+      expiresAt: new Date(Date.now() + 24 * 3600 * 1000),
+    });
+    botUserId = "U" + randomHex(16);
+    const [u] = await db
+      .insert(virtualUsers)
+      .values({ userId: botUserId, displayName: "Coupon recipient" })
+      .returning();
+    await db
+      .insert(channelFriends)
+      .values({ channelId: ch.id, userId: u.id });
+
+    msgApp = new Hono();
+    msgApp.route("/", couponRouter);
+    msgApp.route("/", messageRouter);
+
+    // Create a coupon on this channel and stash its id.
+    const createRes = await msgApp.request("/v2/bot/coupon", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        authorization: `Bearer ${msgToken}`,
+      },
+      body: JSON.stringify({ ...validPayload(), title: "pushable" }),
+    });
+    const { couponId: realCouponId } = await createRes.json();
+
+    // Stash on a globalThis-keyed closure so the inner `it` tests can pick up.
+    (globalThis as any).__couponMsgCtx = { msgToken, botUserId, realCouponId };
+  });
+
+  it("accepts a push with a valid coupon message", async () => {
+    const { msgToken, botUserId, realCouponId } = (globalThis as any)
+      .__couponMsgCtx;
+    const res = await msgApp.request("/v2/bot/message/push", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        authorization: `Bearer ${msgToken}`,
+      },
+      body: JSON.stringify({
+        to: botUserId,
+        messages: [{ type: "coupon", couponId: realCouponId }],
+      }),
+    });
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json.sentMessages).toHaveLength(1);
+  });
+
+  it("rejects a push with an unknown couponId", async () => {
+    const { msgToken, botUserId } = (globalThis as any).__couponMsgCtx;
+    const res = await msgApp.request("/v2/bot/message/push", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        authorization: `Bearer ${msgToken}`,
+      },
+      body: JSON.stringify({
+        to: botUserId,
+        messages: [{ type: "coupon", couponId: "COUPON_ghost" }],
+      }),
+    });
+    expect(res.status).toBe(400);
+  });
+});
