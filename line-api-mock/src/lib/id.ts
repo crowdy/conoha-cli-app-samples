@@ -23,3 +23,7 @@ export function accessTokenStr(): string {
 export function channelAccessTokenKid(): string {
   return randomHex(8);
 }
+
+export function couponId(): string {
+  return "COUPON_" + randomBytes(16).toString("base64url");
+}
