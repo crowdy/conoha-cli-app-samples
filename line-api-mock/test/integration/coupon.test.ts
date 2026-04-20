@@ -123,3 +123,44 @@ describe("GET /v2/bot/coupon/{couponId}", () => {
     expect(res.status).toBe(404);
   });
 });
+
+describe("GET /v2/bot/coupon/{couponId} cross-channel isolation", () => {
+  it("returns 404 when fetched with a token of a different channel", async () => {
+    // Create a second channel with its own token.
+    const { db } = await import("../../src/db/client.js");
+    const { channels, accessTokens } = await import("../../src/db/schema.js");
+    const { randomHex, accessTokenStr } = await import("../../src/lib/id.js");
+
+    const [otherCh] = await db
+      .insert(channels)
+      .values({
+        channelId: "9100000099",
+        channelSecret: randomHex(16),
+        name: "Other Channel",
+      })
+      .returning();
+    const otherToken = accessTokenStr();
+    await db.insert(accessTokens).values({
+      channelId: otherCh.id,
+      token: otherToken,
+      expiresAt: new Date(Date.now() + 24 * 3600 * 1000),
+    });
+
+    // Create a coupon on the original channel.
+    const createRes = await app.request("/v2/bot/coupon", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ ...validPayload(), title: "owned by channel A" }),
+    });
+    const { couponId } = await createRes.json();
+
+    // Fetch it with the OTHER channel's token — must 404.
+    const res = await app.request(`/v2/bot/coupon/${couponId}`, {
+      headers: { authorization: `Bearer ${otherToken}` },
+    });
+    expect(res.status).toBe(404);
+  });
+});

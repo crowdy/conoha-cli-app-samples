@@ -15,22 +15,6 @@ couponRouter.use("/v2/bot/coupon", bearerAuth);
 couponRouter.use("/v2/bot/coupon/*", requestLog);
 couponRouter.use("/v2/bot/coupon/*", bearerAuth);
 
-interface CouponCreateBody {
-  title: string;
-  description?: string;
-  imageUrl?: string;
-  barcodeImageUrl?: string;
-  couponCode?: string;
-  usageCondition?: string;
-  startTimestamp: number;
-  endTimestamp: number;
-  maxUseCountPerTicket: number;
-  timezone: string;
-  visibility: string;
-  acquisitionCondition: { type: string; [k: string]: unknown };
-  reward: { type: string; [k: string]: unknown };
-}
-
 couponRouter.post(
   "/v2/bot/coupon",
   validate({
@@ -38,9 +22,11 @@ couponRouter.post(
     responseSchema: "#/components/schemas/CouponCreateResponse",
   }),
   async (c) => {
-    const body = (await c.req.json()) as CouponCreateBody;
+    const body = (await c.req.json()) as Record<string, unknown>;
+    const startTimestamp = body.startTimestamp as number;
+    const endTimestamp = body.endTimestamp as number;
 
-    if (body.startTimestamp >= body.endTimestamp) {
+    if (startTimestamp >= endTimestamp) {
       return errors.badRequest(c, "startTimestamp must be < endTimestamp");
     }
 
@@ -66,20 +52,24 @@ couponRouter.post(
   }
 );
 
-couponRouter.get("/v2/bot/coupon/:couponId", async (c) => {
-  const couponIdParam = c.req.param("couponId");
-  const channelDbId = c.get("channelDbId");
-  const [row] = await db
-    .select()
-    .from(coupons)
-    .where(
-      and(
-        eq(coupons.couponId, couponIdParam),
-        eq(coupons.channelId, channelDbId)
+couponRouter.get(
+  "/v2/bot/coupon/:couponId",
+  validate({ responseSchema: "#/components/schemas/CouponResponse" }),
+  async (c) => {
+    const couponIdParam = c.req.param("couponId");
+    const channelDbId = c.get("channelDbId");
+    const [row] = await db
+      .select()
+      .from(coupons)
+      .where(
+        and(
+          eq(coupons.couponId, couponIdParam),
+          eq(coupons.channelId, channelDbId)
+        )
       )
-    )
-    .limit(1);
-  if (!row) return errors.notFound(c);
-  const detail = { ...(row.payload as object), status: row.status };
-  return c.json(detail);
-});
+      .limit(1);
+    if (!row) return errors.notFound(c);
+    const detail = { ...(row.payload as object), status: row.status };
+    return c.json(detail);
+  }
+);
