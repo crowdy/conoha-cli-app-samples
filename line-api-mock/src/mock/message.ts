@@ -20,33 +20,38 @@ interface PushBody {
   notificationDisabled?: boolean;
 }
 
+async function validateCouponMessages(
+  channelDbId: number,
+  msgs: Array<Record<string, unknown>>
+): Promise<string | null> {
+  for (const m of msgs) {
+    if ((m as { type?: string }).type !== "coupon") continue;
+    const cid = (m as { couponId?: unknown }).couponId;
+    if (typeof cid !== "string" || cid.length === 0) {
+      return "Invalid coupon message: couponId required";
+    }
+    const [c] = await db
+      .select({ id: coupons.id })
+      .from(coupons)
+      .where(
+        and(
+          eq(coupons.couponId, cid),
+          eq(coupons.channelId, channelDbId)
+        )
+      )
+      .limit(1);
+    if (!c) return `Invalid coupon ID: ${cid}`;
+  }
+  return null;
+}
+
 async function insertBotMessages(
   channelDbId: number,
   toUserId: string,
   msgs: Array<Record<string, unknown>>
 ): Promise<{ inserted: Array<{ id: string }>; error: string | null }> {
-  // Validate any coupon messages reference an existing coupon for this channel.
-  for (const m of msgs) {
-    if ((m as { type?: string }).type === "coupon") {
-      const cid = (m as { couponId?: unknown }).couponId;
-      if (typeof cid !== "string" || cid.length === 0) {
-        return { inserted: [], error: "Invalid coupon message: couponId required" };
-      }
-      const [c] = await db
-        .select({ id: coupons.id })
-        .from(coupons)
-        .where(
-          and(
-            eq(coupons.couponId, cid),
-            eq(coupons.channelId, channelDbId)
-          )
-        )
-        .limit(1);
-      if (!c) {
-        return { inserted: [], error: `Invalid coupon ID: ${cid}` };
-      }
-    }
-  }
+  const couponError = await validateCouponMessages(channelDbId, msgs);
+  if (couponError) return { inserted: [], error: couponError };
 
   const userRows = await db
     .select({ id: virtualUsers.id })
@@ -142,6 +147,8 @@ messageRouter.post("/v2/bot/message/reply", async (c) => {
     return errors.badRequest(c, "Invalid reply token");
   }
   const virtualUserId = userMsgRows[0].virtualUserId;
+  const couponError = await validateCouponMessages(channelDbId, body.messages);
+  if (couponError) return errors.badRequest(c, couponError);
   const inserted: Array<{ id: string }> = [];
   for (const m of body.messages) {
     const mid = messageId();

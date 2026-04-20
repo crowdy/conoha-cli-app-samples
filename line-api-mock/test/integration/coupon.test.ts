@@ -315,7 +315,7 @@ describe("POST /v2/bot/message/push with coupon message", () => {
     const { couponId: realCouponId } = await createRes.json();
 
     // Stash on a globalThis-keyed closure so the inner `it` tests can pick up.
-    (globalThis as any).__couponMsgCtx = { msgToken, botUserId, realCouponId };
+    (globalThis as any).__couponMsgCtx = { msgToken, botUserId, realCouponId, msgApp };
   });
 
   it("accepts a push with a valid coupon message", async () => {
@@ -347,6 +347,124 @@ describe("POST /v2/bot/message/push with coupon message", () => {
       },
       body: JSON.stringify({
         to: botUserId,
+        messages: [{ type: "coupon", couponId: "COUPON_ghost" }],
+      }),
+    });
+    expect(res.status).toBe(400);
+  });
+});
+
+describe("POST /v2/bot/message/reply with coupon message", () => {
+  it("accepts a reply with a valid coupon message", async () => {
+    const { msgToken, botUserId, realCouponId, msgApp: app } = (globalThis as any)
+      .__couponMsgCtx;
+
+    // Seed a user_to_bot message to get a replyToken.
+    const { db } = await import("../../src/db/client.js");
+    const { messages, virtualUsers, channels } = await import(
+      "../../src/db/schema.js"
+    );
+    const { messageId: makeMsgId, replyToken: makeReplyToken } = await import(
+      "../../src/lib/id.js"
+    );
+    const { eq: eqFn } = await import("drizzle-orm");
+
+    const [ch] = await db
+      .select()
+      .from(channels)
+      .where(eqFn(channels.channelId, "9100000002"))
+      .limit(1);
+    const [u] = await db
+      .select()
+      .from(virtualUsers)
+      .where(eqFn(virtualUsers.userId, botUserId))
+      .limit(1);
+
+    const rt = makeReplyToken();
+    await db.insert(messages).values({
+      messageId: makeMsgId(),
+      channelId: ch.id,
+      virtualUserId: u.id,
+      direction: "user_to_bot",
+      type: "text",
+      payload: { type: "text", text: "gimme coupon" },
+      replyToken: rt,
+    });
+
+    const res = await app.request("/v2/bot/message/reply", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        authorization: `Bearer ${msgToken}`,
+      },
+      body: JSON.stringify({
+        replyToken: rt,
+        messages: [{ type: "coupon", couponId: realCouponId }],
+      }),
+    });
+    expect(res.status).toBe(200);
+  });
+
+  it("rejects a reply with an unknown couponId", async () => {
+    const { msgToken, botUserId, msgApp: app } = (globalThis as any).__couponMsgCtx;
+
+    const { db } = await import("../../src/db/client.js");
+    const { messages, virtualUsers, channels } = await import(
+      "../../src/db/schema.js"
+    );
+    const { messageId: makeMsgId, replyToken: makeReplyToken } = await import(
+      "../../src/lib/id.js"
+    );
+    const { eq: eqFn } = await import("drizzle-orm");
+
+    const [ch] = await db
+      .select()
+      .from(channels)
+      .where(eqFn(channels.channelId, "9100000002"))
+      .limit(1);
+    const [u] = await db
+      .select()
+      .from(virtualUsers)
+      .where(eqFn(virtualUsers.userId, botUserId))
+      .limit(1);
+
+    const rt = makeReplyToken();
+    await db.insert(messages).values({
+      messageId: makeMsgId(),
+      channelId: ch.id,
+      virtualUserId: u.id,
+      direction: "user_to_bot",
+      type: "text",
+      payload: { type: "text", text: "hi" },
+      replyToken: rt,
+    });
+
+    const res = await app.request("/v2/bot/message/reply", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        authorization: `Bearer ${msgToken}`,
+      },
+      body: JSON.stringify({
+        replyToken: rt,
+        messages: [{ type: "coupon", couponId: "COUPON_ghost" }],
+      }),
+    });
+    expect(res.status).toBe(400);
+  });
+});
+
+describe("POST /v2/bot/message/multicast with coupon message", () => {
+  it("rejects multicast with an unknown couponId", async () => {
+    const { msgToken, botUserId, msgApp: app } = (globalThis as any).__couponMsgCtx;
+    const res = await app.request("/v2/bot/message/multicast", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        authorization: `Bearer ${msgToken}`,
+      },
+      body: JSON.stringify({
+        to: [botUserId],
         messages: [{ type: "coupon", couponId: "COUPON_ghost" }],
       }),
     });
