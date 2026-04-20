@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { sql, eq, inArray, and, desc } from "drizzle-orm";
 import { db } from "../db/client.js";
-import { channels, messages, webhookDeliveries, accessTokens, virtualUsers, apiLogs } from "../db/schema.js";
+import { channels, messages, webhookDeliveries, accessTokens, virtualUsers, apiLogs, coupons } from "../db/schema.js";
 import { adminAuth } from "./auth.js";
 import { Dashboard } from "./pages/Dashboard.js";
 import { Channels } from "./pages/Channels.js";
@@ -9,7 +9,8 @@ import { Users } from "./pages/Users.js";
 import { Conversation } from "./pages/Conversation.js";
 import { WebhookLog } from "./pages/WebhookLog.js";
 import { ApiLog } from "./pages/ApiLog.js";
-import { accessTokenStr, randomHex, messageId, replyToken } from "../lib/id.js";
+import { Coupons } from "./pages/Coupons.js";
+import { accessTokenStr, randomHex, messageId, replyToken, couponId as makeCouponId } from "../lib/id.js";
 import { config } from "../config.js";
 import { sseHandler } from "./sse.js";
 import { dispatchWebhook } from "../webhook/dispatcher.js";
@@ -305,4 +306,118 @@ adminRouter.get("/admin/api-log", async (c) => {
       }))}
     />
   );
+});
+
+adminRouter.get("/admin/coupons", async (c) => {
+  const rows = await db
+    .select({
+      couponId: coupons.couponId,
+      payload: coupons.payload,
+      status: coupons.status,
+      channelName: channels.name,
+    })
+    .from(coupons)
+    .innerJoin(channels, eq(coupons.channelId, channels.id))
+    .orderBy(desc(coupons.createdAt));
+
+  const channelOpts = await db
+    .select({ id: channels.id, name: channels.name })
+    .from(channels);
+
+  const viewRows = rows.map((r) => {
+    const p = r.payload as any;
+    const reward = p.reward ?? {};
+    let summary = reward.type ?? "?";
+    if (reward.type === "discount" || reward.type === "cashBack") {
+      const pi = reward.priceInfo ?? {};
+      if (pi.type === "percentage") summary = `${reward.type} ${pi.percentage}%`;
+      else if (pi.type === "fixed") summary = `${reward.type} ¥${pi.fixedAmount}`;
+    }
+    return {
+      couponId: r.couponId,
+      channelName: r.channelName,
+      title: p.title ?? "",
+      status: r.status,
+      startTimestamp: p.startTimestamp ?? 0,
+      endTimestamp: p.endTimestamp ?? 0,
+      rewardSummary: summary,
+    };
+  });
+
+  return c.html(<Coupons rows={viewRows} channels={channelOpts} />);
+});
+
+adminRouter.post("/admin/coupons", async (c) => {
+  const form = await c.req.parseBody();
+  const channelId = Number(form.channelId);
+  const title = String(form.title ?? "").trim();
+  const description = String(form.description ?? "").trim() || undefined;
+  const imageUrl = String(form.imageUrl ?? "").trim() || undefined;
+  const timezone = String(form.timezone ?? "ASIA_TOKYO");
+  const rewardType = String(form.rewardType ?? "discount");
+  const percentage = Number(form.percentage ?? 10);
+  const startIso = String(form.startTimestampIso ?? "");
+  const endIso = String(form.endTimestampIso ?? "");
+
+  if (!title || !startIso || !endIso) {
+    return c.redirect("/admin/coupons");
+  }
+  const startTimestamp = Math.floor(new Date(startIso).getTime() / 1000);
+  const endTimestamp = Math.floor(new Date(endIso).getTime() / 1000);
+  if (!Number.isFinite(startTimestamp) || !Number.isFinite(endTimestamp)) {
+    return c.redirect("/admin/coupons");
+  }
+
+  let reward: Record<string, unknown>;
+  if (rewardType === "discount" || rewardType === "cashBack") {
+    reward = {
+      type: rewardType,
+      priceInfo: { type: "percentage", percentage },
+    };
+  } else {
+    reward = { type: rewardType };
+  }
+
+  const newId = makeCouponId();
+  const detail: Record<string, unknown> = {
+    couponId: newId,
+    title,
+    description,
+    imageUrl,
+    startTimestamp,
+    endTimestamp,
+    maxUseCountPerTicket: 1,
+    timezone,
+    visibility: "UNLISTED",
+    acquisitionCondition: { type: "normal" },
+    reward,
+    status: "RUNNING",
+    createdTimestamp: Math.floor(Date.now() / 1000),
+  };
+  await db.insert(coupons).values({
+    couponId: newId,
+    channelId,
+    payload: detail,
+    status: "RUNNING",
+  });
+  return c.redirect("/admin/coupons");
+});
+
+adminRouter.post("/admin/coupons/:couponId/close", async (c) => {
+  const couponIdParam = c.req.param("couponId");
+  const [row] = await db
+    .select()
+    .from(coupons)
+    .where(eq(coupons.couponId, couponIdParam))
+    .limit(1);
+  if (row && row.status !== "CLOSED") {
+    await db
+      .update(coupons)
+      .set({
+        status: "CLOSED",
+        payload: { ...(row.payload as object), status: "CLOSED" },
+      })
+      .where(eq(coupons.id, row.id));
+  }
+  return c.redirect("/admin/coupons");
 });
