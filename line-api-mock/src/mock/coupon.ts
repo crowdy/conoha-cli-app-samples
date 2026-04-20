@@ -73,3 +73,61 @@ couponRouter.get(
     return c.json(detail);
   }
 );
+
+couponRouter.get("/v2/bot/coupon", async (c) => {
+  const channelDbId = c.get("channelDbId");
+  const statusFilter = c.req.query("status");
+  const rows = statusFilter
+    ? await db
+        .select({
+          couponId: coupons.couponId,
+          payload: coupons.payload,
+        })
+        .from(coupons)
+        .where(
+          and(
+            eq(coupons.channelId, channelDbId),
+            eq(coupons.status, statusFilter)
+          )
+        )
+    : await db
+        .select({
+          couponId: coupons.couponId,
+          payload: coupons.payload,
+        })
+        .from(coupons)
+        .where(eq(coupons.channelId, channelDbId));
+
+  const items = rows.map((r) => ({
+    couponId: r.couponId,
+    title: (r.payload as { title: string }).title,
+  }));
+  return c.json({ items });
+});
+
+couponRouter.put("/v2/bot/coupon/:couponId/close", async (c) => {
+  const couponIdParam = c.req.param("couponId");
+  const channelDbId = c.get("channelDbId");
+  const [row] = await db
+    .select()
+    .from(coupons)
+    .where(
+      and(
+        eq(coupons.couponId, couponIdParam),
+        eq(coupons.channelId, channelDbId)
+      )
+    )
+    .limit(1);
+  if (!row) return errors.notFound(c);
+  if (row.status === "CLOSED") {
+    return errors.badRequest(c, "Coupon is already closed");
+  }
+  await db
+    .update(coupons)
+    .set({
+      status: "CLOSED",
+      payload: { ...(row.payload as object), status: "CLOSED" },
+    })
+    .where(eq(coupons.id, row.id));
+  return c.json({});
+});

@@ -164,3 +164,101 @@ describe("GET /v2/bot/coupon/{couponId} cross-channel isolation", () => {
     expect(res.status).toBe(404);
   });
 });
+
+describe("GET /v2/bot/coupon (list)", () => {
+  it("returns items with couponId and title", async () => {
+    const create = await app.request("/v2/bot/coupon", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ ...validPayload(), title: "List me" }),
+    });
+    expect(create.status).toBe(200);
+
+    const res = await app.request("/v2/bot/coupon", {
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(Array.isArray(body.items)).toBe(true);
+    const found = body.items.find((i: any) => i.title === "List me");
+    expect(found).toBeDefined();
+    expect(typeof found.couponId).toBe("string");
+  });
+
+  it("filters by status query", async () => {
+    const res = await app.request("/v2/bot/coupon?status=CLOSED", {
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(Array.isArray(body.items)).toBe(true);
+    for (const i of body.items) {
+      expect(i.title).not.toBe("List me");
+    }
+  });
+});
+
+describe("PUT /v2/bot/coupon/{couponId}/close", () => {
+  it("closes a RUNNING coupon and returns 200", async () => {
+    const create = await app.request("/v2/bot/coupon", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ ...validPayload(), title: "to close" }),
+    });
+    const { couponId } = await create.json();
+
+    const closeRes = await app.request(
+      `/v2/bot/coupon/${couponId}/close`,
+      {
+        method: "PUT",
+        headers: { authorization: `Bearer ${token}` },
+      }
+    );
+    expect(closeRes.status).toBe(200);
+
+    const detailRes = await app.request(`/v2/bot/coupon/${couponId}`, {
+      headers: { authorization: `Bearer ${token}` },
+    });
+    const detail = await detailRes.json();
+    expect(detail.status).toBe("CLOSED");
+  });
+
+  it("rejects double-close with 400", async () => {
+    const create = await app.request("/v2/bot/coupon", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ ...validPayload(), title: "double close" }),
+    });
+    const { couponId } = await create.json();
+
+    await app.request(`/v2/bot/coupon/${couponId}/close`, {
+      method: "PUT",
+      headers: { authorization: `Bearer ${token}` },
+    });
+    const second = await app.request(
+      `/v2/bot/coupon/${couponId}/close`,
+      {
+        method: "PUT",
+        headers: { authorization: `Bearer ${token}` },
+      }
+    );
+    expect(second.status).toBe(400);
+  });
+
+  it("returns 404 for unknown couponId", async () => {
+    const res = await app.request("/v2/bot/coupon/COUPON_missing/close", {
+      method: "PUT",
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(res.status).toBe(404);
+  });
+});
