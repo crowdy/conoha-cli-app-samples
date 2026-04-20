@@ -1,0 +1,4 @@
+base_url: http://localhost:3000
+channel_id: "1234567890"
+channel_secret: "abcdef1234567890abcdef1234567890"
+# access_token: "" # set after `token issue`
