@@ -74,36 +74,40 @@ couponRouter.get(
   }
 );
 
-couponRouter.get("/v2/bot/coupon", async (c) => {
-  const channelDbId = c.get("channelDbId");
-  const statusFilter = c.req.query("status");
-  const rows = statusFilter
-    ? await db
-        .select({
-          couponId: coupons.couponId,
-          payload: coupons.payload,
-        })
-        .from(coupons)
-        .where(
-          and(
-            eq(coupons.channelId, channelDbId),
-            eq(coupons.status, statusFilter)
+couponRouter.get(
+  "/v2/bot/coupon",
+  validate({ responseSchema: "#/components/schemas/MessagingApiPagerCouponListResponse" }),
+  async (c) => {
+    const channelDbId = c.get("channelDbId");
+    const statusFilter = c.req.query("status");
+    const rows = statusFilter
+      ? await db
+          .select({
+            couponId: coupons.couponId,
+            payload: coupons.payload,
+          })
+          .from(coupons)
+          .where(
+            and(
+              eq(coupons.channelId, channelDbId),
+              eq(coupons.status, statusFilter)
+            )
           )
-        )
-    : await db
-        .select({
-          couponId: coupons.couponId,
-          payload: coupons.payload,
-        })
-        .from(coupons)
-        .where(eq(coupons.channelId, channelDbId));
+      : await db
+          .select({
+            couponId: coupons.couponId,
+            payload: coupons.payload,
+          })
+          .from(coupons)
+          .where(eq(coupons.channelId, channelDbId));
 
-  const items = rows.map((r) => ({
-    couponId: r.couponId,
-    title: (r.payload as { title: string }).title,
-  }));
-  return c.json({ items });
-});
+    const items = rows.map((r) => ({
+      couponId: r.couponId,
+      title: (r.payload as { title: string }).title,
+    }));
+    return c.json({ items });
+  }
+);
 
 couponRouter.put("/v2/bot/coupon/:couponId/close", async (c) => {
   const couponIdParam = c.req.param("couponId");
