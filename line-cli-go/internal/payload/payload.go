@@ -13,9 +13,11 @@ import (
 	"line-cli-go/internal/config"
 )
 
-// LoadJSON reads path and json.Unmarshals into v.
+// LoadJSON reads path and decodes JSON into v with unknown fields rejected.
 // When path == "-", reads from os.Stdin.
-// Returns config.ClientError for user mistakes (file missing, invalid JSON).
+// Unknown fields (typos like "selecetd" instead of "selected") return an error
+// so callers like `richmenu validate` do not silently ignore user mistakes.
+// Returns config.ClientError for user mistakes (file missing, invalid/unknown JSON).
 func LoadJSON(path string, v any) error {
 	if path == "" {
 		return &config.ClientError{Msg: "--payload-file is required"}
@@ -31,11 +33,9 @@ func LoadJSON(path string, v any) error {
 		defer f.Close()
 		r = f
 	}
-	data, err := io.ReadAll(r)
-	if err != nil {
-		return &config.ClientError{Msg: fmt.Sprintf("reading %s: %v", path, err)}
-	}
-	if err := json.Unmarshal(data, v); err != nil {
+	dec := json.NewDecoder(r)
+	dec.DisallowUnknownFields()
+	if err := dec.Decode(v); err != nil {
 		return &config.ClientError{Msg: fmt.Sprintf("parsing %s: %v", path, err)}
 	}
 	return nil

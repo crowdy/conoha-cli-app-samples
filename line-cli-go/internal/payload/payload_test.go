@@ -85,6 +85,24 @@ func TestLoadJSON(t *testing.T) {
 			t.Errorf("Name = %q, want %q", v.Name, "piped")
 		}
 	})
+
+	t.Run("unknown field rejected", func(t *testing.T) {
+		// Guard against silent typos like "selecetd": true being ignored,
+		// which would give `richmenu validate` false positives.
+		p := writeTemp(t, "typo.json", `{"name":"foo","selecetd":true}`)
+		var v struct {
+			Name     string `json:"name"`
+			Selected bool   `json:"selected"`
+		}
+		err := LoadJSON(p, &v)
+		var ce *config.ClientError
+		if !errors.As(err, &ce) {
+			t.Fatalf("expected ClientError, got %T: %v", err, err)
+		}
+		if !strings.Contains(ce.Msg, "selecetd") {
+			t.Errorf("expected error to name the unknown field, got %q", ce.Msg)
+		}
+	})
 }
 
 func TestLoadImage(t *testing.T) {
