@@ -3,13 +3,21 @@ services:
     image: ollama/ollama:latest
     volumes:
       - ollama_data:/root/.ollama
-    entrypoint: ["/bin/sh", "-c", "ollama serve & sleep 5 && ollama pull tinyllama && wait"]
+    # Pull the model in the background so `ollama serve` doesn't wait on
+    # the download. The healthcheck only requires the server to respond,
+    # not the model to finish pulling — tinyllama (~638 MB) over a cold
+    # CDN easily exceeds 100 s on modest VPS networks.
+    entrypoint: ["/bin/sh", "-c", "ollama serve & sleep 5 && ollama pull tinyllama & wait"]
+    # Use the `ollama` CLI for the healthcheck instead of `curl`: the
+    # official ollama/ollama image does not ship curl, so the previous
+    # CMD-SHELL test failed with "command not found" and the container
+    # was marked unhealthy, blocking the dependent webui service.
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:11434/api/tags || exit 1"]
+      test: ["CMD", "ollama", "list"]
       interval: 10s
       timeout: 10s
-      retries: 10
-      start_period: 30s
+      retries: 6
+      start_period: 20s
 
   webui:
     image: ghcr.io/open-webui/open-webui:main
