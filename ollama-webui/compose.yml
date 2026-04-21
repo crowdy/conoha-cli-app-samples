@@ -1,6 +1,11 @@
 services:
   ollama:
     image: ollama/ollama:latest
+    # tini as PID1 so SIGTERM from `docker stop` reaches `ollama serve`
+    # cleanly. Without init: true the sh wrapper (PID1) swallows signals
+    # and the 10 s grace period ends in SIGKILL — risking partial model
+    # blobs in ollama_data if a pull is mid-flight.
+    init: true
     volumes:
       - ollama_data:/root/.ollama
     # Pull the model in the background so `ollama serve` doesn't wait on
@@ -8,15 +13,18 @@ services:
     # not the model to finish pulling — tinyllama (~638 MB) over a cold
     # CDN easily exceeds 100 s on modest VPS networks.
     entrypoint: ["/bin/sh", "-c", "ollama serve & sleep 5 && ollama pull tinyllama & wait"]
-    # Use the `ollama` CLI for the healthcheck instead of `curl`: the
-    # official ollama/ollama image does not ship curl, so the previous
-    # CMD-SHELL test failed with "command not found" and the container
-    # was marked unhealthy, blocking the dependent webui service.
+    # `ollama list` hits the local /api/tags socket, so it validates
+    # both "CLI present" and "ollama serve responsive" in one shot.
+    # Used instead of curl because the official ollama/ollama image
+    # does not ship curl (previous CMD-SHELL test always failed with
+    # "command not found"). retries=10 + interval=10s gives a 100 s
+    # window after start_period in case the background `ollama pull`
+    # briefly saturates IO and slows the tags-list RTT.
     healthcheck:
       test: ["CMD", "ollama", "list"]
       interval: 10s
       timeout: 10s
-      retries: 6
+      retries: 10
       start_period: 20s
 
   webui:
