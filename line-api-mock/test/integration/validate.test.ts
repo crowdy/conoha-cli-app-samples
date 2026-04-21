@@ -44,7 +44,7 @@ beforeAll(async () => {
 afterAll(async () => container.stop());
 
 describe.each(ENDPOINTS)("POST %s", (path) => {
-  it("accepts valid text messages with 200", async () => {
+  it("accepts valid text messages with 200 and empty body", async () => {
     const res = await app.request(path, {
       method: "POST",
       headers: {
@@ -54,6 +54,7 @@ describe.each(ENDPOINTS)("POST %s", (path) => {
       body: JSON.stringify({ messages: [{ type: "text", text: "hi" }] }),
     });
     expect(res.status).toBe(200);
+    expect(await res.text()).toBe("");
   });
 
   it("rejects unknown message type with 400", async () => {

@@ -65,7 +65,7 @@ describe("GET /v2/bot/info", () => {
     expect(body.basicId).toBe("@" + channelId.slice(0, 8));
     expect(body.displayName).toBe("Bot Info Test");
     expect(body.chatMode).toBe("chat");
-    expect(body.markAsReadMode).toBe("auto");
+    expect(body.markAsReadMode).toBe("manual");
   });
 
   it("rejects missing bearer", async () => {

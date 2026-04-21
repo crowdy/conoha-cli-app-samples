@@ -33,7 +33,7 @@ botInfoRouter.get("/v2/bot/info", async (c) => {
     basicId: "@" + ch.channelId.slice(0, 8),
     displayName: ch.name,
     chatMode: "chat",
-    markAsReadMode: "auto",
+    markAsReadMode: "manual",
   });
 });
 
