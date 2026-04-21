@@ -41,6 +41,21 @@ function rewriteRefs(s: unknown): unknown {
         o[k] = rewriteRefs(v);
       }
     }
+    // OpenAPI discriminator.mapping → add enum constraint to the discriminator
+    // property so AJV rejects unknown discriminator values.
+    const disc = o["discriminator"] as
+      | { propertyName?: string; mapping?: Record<string, string> }
+      | undefined;
+    if (disc?.propertyName && disc.mapping) {
+      const allowedValues = Object.keys(disc.mapping);
+      const props = o["properties"] as Record<string, unknown> | undefined;
+      if (props?.[disc.propertyName]) {
+        const propSchema = props[disc.propertyName] as Record<string, unknown>;
+        if (!propSchema["enum"]) {
+          props[disc.propertyName] = { ...propSchema, enum: allowedValues };
+        }
+      }
+    }
     return o;
   }
   return s;
