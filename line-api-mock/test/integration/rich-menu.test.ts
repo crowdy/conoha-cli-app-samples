@@ -589,6 +589,69 @@ describe("Bulk link/unlink", () => {
   });
 });
 
+describe("Link rejects cross-channel user", () => {
+  it("returns 404 when linking a user that is friend of another channel only", async () => {
+    const { db } = await import("../../src/db/client.js");
+    const { channels, virtualUsers, channelFriends, accessTokens } =
+      await import("../../src/db/schema.js");
+    const { randomHex, accessTokenStr } = await import("../../src/lib/id.js");
+
+    // Create channel X with its own token; friend user belongs only to X.
+    const [chX] = await db
+      .insert(channels)
+      .values({
+        channelId: "9500000088",
+        channelSecret: randomHex(16),
+        name: "X channel",
+      })
+      .returning();
+    const tokenX = accessTokenStr();
+    await db.insert(accessTokens).values({
+      channelId: chX.id,
+      token: tokenX,
+      expiresAt: new Date(Date.now() + 24 * 3600 * 1000),
+    });
+
+    const foreignUserId = "U" + randomHex(16);
+    const [fu] = await db
+      .insert(virtualUsers)
+      .values({ userId: foreignUserId, displayName: "X-only" })
+      .returning();
+    await db
+      .insert(channelFriends)
+      .values({ channelId: chX.id, userId: fu.id });
+
+    // Create a rich menu on the MAIN test channel (9500000001) and upload an image.
+    const create = await app.request("/v2/bot/richmenu", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ ...validRichMenuBody(), name: "main-only" }),
+    });
+    const { richMenuId: mainMenuId } = await create.json();
+    await app.request(`/v2/bot/richmenu/${mainMenuId}/content`, {
+      method: "POST",
+      headers: {
+        "content-type": "image/png",
+        authorization: `Bearer ${token}`,
+      },
+      body: PNG_1x1,
+    });
+
+    // Main channel's token attempts to link its own menu to X's user → 404.
+    const link = await app.request(
+      `/v2/bot/user/${foreignUserId}/richmenu/${mainMenuId}`,
+      {
+        method: "POST",
+        headers: { authorization: `Bearer ${token}` },
+      }
+    );
+    expect(link.status).toBe(404);
+  });
+});
+
 describe("Delete clears stale default", () => {
   it("removes default pointer when default menu is deleted", async () => {
     // Create and image-upload a menu, then set it as default.

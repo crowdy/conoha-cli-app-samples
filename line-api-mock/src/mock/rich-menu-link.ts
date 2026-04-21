@@ -3,6 +3,7 @@ import { and, eq } from "drizzle-orm";
 import { db } from "../db/client.js";
 import {
   channels,
+  channelFriends,
   richMenus,
   richMenuImages,
   userRichMenuLinks,
@@ -44,14 +45,21 @@ async function findVirtualUser(
   channelDbId: number,
   userIdStr: string
 ): Promise<{ id: number } | null> {
-  const [u] = await db
+  // Only resolve users that are actually friends of this channel. LINE's real
+  // API rejects links to non-friend users; we mirror that boundary here.
+  const [row] = await db
     .select({ id: virtualUsers.id })
     .from(virtualUsers)
+    .innerJoin(
+      channelFriends,
+      and(
+        eq(channelFriends.userId, virtualUsers.id),
+        eq(channelFriends.channelId, channelDbId)
+      )
+    )
     .where(eq(virtualUsers.userId, userIdStr))
     .limit(1);
-  if (!u) return null;
-  void channelDbId;
-  return { id: u.id };
+  return row ? { id: row.id } : null;
 }
 
 // === Default: set / get / unset ===
@@ -174,9 +182,6 @@ richMenuLinkRouter.delete("/v2/bot/user/:userId/richmenu", async (c) => {
     );
   return c.json({});
 });
-
-richMenuLinkRouter.use("/v2/bot/richmenu/bulk/*", requestLog);
-richMenuLinkRouter.use("/v2/bot/richmenu/bulk/*", bearerAuth);
 
 richMenuLinkRouter.post("/v2/bot/richmenu/bulk/link", async (c) => {
   const body = (await c.req.json().catch(() => null)) as

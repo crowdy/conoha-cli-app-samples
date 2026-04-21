@@ -532,6 +532,14 @@ adminRouter.get("/admin/richmenus", async (c) => {
   );
 });
 
+const RICH_MENU_REQUIRED_ADMIN = [
+  "size",
+  "selected",
+  "name",
+  "chatBarText",
+  "areas",
+] as const;
+
 adminRouter.post("/admin/richmenus", async (c) => {
   const form = await c.req.parseBody();
   const channelId = Number(form.channelId);
@@ -539,11 +547,26 @@ adminRouter.post("/admin/richmenus", async (c) => {
   if (!Number.isInteger(channelId) || channelId <= 0) {
     return c.text("Invalid channelId", 400);
   }
+  // Fix 4 §3.6: verify channel exists before FK insert
+  const [ch] = await db
+    .select({ id: channels.id })
+    .from(channels)
+    .where(eq(channels.id, channelId))
+    .limit(1);
+  if (!ch) {
+    return c.text("Channel not found", 400);
+  }
   let parsed: Record<string, unknown>;
   try {
     parsed = JSON.parse(jsonStr);
   } catch {
     return c.text("Invalid JSON", 400);
+  }
+  // Fix 3 §3.5: require the same fields the API path enforces
+  for (const field of RICH_MENU_REQUIRED_ADMIN) {
+    if (parsed[field] === undefined || parsed[field] === null) {
+      return c.text(`Missing required field: ${field}`, 400);
+    }
   }
   const newId = makeRichMenuId();
   await db.insert(richMenus).values({
