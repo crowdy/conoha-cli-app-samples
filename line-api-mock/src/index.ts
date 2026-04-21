@@ -18,6 +18,7 @@ import { botInfoRouter } from "./mock/bot-info.js";
 import { richMenuRouter } from "./mock/rich-menu.js";
 import { richMenuLinkRouter } from "./mock/rich-menu-link.js";
 import { richMenuAliasRouter } from "./mock/rich-menu-alias.js";
+import { richMenuBatchRouter } from "./mock/rich-menu-batch.js";
 import { notImplementedRouter } from "./mock/not-implemented.js";
 import { adminRouter } from "./admin/routes.js";
 
@@ -35,6 +36,7 @@ app.route("/", botInfoRouter);
 app.route("/", richMenuRouter);
 app.route("/", richMenuLinkRouter);
 app.route("/", richMenuAliasRouter);
+app.route("/", richMenuBatchRouter);
 app.route("/", adminRouter);
 app.route("/", notImplementedRouter);
 
