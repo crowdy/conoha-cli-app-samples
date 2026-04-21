@@ -331,7 +331,7 @@ Coolify は公式インストールスクリプトで導入する設計のため
 ```yaml
 services:
   coolify:
-    image: ghcr.io/coollabsio/coolify:4
+    image: ghcr.io/coollabsio/coolify:4.0.0-beta.473  # :4 tag does not exist upstream; pin to latest published v4 beta (see cdn.coollabs.io/coolify/versions.json)
     ports:
       - "8000:8000"
       - "6001:6001"
