@@ -246,26 +246,57 @@ describe("rich menu batch", () => {
   });
 
   it("POST /batch applies multiple operations in order", async () => {
-    // Mix: link all rmA users to rmB, then unlinkAll
+    // [link rmA→rmB, unlink rmA]:
+    //   sequential order: link first moves both to rmB, then unlink rmA is a no-op → 2 rows at rmB
+    //   reversed order would: unlink rmA wipes both, then link is a no-op → 0 rows
+    // Distinct end states pin down ordering.
     const res = await app.request("/v2/bot/richmenu/batch", {
       method: "POST",
       headers: authHeaders(),
       body: JSON.stringify({
         operations: [
           { type: "link", from: rmA, to: rmB },
-          { type: "unlinkAll" },
+          { type: "unlink", from: rmA },
         ],
       }),
     });
     expect(res.status).toBe(202);
     const { db } = await import("../../src/db/client.js");
-    const { userRichMenuLinks } = await import("../../src/db/schema.js");
+    const { userRichMenuLinks, richMenus } = await import("../../src/db/schema.js");
     const { eq } = await import("drizzle-orm");
     const rows = await db
-      .select()
+      .select({ rid: richMenus.richMenuId })
       .from(userRichMenuLinks)
+      .innerJoin(richMenus, eq(userRichMenuLinks.richMenuId, richMenus.id))
       .where(eq(userRichMenuLinks.channelId, channelDbId));
-    expect(rows).toEqual([]);
+    expect(rows.length).toBe(2);
+    expect(rows.every((r) => r.rid === rmB)).toBe(true);
+  });
+
+  it("POST /batch silently skips link with unknown from/to", async () => {
+    const bogus = "richmenu-0000000000000000000000000000beef";
+    const res = await app.request("/v2/bot/richmenu/batch", {
+      method: "POST",
+      headers: authHeaders(),
+      body: JSON.stringify({
+        operations: [
+          { type: "link", from: bogus, to: rmB },
+          { type: "link", from: rmA, to: bogus },
+        ],
+      }),
+    });
+    expect(res.status).toBe(202);
+    // Baseline still intact: both users still linked to rmA
+    const { db } = await import("../../src/db/client.js");
+    const { userRichMenuLinks, richMenus } = await import("../../src/db/schema.js");
+    const { eq } = await import("drizzle-orm");
+    const rows = await db
+      .select({ rid: richMenus.richMenuId })
+      .from(userRichMenuLinks)
+      .innerJoin(richMenus, eq(userRichMenuLinks.richMenuId, richMenus.id))
+      .where(eq(userRichMenuLinks.channelId, channelDbId));
+    expect(rows.length).toBe(2);
+    expect(rows.every((r) => r.rid === rmA)).toBe(true);
   });
 
   it("POST /batch rejects empty operations with 400", async () => {
