@@ -180,3 +180,20 @@ export const userRichMenuLinks = pgTable(
   },
   (t) => ({ pk: primaryKey({ columns: [t.channelId, t.userId] }) })
 );
+
+export const richMenuAliases = pgTable(
+  "rich_menu_aliases",
+  {
+    channelId: integer("channel_id")
+      .notNull()
+      .references(() => channels.id, { onDelete: "cascade" }),
+    aliasId: text("alias_id").notNull(),
+    richMenuId: integer("rich_menu_id")
+      .notNull()
+      .references(() => richMenus.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => ({ pk: primaryKey({ columns: [t.channelId, t.aliasId] }) })
+);

@@ -106,11 +106,11 @@ npm run test:e2e           # Playwright + Docker Compose
 - Coupon (作成 / 一覧 / 詳細 / close、`type:"coupon"` メッセージ)
 - Message validate (reply / push / multicast / narrowcast / broadcast)
 - Bot info / Followers IDs
-- Rich menu (作成 / 検証 / 取得 / 一覧 / 削除 / 画像 / ユーザー link / default / bulk)
+- Rich menu (作成 / 検証 / 取得 / 一覧 / 削除 / 画像 / ユーザー link / default / bulk / alias CRUD / batch + validate + progress)
 
 ### 未実装 (呼ぶと 501 を返す)
 
-- Rich menu alias / Rich menu batch / LIFF / Insight / Audience / MLS / Shop / module-attach
+- LIFF / Insight / Audience / MLS / Shop / module-attach
 
 Swagger UI には表示されますが、実装は v2 以降の予定です。
 
