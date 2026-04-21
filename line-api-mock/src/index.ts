@@ -13,6 +13,8 @@ import { profileRouter } from "./mock/profile.js";
 import { webhookEndpointRouter } from "./mock/webhook-endpoint.js";
 import { contentRouter } from "./mock/content.js";
 import { couponRouter } from "./mock/coupon.js";
+import { validateRouter } from "./mock/validate.js";
+import { botInfoRouter } from "./mock/bot-info.js";
 import { notImplementedRouter } from "./mock/not-implemented.js";
 import { adminRouter } from "./admin/routes.js";
 
@@ -25,6 +27,8 @@ app.route("/", profileRouter);
 app.route("/", webhookEndpointRouter);
 app.route("/", contentRouter);
 app.route("/", couponRouter);
+app.route("/", validateRouter);
+app.route("/", botInfoRouter);
 app.route("/", adminRouter);
 app.route("/", notImplementedRouter);
 

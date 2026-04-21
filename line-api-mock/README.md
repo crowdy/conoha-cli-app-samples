@@ -104,6 +104,8 @@ npm run test:e2e           # Playwright + Docker Compose
 - Webhook endpoint 設定 / テスト送信
 - メッセージコンテンツ取得
 - Coupon (作成 / 一覧 / 詳細 / close、`type:"coupon"` メッセージ)
+- Message validate (reply / push / multicast / narrowcast / broadcast)
+- Bot info / Followers IDs
 
 ### 未実装 (呼ぶと 501 を返す)
 
