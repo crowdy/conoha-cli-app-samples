@@ -1,0 +1,65 @@
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import type { StartedPostgreSqlContainer } from "@testcontainers/postgresql";
+import { startDb } from "../helpers/testcontainer.js";
+
+let container: StartedPostgreSqlContainer;
+let app: any;
+let token: string;
+let channelDbId: number;
+let richMenuIdA: string;
+let richMenuIdB: string;
+
+beforeAll(async () => {
+  container = await startDb();
+  const { Hono } = await import("hono");
+  const { LinearRouter } = await import("hono/router/linear-router");
+  const { richMenuAliasRouter } = await import(
+    "../../src/mock/rich-menu-alias.js"
+  );
+  const { db } = await import("../../src/db/client.js");
+  const { channels, accessTokens, richMenus } = await import(
+    "../../src/db/schema.js"
+  );
+  const { randomHex, accessTokenStr, richMenuId } = await import(
+    "../../src/lib/id.js"
+  );
+
+  const [ch] = await db
+    .insert(channels)
+    .values({
+      channelId: "9500000101",
+      channelSecret: randomHex(16),
+      name: "Alias Test",
+    })
+    .returning();
+  channelDbId = ch.id;
+  token = accessTokenStr();
+  await db.insert(accessTokens).values({
+    channelId: ch.id,
+    token,
+    expiresAt: new Date(Date.now() + 24 * 3600 * 1000),
+  });
+
+  richMenuIdA = richMenuId();
+  richMenuIdB = richMenuId();
+  await db.insert(richMenus).values([
+    { richMenuId: richMenuIdA, channelId: ch.id, payload: { name: "A" } },
+    { richMenuId: richMenuIdB, channelId: ch.id, payload: { name: "B" } },
+  ]);
+
+  app = new Hono({ router: new LinearRouter() });
+  app.route("/", richMenuAliasRouter);
+}, 60_000);
+
+afterAll(async () => container.stop());
+
+function authHeaders() {
+  return {
+    "content-type": "application/json",
+    authorization: `Bearer ${token}`,
+  };
+}
+
+describe("rich menu alias", () => {
+  // tests appended by subsequent tasks
+});
