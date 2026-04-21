@@ -9,6 +9,7 @@ let token: string;
 beforeAll(async () => {
   container = await startDb();
   const { Hono } = await import("hono");
+  const { LinearRouter } = await import("hono/router/linear-router");
   const { richMenuRouter } = await import("../../src/mock/rich-menu.js");
   const { db } = await import("../../src/db/client.js");
   const { channels, accessTokens } = await import("../../src/db/schema.js");
@@ -29,7 +30,7 @@ beforeAll(async () => {
     expiresAt: new Date(Date.now() + 24 * 3600 * 1000),
   });
 
-  app = new Hono();
+  app = new Hono({ router: new LinearRouter() });
   app.route("/", richMenuRouter);
 }, 60_000);
 
@@ -304,5 +305,158 @@ describe("Rich menu image upload/download", () => {
       { headers: { authorization: `Bearer ${token}` } }
     );
     expect(res.status).toBe(404);
+  });
+});
+
+describe("User linking", () => {
+  let botUserId: string;
+  let linkedMenuId: string;
+
+  beforeAll(async () => {
+    const { db } = await import("../../src/db/client.js");
+    const { channels, virtualUsers, channelFriends } = await import(
+      "../../src/db/schema.js"
+    );
+    const { randomHex } = await import("../../src/lib/id.js");
+    const { eq: eqFn } = await import("drizzle-orm");
+
+    const [ch] = await db
+      .select()
+      .from(channels)
+      .where(eqFn(channels.channelId, "9500000001"))
+      .limit(1);
+
+    botUserId = "U" + randomHex(16);
+    const [u] = await db
+      .insert(virtualUsers)
+      .values({ userId: botUserId, displayName: "Link target" })
+      .returning();
+    await db
+      .insert(channelFriends)
+      .values({ channelId: ch.id, userId: u.id });
+
+    const { richMenuLinkRouter } = await import(
+      "../../src/mock/rich-menu-link.js"
+    );
+    app.route("/", richMenuLinkRouter);
+
+    const create = await app.request("/v2/bot/richmenu", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ ...validRichMenuBody(), name: "linker" }),
+    });
+    linkedMenuId = (await create.json()).richMenuId;
+    await app.request(`/v2/bot/richmenu/${linkedMenuId}/content`, {
+      method: "POST",
+      headers: {
+        "content-type": "image/png",
+        authorization: `Bearer ${token}`,
+      },
+      body: PNG_1x1,
+    });
+  });
+
+  it("links a rich menu to a user and reads it back", async () => {
+    const link = await app.request(
+      `/v2/bot/user/${botUserId}/richmenu/${linkedMenuId}`,
+      {
+        method: "POST",
+        headers: { authorization: `Bearer ${token}` },
+      }
+    );
+    expect(link.status).toBe(200);
+
+    const get = await app.request(`/v2/bot/user/${botUserId}/richmenu`, {
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(get.status).toBe(200);
+    const body = await get.json();
+    expect(body.richMenuId).toBe(linkedMenuId);
+  });
+
+  it("unlinks and subsequent GET is 404", async () => {
+    const del = await app.request(`/v2/bot/user/${botUserId}/richmenu`, {
+      method: "DELETE",
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(del.status).toBe(200);
+
+    const get = await app.request(`/v2/bot/user/${botUserId}/richmenu`, {
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(get.status).toBe(404);
+  });
+
+  it("rejects linking a menu without an image with 400", async () => {
+    const create = await app.request("/v2/bot/richmenu", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ ...validRichMenuBody(), name: "no-image" }),
+    });
+    const { richMenuId: noImgId } = await create.json();
+
+    const res = await app.request(
+      `/v2/bot/user/${botUserId}/richmenu/${noImgId}`,
+      {
+        method: "POST",
+        headers: { authorization: `Bearer ${token}` },
+      }
+    );
+    expect(res.status).toBe(400);
+  });
+});
+
+describe("Default rich menu", () => {
+  let defaultMenuId: string;
+
+  beforeAll(async () => {
+    const create = await app.request("/v2/bot/richmenu", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ ...validRichMenuBody(), name: "default-menu" }),
+    });
+    defaultMenuId = (await create.json()).richMenuId;
+    await app.request(`/v2/bot/richmenu/${defaultMenuId}/content`, {
+      method: "POST",
+      headers: {
+        "content-type": "image/png",
+        authorization: `Bearer ${token}`,
+      },
+      body: PNG_1x1,
+    });
+  });
+
+  it("sets, reads, and unsets default", async () => {
+    const set = await app.request(`/v2/bot/user/all/richmenu/${defaultMenuId}`, {
+      method: "POST",
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(set.status).toBe(200);
+
+    const get = await app.request("/v2/bot/user/all/richmenu", {
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(get.status).toBe(200);
+    expect((await get.json()).richMenuId).toBe(defaultMenuId);
+
+    const unset = await app.request("/v2/bot/user/all/richmenu", {
+      method: "DELETE",
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(unset.status).toBe(200);
+
+    const get2 = await app.request("/v2/bot/user/all/richmenu", {
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(get2.status).toBe(404);
   });
 });
