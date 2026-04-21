@@ -8,6 +8,7 @@ import {
   jsonb,
   primaryKey,
   customType,
+  type AnyPgColumn,
 } from "drizzle-orm/pg-core";
 
 const bytea = customType<{ data: Buffer; default: false }>({
@@ -23,7 +24,10 @@ export const channels = pgTable("channels", {
   name: text("name").notNull(),
   webhookUrl: text("webhook_url"),
   webhookEnabled: boolean("webhook_enabled").notNull().default(true),
-  defaultRichMenuId: integer("default_rich_menu_id"),
+  defaultRichMenuId: integer("default_rich_menu_id").references(
+    (): AnyPgColumn => richMenus.id,
+    { onDelete: "set null" }
+  ),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),

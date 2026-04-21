@@ -1,0 +1,1 @@
+ALTER TABLE "channels" ADD CONSTRAINT "channels_default_rich_menu_id_rich_menus_id_fk" FOREIGN KEY ("default_rich_menu_id") REFERENCES "public"."rich_menus"("id") ON DELETE set null ON UPDATE no action;

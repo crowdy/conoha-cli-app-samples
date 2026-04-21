@@ -589,6 +589,36 @@ describe("Bulk link/unlink", () => {
   });
 });
 
+describe("Bulk endpoints are authenticated in isolation", () => {
+  // Regression guard: if the bulk endpoints lose their own auth middleware
+  // and rely implicitly on another router's /v2/bot/richmenu/* middleware,
+  // mounting richMenuLinkRouter alone would silently accept unauthenticated
+  // bulk calls. This test mounts the router on a fresh Hono app and asserts
+  // that both bulk routes still require a bearer token.
+  it("richMenuLinkRouter alone rejects unauthenticated bulk/link and bulk/unlink", async () => {
+    const { Hono } = await import("hono");
+    const { richMenuLinkRouter } = await import(
+      "../../src/mock/rich-menu-link.js"
+    );
+    const isolated = new Hono();
+    isolated.route("/", richMenuLinkRouter);
+
+    const link = await isolated.request("/v2/bot/richmenu/bulk/link", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ richMenuId: "richmenu-x", userIds: ["U0"] }),
+    });
+    expect(link.status).toBe(401);
+
+    const unlink = await isolated.request("/v2/bot/richmenu/bulk/unlink", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ userIds: ["U0"] }),
+    });
+    expect(unlink.status).toBe(401);
+  });
+});
+
 describe("Link rejects cross-channel user", () => {
   it("returns 404 when linking a user that is friend of another channel only", async () => {
     const { db } = await import("../../src/db/client.js");

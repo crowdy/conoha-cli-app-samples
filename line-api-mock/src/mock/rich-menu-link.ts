@@ -18,6 +18,15 @@ export const richMenuLinkRouter = new Hono<{ Variables: AuthVars }>();
 richMenuLinkRouter.use("/v2/bot/user/*", requestLog);
 richMenuLinkRouter.use("/v2/bot/user/*", bearerAuth);
 
+// Bulk link/unlink are mounted on the same router for code cohesion but live
+// under /v2/bot/richmenu/bulk/*, not /v2/bot/user/*. Register their middleware
+// explicitly — Hono only runs each middleware match once per request, so this
+// does not duplicate logging/auth when another router (e.g. richMenuRouter)
+// happens to cover the same prefix. Keeping auth attached here ensures bulk
+// endpoints stay authenticated even if this router is mounted in isolation.
+richMenuLinkRouter.use("/v2/bot/richmenu/bulk/*", requestLog);
+richMenuLinkRouter.use("/v2/bot/richmenu/bulk/*", bearerAuth);
+
 async function findRichMenuWithImage(
   channelDbId: number,
   richMenuIdStr: string
