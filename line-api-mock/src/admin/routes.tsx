@@ -17,6 +17,23 @@ import { dispatchWebhook } from "../webhook/dispatcher.js";
 import { bus } from "../lib/events.js";
 import { checkWebhookUrl } from "../webhook/url-policy.js";
 
+const VALID_TIMEZONES = new Set([
+  "ETC_GMT_MINUS_12", "ETC_GMT_MINUS_11", "PACIFIC_HONOLULU",
+  "AMERICA_ANCHORAGE", "AMERICA_LOS_ANGELES", "AMERICA_PHOENIX",
+  "AMERICA_CHICAGO", "AMERICA_NEW_YORK", "AMERICA_CARACAS",
+  "AMERICA_SANTIAGO", "AMERICA_ST_JOHNS", "AMERICA_SAO_PAULO",
+  "ETC_GMT_MINUS_2", "ATLANTIC_CAPE_VERDE", "EUROPE_LONDON",
+  "EUROPE_PARIS", "EUROPE_ISTANBUL", "EUROPE_MOSCOW", "ASIA_TEHRAN",
+  "ASIA_TBILISI", "ASIA_KABUL", "ASIA_TASHKENT", "ASIA_COLOMBO",
+  "ASIA_KATHMANDU", "ASIA_ALMATY", "ASIA_RANGOON", "ASIA_BANGKOK",
+  "ASIA_TAIPEI", "ASIA_TOKYO", "AUSTRALIA_DARWIN", "AUSTRALIA_SYDNEY",
+  "ASIA_VLADIVOSTOK", "ETC_GMT_PLUS_12", "PACIFIC_TONGATAPU",
+]);
+
+const VALID_REWARD_TYPES = new Set([
+  "cashBack", "discount", "free", "gift", "others",
+]);
+
 export const adminRouter = new Hono();
 adminRouter.use("/admin", adminAuth);
 adminRouter.use("/admin/*", adminAuth);
@@ -359,6 +376,32 @@ adminRouter.post("/admin/coupons", async (c) => {
   const startIso = String(form.startTimestampIso ?? "");
   const endIso = String(form.endTimestampIso ?? "");
 
+  // Server-side validation mirroring the API path. Invalid input → 400 with a
+  // plain-text body so the admin sees a useful message rather than an opaque 500.
+  if (!Number.isInteger(channelId) || channelId <= 0) {
+    return c.text("Invalid channelId", 400);
+  }
+  const [ch] = await db
+    .select({ id: channels.id })
+    .from(channels)
+    .where(eq(channels.id, channelId))
+    .limit(1);
+  if (!ch) {
+    return c.text("Channel not found", 400);
+  }
+  if (title.length < 1 || title.length > 60) {
+    return c.text("title must be 1..60 characters", 400);
+  }
+  if (!VALID_TIMEZONES.has(timezone)) {
+    return c.text(`Invalid timezone: ${timezone}`, 400);
+  }
+  if (!VALID_REWARD_TYPES.has(rewardType)) {
+    return c.text(`Invalid rewardType: ${rewardType}`, 400);
+  }
+  if (!Number.isInteger(percentage) || percentage < 1 || percentage > 99) {
+    return c.text("percentage must be an integer in [1,99]", 400);
+  }
+
   if (!title || !startIso || !endIso) {
     return c.redirect("/admin/coupons");
   }
@@ -366,6 +409,9 @@ adminRouter.post("/admin/coupons", async (c) => {
   const endTimestamp = Math.floor(new Date(endIso).getTime() / 1000);
   if (!Number.isFinite(startTimestamp) || !Number.isFinite(endTimestamp)) {
     return c.redirect("/admin/coupons");
+  }
+  if (startTimestamp >= endTimestamp) {
+    return c.text("startTimestamp must be < endTimestamp", 400);
   }
 
   let reward: Record<string, unknown>;
