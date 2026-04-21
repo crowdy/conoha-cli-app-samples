@@ -473,15 +473,17 @@ describe("POST /v2/bot/message/multicast with coupon message", () => {
 });
 
 describe("admin POST /admin/coupons validation", () => {
-  // NOTE: these tests call the admin handler directly by constructing a
-  // form body; they bypass the admin Basic Auth by mounting adminRouter on
-  // a fresh Hono without auth for the purpose of exercising validation
-  // logic only. Setup follows the pattern of other integration tests.
-
   let adminApp: any;
   let channelId: number;
+  const ADMIN_USER = "testadmin";
+  const ADMIN_PASSWORD = "testadmin-pw";
 
   beforeAll(async () => {
+    // Set admin credentials BEFORE importing modules that read config.
+    // config.ts captures these at module-evaluation time.
+    process.env.ADMIN_USER = ADMIN_USER;
+    process.env.ADMIN_PASSWORD = ADMIN_PASSWORD;
+
     const { Hono } = await import("hono");
     const { adminRouter } = await import("../../src/admin/routes.js");
     const { db } = await import("../../src/db/client.js");
@@ -522,11 +524,9 @@ describe("admin POST /admin/coupons validation", () => {
       "content-type": "application/x-www-form-urlencoded",
     };
     if (auth) {
-      // Admin Basic Auth — the seed uses a generated password, but for this
-      // test we rely on the fact that adminRouter.post is reachable after
-      // the admin middleware. If auth blocks, the tests below switch to a
-      // direct handler invocation.
-      headers.authorization = "Basic " + Buffer.from("admin:admin").toString("base64");
+      headers.authorization =
+        "Basic " +
+        Buffer.from(`${ADMIN_USER}:${ADMIN_PASSWORD}`).toString("base64");
     }
     return adminApp.request("/admin/coupons", {
       method: "POST",
@@ -537,20 +537,17 @@ describe("admin POST /admin/coupons validation", () => {
 
   it("rejects non-existent channelId with 400", async () => {
     const res = await post(form({ channelId: "999999" }));
-    // 400 from our validator, OR 401 from admin auth if it rejects first.
-    // The only unacceptable outcome is 500 or 302 redirect (which would mean
-    // the FK violation bubbled through).
-    expect([400, 401]).toContain(res.status);
+    expect(res.status).toBe(400);
   });
 
   it("rejects title > 60 chars with 400", async () => {
     const res = await post(form({ title: "x".repeat(61) }));
-    expect([400, 401]).toContain(res.status);
+    expect(res.status).toBe(400);
   });
 
   it("rejects unknown timezone with 400", async () => {
     const res = await post(form({ timezone: "ASIA_SEOUL" }));
-    expect([400, 401]).toContain(res.status);
+    expect(res.status).toBe(400);
   });
 
   it("rejects start >= end with 400", async () => {
@@ -559,6 +556,6 @@ describe("admin POST /admin/coupons validation", () => {
       startTimestampIso: future,
       endTimestampIso: future,
     }));
-    expect([400, 401]).toContain(res.status);
+    expect(res.status).toBe(400);
   });
 });
