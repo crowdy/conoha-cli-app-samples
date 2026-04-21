@@ -174,3 +174,69 @@ richMenuLinkRouter.delete("/v2/bot/user/:userId/richmenu", async (c) => {
     );
   return c.json({});
 });
+
+richMenuLinkRouter.use("/v2/bot/richmenu/bulk/*", requestLog);
+richMenuLinkRouter.use("/v2/bot/richmenu/bulk/*", bearerAuth);
+
+richMenuLinkRouter.post("/v2/bot/richmenu/bulk/link", async (c) => {
+  const body = (await c.req.json().catch(() => null)) as
+    | { richMenuId?: string; userIds?: string[] }
+    | null;
+  if (!body || typeof body.richMenuId !== "string" || !Array.isArray(body.userIds)) {
+    return errors.badRequest(c, "richMenuId and userIds are required");
+  }
+  if (body.userIds.length < 1 || body.userIds.length > 500) {
+    return errors.badRequest(c, "userIds length must be 1..500");
+  }
+  const channelDbId = c.get("channelDbId");
+  const rm = await findRichMenuWithImage(channelDbId, body.richMenuId);
+  if ("error" in rm) {
+    if (rm.error === "notfound") return errors.badRequest(c, "Unknown rich menu");
+    return errors.badRequest(c, "Rich menu has no uploaded image");
+  }
+
+  for (const uid of body.userIds) {
+    const u = await findVirtualUser(channelDbId, uid);
+    if (!u) continue;
+    await db
+      .delete(userRichMenuLinks)
+      .where(
+        and(
+          eq(userRichMenuLinks.channelId, channelDbId),
+          eq(userRichMenuLinks.userId, u.id)
+        )
+      );
+    await db.insert(userRichMenuLinks).values({
+      channelId: channelDbId,
+      userId: u.id,
+      richMenuId: rm.internalId,
+    });
+  }
+  return c.body(null, 202);
+});
+
+richMenuLinkRouter.post("/v2/bot/richmenu/bulk/unlink", async (c) => {
+  const body = (await c.req.json().catch(() => null)) as
+    | { userIds?: string[] }
+    | null;
+  if (!body || !Array.isArray(body.userIds)) {
+    return errors.badRequest(c, "userIds is required");
+  }
+  if (body.userIds.length < 1 || body.userIds.length > 500) {
+    return errors.badRequest(c, "userIds length must be 1..500");
+  }
+  const channelDbId = c.get("channelDbId");
+  for (const uid of body.userIds) {
+    const u = await findVirtualUser(channelDbId, uid);
+    if (!u) continue;
+    await db
+      .delete(userRichMenuLinks)
+      .where(
+        and(
+          eq(userRichMenuLinks.channelId, channelDbId),
+          eq(userRichMenuLinks.userId, u.id)
+        )
+      );
+  }
+  return c.body(null, 202);
+});

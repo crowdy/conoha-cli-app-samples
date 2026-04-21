@@ -460,3 +460,131 @@ describe("Default rich menu", () => {
     expect(get2.status).toBe(404);
   });
 });
+
+describe("Bulk link/unlink", () => {
+  let bulkMenuId: string;
+  let uids: string[];
+
+  beforeAll(async () => {
+    const { richMenuLinkRouter } = await import(
+      "../../src/mock/rich-menu-link.js"
+    );
+    void richMenuLinkRouter;
+
+    const { db } = await import("../../src/db/client.js");
+    const { channels, virtualUsers, channelFriends } = await import(
+      "../../src/db/schema.js"
+    );
+    const { randomHex } = await import("../../src/lib/id.js");
+    const { eq: eqFn } = await import("drizzle-orm");
+
+    const [ch] = await db
+      .select()
+      .from(channels)
+      .where(eqFn(channels.channelId, "9500000001"))
+      .limit(1);
+
+    uids = [];
+    for (let i = 0; i < 3; i++) {
+      const uid = "U" + randomHex(16);
+      uids.push(uid);
+      const [u] = await db
+        .insert(virtualUsers)
+        .values({ userId: uid, displayName: `Bulk ${i}` })
+        .returning();
+      await db
+        .insert(channelFriends)
+        .values({ channelId: ch.id, userId: u.id });
+    }
+
+    const create = await app.request("/v2/bot/richmenu", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ ...validRichMenuBody(), name: "bulk" }),
+    });
+    bulkMenuId = (await create.json()).richMenuId;
+    await app.request(`/v2/bot/richmenu/${bulkMenuId}/content`, {
+      method: "POST",
+      headers: {
+        "content-type": "image/png",
+        authorization: `Bearer ${token}`,
+      },
+      body: PNG_1x1,
+    });
+  });
+
+  it("bulk link returns 202 and each user ends up linked", async () => {
+    const res = await app.request("/v2/bot/richmenu/bulk/link", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ richMenuId: bulkMenuId, userIds: uids }),
+    });
+    expect(res.status).toBe(202);
+
+    for (const uid of uids) {
+      const g = await app.request(`/v2/bot/user/${uid}/richmenu`, {
+        headers: { authorization: `Bearer ${token}` },
+      });
+      expect(g.status).toBe(200);
+      expect((await g.json()).richMenuId).toBe(bulkMenuId);
+    }
+  });
+
+  it("bulk unlink returns 202 and clears links", async () => {
+    const res = await app.request("/v2/bot/richmenu/bulk/unlink", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ userIds: uids }),
+    });
+    expect(res.status).toBe(202);
+
+    for (const uid of uids) {
+      const g = await app.request(`/v2/bot/user/${uid}/richmenu`, {
+        headers: { authorization: `Bearer ${token}` },
+      });
+      expect(g.status).toBe(404);
+    }
+  });
+
+  it("bulk link silently skips unknown userIds", async () => {
+    const res = await app.request("/v2/bot/richmenu/bulk/link", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        richMenuId: bulkMenuId,
+        userIds: [uids[0], "Uffffffffffffffffffffffffffffffff"],
+      }),
+    });
+    expect(res.status).toBe(202);
+
+    const g = await app.request(`/v2/bot/user/${uids[0]}/richmenu`, {
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(g.status).toBe(200);
+  });
+
+  it("bulk link rejects > 500 userIds with 400", async () => {
+    const many = Array.from({ length: 501 }, (_, i) => "U" + String(i).padStart(32, "0"));
+    const res = await app.request("/v2/bot/richmenu/bulk/link", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ richMenuId: bulkMenuId, userIds: many }),
+    });
+    expect(res.status).toBe(400);
+  });
+});
