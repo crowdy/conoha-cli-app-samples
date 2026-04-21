@@ -166,3 +166,110 @@ func TestRichMenuLifecycle(t *testing.T) {
 
 	// 14. delete happens via t.Cleanup registered above.
 }
+
+// TestRichMenuBulkViaPayload exercises the --payload-file path of bulk-link / bulk-unlink,
+// and verifies that flag values override payload fields (the dual-input override semantics
+// that the lifecycle test does not cover).
+func TestRichMenuBulkViaPayload(t *testing.T) {
+	token := os.Getenv("TEST_ACCESS_TOKEN")
+	userID := os.Getenv("TEST_USER_ID")
+	if token == "" || userID == "" {
+		t.Skip("TEST_ACCESS_TOKEN and TEST_USER_ID required")
+	}
+
+	// Create two rich menus so flag-override can be distinguished by which one the user ends up linked to.
+	createRM := func(label string) string {
+		out, errOut, err := runCLI(t, "--access-token", token,
+			"richmenu", "create", "--payload-file", filepath.Join("testdata", "rm.json"))
+		if err != nil {
+			t.Fatalf("create (%s) failed: %s\nstdout: %s\nstderr: %s", label, err, out, errOut)
+		}
+		var r struct {
+			RichMenuId string `json:"richMenuId"`
+		}
+		if err := json.Unmarshal([]byte(out), &r); err != nil {
+			t.Fatalf("parse create (%s): %v\n%s", label, err, out)
+		}
+		if r.RichMenuId == "" {
+			t.Fatalf("empty richMenuId from create (%s): %s", label, out)
+		}
+		return r.RichMenuId
+	}
+
+	rmPayload := createRM("payload")
+	rmFlag := createRM("flag")
+	t.Cleanup(func() {
+		runCLI(t, "--access-token", token, "richmenu", "delete", "--rich-menu-id", rmPayload)
+		runCLI(t, "--access-token", token, "richmenu", "delete", "--rich-menu-id", rmFlag)
+	})
+
+	// Substitute bulk.json template placeholders with real IDs and write to a temp file.
+	writeBulkJSON := func(rmID, uid string) string {
+		raw, err := os.ReadFile(filepath.Join("testdata", "bulk.json"))
+		if err != nil {
+			t.Fatalf("read bulk.json: %v", err)
+		}
+		body := strings.ReplaceAll(string(raw), "__RM__", rmID)
+		body = strings.ReplaceAll(body, "__U1__", uid)
+		body = strings.ReplaceAll(body, "__U2__", uid) // single available user; array of duplicates is fine for this mock
+		p := filepath.Join(t.TempDir(), "bulk.json")
+		if err := os.WriteFile(p, []byte(body), 0o644); err != nil {
+			t.Fatalf("write substituted bulk.json: %v", err)
+		}
+		return p
+	}
+
+	t.Run("bulk-link payload-file only", func(t *testing.T) {
+		payloadFile := writeBulkJSON(rmPayload, userID)
+		out, errOut, err := runCLI(t, "--access-token", token,
+			"richmenu", "bulk-link", "--payload-file", payloadFile)
+		if err != nil {
+			t.Fatalf("bulk-link via payload failed: %s\nstdout: %s\nstderr: %s", err, out, errOut)
+		}
+		// Verify the link landed on rmPayload (not on rmFlag).
+		out, errOut, err = runCLI(t, "--access-token", token,
+			"richmenu", "get-for-user", "--user-id", userID)
+		if err != nil {
+			t.Fatalf("get-for-user failed: %s\nstdout: %s\nstderr: %s", err, out, errOut)
+		}
+		if !strings.Contains(out, rmPayload) {
+			t.Errorf("expected user linked to %s (from payload), got: %s", rmPayload, out)
+		}
+		// Clean up this link via payload-based unlink (exercises bulk-unlink --payload-file).
+		raw := []byte(`{"userIds":["` + userID + `"]}`)
+		pf := filepath.Join(t.TempDir(), "unlink.json")
+		if err := os.WriteFile(pf, raw, 0o644); err != nil {
+			t.Fatalf("write unlink.json: %v", err)
+		}
+		out, errOut, err = runCLI(t, "--access-token", token,
+			"richmenu", "bulk-unlink", "--payload-file", pf)
+		if err != nil {
+			t.Fatalf("bulk-unlink via payload failed: %s\nstdout: %s\nstderr: %s", err, out, errOut)
+		}
+	})
+
+	t.Run("bulk-link flag overrides payload richMenuId", func(t *testing.T) {
+		// Payload says rmPayload; flag says rmFlag. Flag must win.
+		payloadFile := writeBulkJSON(rmPayload, userID)
+		out, errOut, err := runCLI(t, "--access-token", token,
+			"richmenu", "bulk-link",
+			"--payload-file", payloadFile,
+			"--rich-menu-id", rmFlag)
+		if err != nil {
+			t.Fatalf("bulk-link with override failed: %s\nstdout: %s\nstderr: %s", err, out, errOut)
+		}
+		out, errOut, err = runCLI(t, "--access-token", token,
+			"richmenu", "get-for-user", "--user-id", userID)
+		if err != nil {
+			t.Fatalf("get-for-user failed: %s\nstdout: %s\nstderr: %s", err, out, errOut)
+		}
+		if !strings.Contains(out, rmFlag) {
+			t.Errorf("expected user linked to %s (flag override), got: %s", rmFlag, out)
+		}
+		if strings.Contains(out, rmPayload) && !strings.Contains(out, rmFlag) {
+			t.Errorf("override failed: user linked to payload %s instead of flag %s", rmPayload, rmFlag)
+		}
+		// Best-effort unlink so the next test / run isn't dirty.
+		runCLI(t, "--access-token", token, "richmenu", "unlink", "--user-id", userID)
+	})
+}
