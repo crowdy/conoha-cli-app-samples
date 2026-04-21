@@ -115,3 +115,18 @@ richMenuBatchRouter.post(
     return c.body(null, 202);
   }
 );
+
+richMenuBatchRouter.get(
+  "/v2/bot/richmenu/progress/batch",
+  validate({
+    responseSchema: "#/components/schemas/RichMenuBatchProgressResponse",
+  }),
+  async (c) => {
+    const now = new Date().toISOString();
+    return c.json({
+      phase: "succeeded",
+      acceptedTime: now,
+      completedTime: now,
+    });
+  }
+);

@@ -307,4 +307,16 @@ describe("rich menu batch", () => {
     });
     expect(res.status).toBe(400);
   });
+
+  it("GET /progress/batch returns succeeded phase", async () => {
+    const res = await app.request(
+      "/v2/bot/richmenu/progress/batch?requestId=abc123",
+      { headers: authHeaders() }
+    );
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json.phase).toBe("succeeded");
+    expect(typeof json.acceptedTime).toBe("string");
+    expect(typeof json.completedTime).toBe("string");
+  });
 });
