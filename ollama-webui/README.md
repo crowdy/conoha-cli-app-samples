@@ -29,6 +29,8 @@ conoha app deploy myserver --app-name ollama-webui
 
 初回起動時に tinyllama モデル（約600MB）が自動ダウンロードされます。完了まで数分かかります。
 
+> **Note:** モデルのダウンロードは `ollama serve` の起動と並行してバックグラウンドで進行します。WebUI は起動直後からアクセス可能ですが、tinyllama のダウンロードが完了するまでは画面のモデル選択ドロップダウンが空の状態になります。VPS のネットワーク速度にもよりますが、初回は数分お待ちください。進捗は `docker compose logs -f ollama` で確認できます。
+
 ## 動作確認
 
 ブラウザで `http://<サーバーIP>:3000` にアクセスすると ChatGPT 風のチャット画面が表示されます。
