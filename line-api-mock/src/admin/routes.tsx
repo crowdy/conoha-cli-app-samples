@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { sql, eq, inArray, and, desc } from "drizzle-orm";
 import { db } from "../db/client.js";
-import { channels, messages, webhookDeliveries, accessTokens, virtualUsers, apiLogs, coupons } from "../db/schema.js";
+import { channels, messages, webhookDeliveries, accessTokens, virtualUsers, channelFriends, apiLogs, coupons, richMenus, richMenuImages, userRichMenuLinks } from "../db/schema.js";
 import { adminAuth } from "./auth.js";
 import { Dashboard } from "./pages/Dashboard.js";
 import { Channels } from "./pages/Channels.js";
@@ -10,7 +10,8 @@ import { Conversation } from "./pages/Conversation.js";
 import { WebhookLog } from "./pages/WebhookLog.js";
 import { ApiLog } from "./pages/ApiLog.js";
 import { Coupons } from "./pages/Coupons.js";
-import { accessTokenStr, randomHex, messageId, replyToken, couponId as makeCouponId } from "../lib/id.js";
+import { RichMenus } from "./pages/RichMenus.js";
+import { accessTokenStr, randomHex, messageId, replyToken, couponId as makeCouponId, richMenuId as makeRichMenuId } from "../lib/id.js";
 import { config } from "../config.js";
 import { sseHandler } from "./sse.js";
 import { dispatchWebhook } from "../webhook/dispatcher.js";
@@ -466,4 +467,223 @@ adminRouter.post("/admin/coupons/:couponId/close", async (c) => {
       .where(eq(coupons.id, row.id));
   }
   return c.redirect("/admin/coupons");
+});
+
+adminRouter.get("/admin/richmenus", async (c) => {
+  const allChannels = await db
+    .select({
+      id: channels.id,
+      name: channels.name,
+      defaultRichMenuId: channels.defaultRichMenuId,
+    })
+    .from(channels);
+  const channelById = new Map(allChannels.map((c) => [c.id, c]));
+
+  const menuRows = await db.select().from(richMenus);
+  const imageIds = new Set(
+    (
+      await db.select({ id: richMenuImages.richMenuId }).from(richMenuImages)
+    ).map((r) => r.id)
+  );
+  const linkCounts = new Map<number, number>();
+  const linkRows = await db
+    .select({ internalId: userRichMenuLinks.richMenuId })
+    .from(userRichMenuLinks);
+  for (const r of linkRows) {
+    linkCounts.set(r.internalId, (linkCounts.get(r.internalId) ?? 0) + 1);
+  }
+
+  const viewRows = menuRows.map((r) => {
+    const p = r.payload as any;
+    const ch = channelById.get(r.channelId);
+    return {
+      richMenuId: r.richMenuId,
+      channelDbId: r.channelId,
+      channelName: ch?.name ?? "?",
+      name: String(p.name ?? ""),
+      chatBarText: String(p.chatBarText ?? ""),
+      size: {
+        width: Number(p.size?.width ?? 0),
+        height: Number(p.size?.height ?? 0),
+      },
+      areaCount: Array.isArray(p.areas) ? p.areas.length : 0,
+      hasImage: imageIds.has(r.id),
+      linkedUsers: linkCounts.get(r.id) ?? 0,
+      isDefault: ch?.defaultRichMenuId === r.id,
+    };
+  });
+
+  const userRows = await db
+    .select({
+      dbId: virtualUsers.id,
+      userIdStr: virtualUsers.userId,
+      displayName: virtualUsers.displayName,
+      channelDbId: channelFriends.channelId,
+    })
+    .from(channelFriends)
+    .innerJoin(virtualUsers, eq(channelFriends.userId, virtualUsers.id));
+
+  return c.html(
+    <RichMenus
+      rows={viewRows}
+      channels={allChannels.map((c) => ({ id: c.id, name: c.name }))}
+      users={userRows}
+    />
+  );
+});
+
+const RICH_MENU_REQUIRED_ADMIN = [
+  "size",
+  "selected",
+  "name",
+  "chatBarText",
+  "areas",
+] as const;
+
+adminRouter.post("/admin/richmenus", async (c) => {
+  const form = await c.req.parseBody();
+  const channelId = Number(form.channelId);
+  const jsonStr = String(form.json ?? "");
+  if (!Number.isInteger(channelId) || channelId <= 0) {
+    return c.text("Invalid channelId", 400);
+  }
+  // Fix 4 §3.6: verify channel exists before FK insert
+  const [ch] = await db
+    .select({ id: channels.id })
+    .from(channels)
+    .where(eq(channels.id, channelId))
+    .limit(1);
+  if (!ch) {
+    return c.text("Channel not found", 400);
+  }
+  let parsed: Record<string, unknown>;
+  try {
+    parsed = JSON.parse(jsonStr);
+  } catch {
+    return c.text("Invalid JSON", 400);
+  }
+  // Fix 3 §3.5: require the same fields the API path enforces
+  for (const field of RICH_MENU_REQUIRED_ADMIN) {
+    if (parsed[field] === undefined || parsed[field] === null) {
+      return c.text(`Missing required field: ${field}`, 400);
+    }
+  }
+  const newId = makeRichMenuId();
+  await db.insert(richMenus).values({
+    richMenuId: newId,
+    channelId,
+    payload: { ...parsed, richMenuId: newId },
+  });
+  return c.redirect("/admin/richmenus");
+});
+
+adminRouter.get("/admin/richmenus/:richMenuId/content", async (c) => {
+  const id = c.req.param("richMenuId");
+  const rows = await db
+    .select({
+      internalId: richMenus.id,
+      contentType: richMenuImages.contentType,
+      data: richMenuImages.data,
+    })
+    .from(richMenus)
+    .leftJoin(richMenuImages, eq(richMenus.id, richMenuImages.richMenuId))
+    .where(eq(richMenus.richMenuId, id))
+    .limit(1);
+  const row = rows[0];
+  if (!row?.data || !row.contentType) return c.notFound();
+  c.header("Content-Type", row.contentType);
+  return c.body(row.data as unknown as ArrayBuffer);
+});
+
+adminRouter.post("/admin/richmenus/:richMenuId/upload", async (c) => {
+  const id = c.req.param("richMenuId");
+  const form = await c.req.parseBody();
+  const file = form.image;
+  if (!(file instanceof File)) {
+    return c.text("No image uploaded", 400);
+  }
+  const buf = Buffer.from(await file.arrayBuffer());
+  const mime = file.type.toLowerCase();
+  if (mime !== "image/png" && mime !== "image/jpeg") {
+    return c.text("Only image/png or image/jpeg accepted", 400);
+  }
+  if (buf.length > 1_048_576) {
+    return c.text("Image must be <= 1 MB", 400);
+  }
+  const [rm] = await db
+    .select({ internalId: richMenus.id })
+    .from(richMenus)
+    .where(eq(richMenus.richMenuId, id))
+    .limit(1);
+  if (!rm) return c.text("Rich menu not found", 404);
+  await db
+    .delete(richMenuImages)
+    .where(eq(richMenuImages.richMenuId, rm.internalId));
+  await db.insert(richMenuImages).values({
+    richMenuId: rm.internalId,
+    contentType: mime,
+    data: buf,
+  });
+  return c.redirect("/admin/richmenus");
+});
+
+adminRouter.post("/admin/richmenus/:richMenuId/set-default", async (c) => {
+  const id = c.req.param("richMenuId");
+  const [rm] = await db
+    .select({ internalId: richMenus.id, channelDbId: richMenus.channelId })
+    .from(richMenus)
+    .where(eq(richMenus.richMenuId, id))
+    .limit(1);
+  if (!rm) return c.text("Not found", 404);
+  await db
+    .update(channels)
+    .set({ defaultRichMenuId: rm.internalId })
+    .where(eq(channels.id, rm.channelDbId));
+  return c.redirect("/admin/richmenus");
+});
+
+adminRouter.post("/admin/richmenus/:richMenuId/link", async (c) => {
+  const id = c.req.param("richMenuId");
+  const form = await c.req.parseBody();
+  const userDbId = Number(form.virtualUserDbId);
+  if (!Number.isInteger(userDbId) || userDbId <= 0) {
+    return c.text("Invalid user", 400);
+  }
+  const [rm] = await db
+    .select({ internalId: richMenus.id, channelDbId: richMenus.channelId })
+    .from(richMenus)
+    .where(eq(richMenus.richMenuId, id))
+    .limit(1);
+  if (!rm) return c.text("Not found", 404);
+  await db
+    .delete(userRichMenuLinks)
+    .where(
+      and(
+        eq(userRichMenuLinks.channelId, rm.channelDbId),
+        eq(userRichMenuLinks.userId, userDbId)
+      )
+    );
+  await db.insert(userRichMenuLinks).values({
+    channelId: rm.channelDbId,
+    userId: userDbId,
+    richMenuId: rm.internalId,
+  });
+  return c.redirect("/admin/richmenus");
+});
+
+adminRouter.delete("/admin/richmenus/:richMenuId", async (c) => {
+  const id = c.req.param("richMenuId");
+  const [row] = await db
+    .select({ internalId: richMenus.id })
+    .from(richMenus)
+    .where(eq(richMenus.richMenuId, id))
+    .limit(1);
+  if (row) {
+    await db
+      .update(channels)
+      .set({ defaultRichMenuId: null })
+      .where(eq(channels.defaultRichMenuId, row.internalId));
+    await db.delete(richMenus).where(eq(richMenus.id, row.internalId));
+  }
+  return c.redirect("/admin/richmenus");
 });

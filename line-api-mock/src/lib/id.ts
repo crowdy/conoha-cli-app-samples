@@ -27,3 +27,7 @@ export function channelAccessTokenKid(): string {
 export function couponId(): string {
   return "COUPON_" + randomBytes(16).toString("base64url");
 }
+
+export function richMenuId(): string {
+  return "richmenu-" + randomBytes(16).toString("hex");
+}

@@ -3,8 +3,6 @@ import { errors } from "../lib/errors.js";
 
 export const notImplementedRouter = new Hono();
 
-notImplementedRouter.all("/v2/bot/richmenu/*", (c) => errors.notImplemented(c));
-notImplementedRouter.all("/v2/bot/richmenu", (c) => errors.notImplemented(c));
 notImplementedRouter.all("/v2/bot/audienceGroup/*", (c) =>
   errors.notImplemented(c)
 );

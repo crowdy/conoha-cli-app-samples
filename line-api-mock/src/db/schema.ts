@@ -8,6 +8,7 @@ import {
   jsonb,
   primaryKey,
   customType,
+  type AnyPgColumn,
 } from "drizzle-orm/pg-core";
 
 const bytea = customType<{ data: Buffer; default: false }>({
@@ -23,6 +24,10 @@ export const channels = pgTable("channels", {
   name: text("name").notNull(),
   webhookUrl: text("webhook_url"),
   webhookEnabled: boolean("webhook_enabled").notNull().default(true),
+  defaultRichMenuId: integer("default_rich_menu_id").references(
+    (): AnyPgColumn => richMenus.id,
+    { onDelete: "set null" }
+  ),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
@@ -139,3 +144,39 @@ export const coupons = pgTable("coupons", {
     .notNull()
     .defaultNow(),
 });
+
+export const richMenus = pgTable("rich_menus", {
+  id: serial("id").primaryKey(),
+  richMenuId: text("rich_menu_id").notNull().unique(),
+  channelId: integer("channel_id")
+    .notNull()
+    .references(() => channels.id, { onDelete: "cascade" }),
+  payload: jsonb("payload").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
+export const richMenuImages = pgTable("rich_menu_images", {
+  richMenuId: integer("rich_menu_id")
+    .primaryKey()
+    .references(() => richMenus.id, { onDelete: "cascade" }),
+  contentType: text("content_type").notNull(),
+  data: bytea("data").notNull(),
+});
+
+export const userRichMenuLinks = pgTable(
+  "user_rich_menu_links",
+  {
+    channelId: integer("channel_id")
+      .notNull()
+      .references(() => channels.id, { onDelete: "cascade" }),
+    userId: integer("user_id")
+      .notNull()
+      .references(() => virtualUsers.id, { onDelete: "cascade" }),
+    richMenuId: integer("rich_menu_id")
+      .notNull()
+      .references(() => richMenus.id, { onDelete: "cascade" }),
+  },
+  (t) => ({ pk: primaryKey({ columns: [t.channelId, t.userId] }) })
+);
