@@ -183,3 +183,51 @@ describe("DELETE /v2/bot/richmenu/:richMenuId", () => {
     expect(get.status).toBe(404);
   });
 });
+
+describe("GET /v2/bot/richmenu/:richMenuId cross-channel isolation", () => {
+  it("returns 404 when fetched with a token of a different channel", async () => {
+    const { db } = await import("../../src/db/client.js");
+    const { channels, accessTokens } = await import("../../src/db/schema.js");
+    const { randomHex, accessTokenStr } = await import("../../src/lib/id.js");
+
+    // Create channel B with its own token.
+    const [otherCh] = await db
+      .insert(channels)
+      .values({
+        channelId: "9500000099",
+        channelSecret: randomHex(16),
+        name: "Other RichMenu Channel",
+      })
+      .returning();
+    const otherToken = accessTokenStr();
+    await db.insert(accessTokens).values({
+      channelId: otherCh.id,
+      token: otherToken,
+      expiresAt: new Date(Date.now() + 24 * 3600 * 1000),
+    });
+
+    // Create a rich menu on channel A.
+    const createRes = await app.request("/v2/bot/richmenu", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ ...validRichMenuBody(), name: "owned by A" }),
+    });
+    const { richMenuId } = await createRes.json();
+
+    // Fetch with channel B's token → must 404.
+    const getRes = await app.request(`/v2/bot/richmenu/${richMenuId}`, {
+      headers: { authorization: `Bearer ${otherToken}` },
+    });
+    expect(getRes.status).toBe(404);
+
+    // DELETE with channel B's token → must 404 too.
+    const delRes = await app.request(`/v2/bot/richmenu/${richMenuId}`, {
+      method: "DELETE",
+      headers: { authorization: `Bearer ${otherToken}` },
+    });
+    expect(delRes.status).toBe(404);
+  });
+});
