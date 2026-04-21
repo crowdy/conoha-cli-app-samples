@@ -15,6 +15,8 @@ import { contentRouter } from "./mock/content.js";
 import { couponRouter } from "./mock/coupon.js";
 import { validateRouter } from "./mock/validate.js";
 import { botInfoRouter } from "./mock/bot-info.js";
+import { richMenuRouter } from "./mock/rich-menu.js";
+import { richMenuLinkRouter } from "./mock/rich-menu-link.js";
 import { notImplementedRouter } from "./mock/not-implemented.js";
 import { adminRouter } from "./admin/routes.js";
 
@@ -29,6 +31,8 @@ app.route("/", contentRouter);
 app.route("/", couponRouter);
 app.route("/", validateRouter);
 app.route("/", botInfoRouter);
+app.route("/", richMenuRouter);
+app.route("/", richMenuLinkRouter);
 app.route("/", adminRouter);
 app.route("/", notImplementedRouter);
 
