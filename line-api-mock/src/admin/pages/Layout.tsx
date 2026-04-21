@@ -21,6 +21,7 @@ export const Layout: FC<{ title: string; children?: unknown }> = ({
             <a class="hover:underline" href="/admin">Dashboard</a>
             <a class="hover:underline" href="/admin/channels">Channels</a>
             <a class="hover:underline" href="/admin/users">Users</a>
+            <a class="hover:underline" href="/admin/coupons">Coupons</a>
             <a class="hover:underline" href="/admin/webhook-log">Webhooks</a>
             <a class="hover:underline" href="/admin/api-log">API Log</a>
             <a class="hover:underline" href="/docs" target="_blank">Swagger</a>

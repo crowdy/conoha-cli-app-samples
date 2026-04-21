@@ -126,3 +126,16 @@ export const apiLogs = pgTable("api_logs", {
     .notNull()
     .defaultNow(),
 });
+
+export const coupons = pgTable("coupons", {
+  id: serial("id").primaryKey(),
+  couponId: text("coupon_id").notNull().unique(),
+  channelId: integer("channel_id")
+    .notNull()
+    .references(() => channels.id, { onDelete: "cascade" }),
+  payload: jsonb("payload").notNull(),
+  status: text("status").notNull().default("RUNNING"),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});

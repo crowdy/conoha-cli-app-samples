@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { sql, eq, inArray, and, desc } from "drizzle-orm";
 import { db } from "../db/client.js";
-import { channels, messages, webhookDeliveries, accessTokens, virtualUsers, apiLogs } from "../db/schema.js";
+import { channels, messages, webhookDeliveries, accessTokens, virtualUsers, apiLogs, coupons } from "../db/schema.js";
 import { adminAuth } from "./auth.js";
 import { Dashboard } from "./pages/Dashboard.js";
 import { Channels } from "./pages/Channels.js";
@@ -9,12 +9,30 @@ import { Users } from "./pages/Users.js";
 import { Conversation } from "./pages/Conversation.js";
 import { WebhookLog } from "./pages/WebhookLog.js";
 import { ApiLog } from "./pages/ApiLog.js";
-import { accessTokenStr, randomHex, messageId, replyToken } from "../lib/id.js";
+import { Coupons } from "./pages/Coupons.js";
+import { accessTokenStr, randomHex, messageId, replyToken, couponId as makeCouponId } from "../lib/id.js";
 import { config } from "../config.js";
 import { sseHandler } from "./sse.js";
 import { dispatchWebhook } from "../webhook/dispatcher.js";
 import { bus } from "../lib/events.js";
 import { checkWebhookUrl } from "../webhook/url-policy.js";
+
+const VALID_TIMEZONES = new Set([
+  "ETC_GMT_MINUS_12", "ETC_GMT_MINUS_11", "PACIFIC_HONOLULU",
+  "AMERICA_ANCHORAGE", "AMERICA_LOS_ANGELES", "AMERICA_PHOENIX",
+  "AMERICA_CHICAGO", "AMERICA_NEW_YORK", "AMERICA_CARACAS",
+  "AMERICA_SANTIAGO", "AMERICA_ST_JOHNS", "AMERICA_SAO_PAULO",
+  "ETC_GMT_MINUS_2", "ATLANTIC_CAPE_VERDE", "EUROPE_LONDON",
+  "EUROPE_PARIS", "EUROPE_ISTANBUL", "EUROPE_MOSCOW", "ASIA_TEHRAN",
+  "ASIA_TBILISI", "ASIA_KABUL", "ASIA_TASHKENT", "ASIA_COLOMBO",
+  "ASIA_KATHMANDU", "ASIA_ALMATY", "ASIA_RANGOON", "ASIA_BANGKOK",
+  "ASIA_TAIPEI", "ASIA_TOKYO", "AUSTRALIA_DARWIN", "AUSTRALIA_SYDNEY",
+  "ASIA_VLADIVOSTOK", "ETC_GMT_PLUS_12", "PACIFIC_TONGATAPU",
+]);
+
+const VALID_REWARD_TYPES = new Set([
+  "cashBack", "discount", "free", "gift", "others",
+]);
 
 export const adminRouter = new Hono();
 adminRouter.use("/admin", adminAuth);
@@ -305,4 +323,147 @@ adminRouter.get("/admin/api-log", async (c) => {
       }))}
     />
   );
+});
+
+adminRouter.get("/admin/coupons", async (c) => {
+  const rows = await db
+    .select({
+      couponId: coupons.couponId,
+      payload: coupons.payload,
+      status: coupons.status,
+      channelName: channels.name,
+    })
+    .from(coupons)
+    .innerJoin(channels, eq(coupons.channelId, channels.id))
+    .orderBy(desc(coupons.createdAt));
+
+  const channelOpts = await db
+    .select({ id: channels.id, name: channels.name })
+    .from(channels);
+
+  const viewRows = rows.map((r) => {
+    const p = r.payload as any;
+    const reward = p.reward ?? {};
+    let summary = reward.type ?? "?";
+    if (reward.type === "discount" || reward.type === "cashBack") {
+      const pi = reward.priceInfo ?? {};
+      if (pi.type === "percentage") summary = `${reward.type} ${pi.percentage}%`;
+      else if (pi.type === "fixed") summary = `${reward.type} ¥${pi.fixedAmount}`;
+    }
+    return {
+      couponId: r.couponId,
+      channelName: r.channelName,
+      title: p.title ?? "",
+      status: r.status,
+      startTimestamp: p.startTimestamp ?? 0,
+      endTimestamp: p.endTimestamp ?? 0,
+      rewardSummary: summary,
+    };
+  });
+
+  return c.html(<Coupons rows={viewRows} channels={channelOpts} />);
+});
+
+adminRouter.post("/admin/coupons", async (c) => {
+  const form = await c.req.parseBody();
+  const channelId = Number(form.channelId);
+  const title = String(form.title ?? "").trim();
+  const description = String(form.description ?? "").trim() || undefined;
+  const imageUrl = String(form.imageUrl ?? "").trim() || undefined;
+  const timezone = String(form.timezone ?? "ASIA_TOKYO");
+  const rewardType = String(form.rewardType ?? "discount");
+  const percentage = Number(form.percentage ?? 10);
+  const startIso = String(form.startTimestampIso ?? "");
+  const endIso = String(form.endTimestampIso ?? "");
+
+  // Server-side validation mirroring the API path. Invalid input → 400 with a
+  // plain-text body so the admin sees a useful message rather than an opaque 500.
+  if (!Number.isInteger(channelId) || channelId <= 0) {
+    return c.text("Invalid channelId", 400);
+  }
+  const [ch] = await db
+    .select({ id: channels.id })
+    .from(channels)
+    .where(eq(channels.id, channelId))
+    .limit(1);
+  if (!ch) {
+    return c.text("Channel not found", 400);
+  }
+  if (title.length < 1 || title.length > 60) {
+    return c.text("title must be 1..60 characters", 400);
+  }
+  if (!VALID_TIMEZONES.has(timezone)) {
+    return c.text(`Invalid timezone: ${timezone}`, 400);
+  }
+  if (!VALID_REWARD_TYPES.has(rewardType)) {
+    return c.text(`Invalid rewardType: ${rewardType}`, 400);
+  }
+  if (!Number.isInteger(percentage) || percentage < 1 || percentage > 99) {
+    return c.text("percentage must be an integer in [1,99]", 400);
+  }
+
+  if (!title || !startIso || !endIso) {
+    return c.redirect("/admin/coupons");
+  }
+  const startTimestamp = Math.floor(new Date(startIso).getTime() / 1000);
+  const endTimestamp = Math.floor(new Date(endIso).getTime() / 1000);
+  if (!Number.isFinite(startTimestamp) || !Number.isFinite(endTimestamp)) {
+    return c.redirect("/admin/coupons");
+  }
+  if (startTimestamp >= endTimestamp) {
+    return c.text("startTimestamp must be < endTimestamp", 400);
+  }
+
+  let reward: Record<string, unknown>;
+  if (rewardType === "discount" || rewardType === "cashBack") {
+    reward = {
+      type: rewardType,
+      priceInfo: { type: "percentage", percentage },
+    };
+  } else {
+    reward = { type: rewardType };
+  }
+
+  const newId = makeCouponId();
+  const detail: Record<string, unknown> = {
+    couponId: newId,
+    title,
+    description,
+    imageUrl,
+    startTimestamp,
+    endTimestamp,
+    maxUseCountPerTicket: 1,
+    timezone,
+    visibility: "UNLISTED",
+    acquisitionCondition: { type: "normal" },
+    reward,
+    status: "RUNNING",
+    createdTimestamp: Math.floor(Date.now() / 1000),
+  };
+  await db.insert(coupons).values({
+    couponId: newId,
+    channelId,
+    payload: detail,
+    status: "RUNNING",
+  });
+  return c.redirect("/admin/coupons");
+});
+
+adminRouter.post("/admin/coupons/:couponId/close", async (c) => {
+  const couponIdParam = c.req.param("couponId");
+  const [row] = await db
+    .select()
+    .from(coupons)
+    .where(eq(coupons.couponId, couponIdParam))
+    .limit(1);
+  if (row && row.status !== "CLOSED") {
+    await db
+      .update(coupons)
+      .set({
+        status: "CLOSED",
+        payload: { ...(row.payload as object), status: "CLOSED" },
+      })
+      .where(eq(coupons.id, row.id));
+  }
+  return c.redirect("/admin/coupons");
 });

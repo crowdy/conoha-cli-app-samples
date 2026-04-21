@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { and, eq } from "drizzle-orm";
 import { db } from "../db/client.js";
-import { messages, virtualUsers, channelFriends } from "../db/schema.js";
+import { messages, virtualUsers, channelFriends, coupons } from "../db/schema.js";
 import { bearerAuth, type AuthVars } from "./middleware/auth.js";
 import { requestLog } from "./middleware/request-log.js";
 import { validate } from "./middleware/validate.js";
@@ -20,19 +20,46 @@ interface PushBody {
   notificationDisabled?: boolean;
 }
 
+async function validateCouponMessages(
+  channelDbId: number,
+  msgs: Array<Record<string, unknown>>
+): Promise<string | null> {
+  for (const m of msgs) {
+    if ((m as { type?: string }).type !== "coupon") continue;
+    const cid = (m as { couponId?: unknown }).couponId;
+    if (typeof cid !== "string" || cid.length === 0) {
+      return "Invalid coupon message: couponId required";
+    }
+    const [c] = await db
+      .select({ id: coupons.id })
+      .from(coupons)
+      .where(
+        and(
+          eq(coupons.couponId, cid),
+          eq(coupons.channelId, channelDbId)
+        )
+      )
+      .limit(1);
+    if (!c) return `Invalid coupon ID: ${cid}`;
+  }
+  return null;
+}
+
 async function insertBotMessages(
   channelDbId: number,
   toUserId: string,
   msgs: Array<Record<string, unknown>>
-): Promise<Array<{ id: string }>> {
+): Promise<{ inserted: Array<{ id: string }>; error: string | null }> {
+  const couponError = await validateCouponMessages(channelDbId, msgs);
+  if (couponError) return { inserted: [], error: couponError };
+
   const userRows = await db
     .select({ id: virtualUsers.id })
     .from(virtualUsers)
     .where(eq(virtualUsers.userId, toUserId))
     .limit(1);
   if (userRows.length === 0) {
-    // Mirror LINE: unknown user → 400-ish; real API returns 400 "Invalid user ID".
-    return [];
+    return { inserted: [], error: "Invalid user ID" };
   }
   const vuid = userRows[0].id;
   const inserted: Array<{ id: string }> = [];
@@ -58,7 +85,7 @@ async function insertBotMessages(
     });
     inserted.push({ id: mid });
   }
-  return inserted;
+  return { inserted, error: null };
 }
 
 /**
@@ -84,11 +111,11 @@ messageRouter.post(
     return errors.badRequest(c, "messages must not exceed 5 items");
   }
   const channelDbId = c.get("channelDbId");
-  const inserted = await insertBotMessages(channelDbId, body.to, body.messages);
-  if (inserted.length === 0) {
-    return errors.badRequest(c, "Invalid user ID");
+  const result = await insertBotMessages(channelDbId, body.to, body.messages);
+  if (result.error) {
+    return errors.badRequest(c, result.error);
   }
-  return c.json({ sentMessages: inserted });
+  return c.json({ sentMessages: result.inserted });
   }
 );
 
@@ -120,6 +147,8 @@ messageRouter.post("/v2/bot/message/reply", async (c) => {
     return errors.badRequest(c, "Invalid reply token");
   }
   const virtualUserId = userMsgRows[0].virtualUserId;
+  const couponError = await validateCouponMessages(channelDbId, body.messages);
+  if (couponError) return errors.badRequest(c, couponError);
   const inserted: Array<{ id: string }> = [];
   for (const m of body.messages) {
     const mid = messageId();
@@ -159,7 +188,10 @@ messageRouter.post("/v2/bot/message/multicast", async (c) => {
   if (body.to.length > 500) return errors.badRequest(c, "to must be <= 500");
   const channelDbId = c.get("channelDbId");
   for (const uid of body.to) {
-    await insertBotMessages(channelDbId, uid, body.messages);
+    const result = await insertBotMessages(channelDbId, uid, body.messages);
+    if (result.error && result.error.startsWith("Invalid coupon")) {
+      return errors.badRequest(c, result.error);
+    }
   }
   return c.json({});
 });
@@ -186,7 +218,10 @@ messageRouter.post("/v2/bot/message/broadcast", async (c) => {
       )
     );
   for (const f of friends) {
-    await insertBotMessages(channelDbId, f.userId, body.messages);
+    const result = await insertBotMessages(channelDbId, f.userId, body.messages);
+    if (result.error && result.error.startsWith("Invalid coupon")) {
+      return errors.badRequest(c, result.error);
+    }
   }
   return c.json({});
 });

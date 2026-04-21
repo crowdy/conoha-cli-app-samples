@@ -103,6 +103,7 @@ npm run test:e2e           # Playwright + Docker Compose
 - Profile
 - Webhook endpoint 設定 / テスト送信
 - メッセージコンテンツ取得
+- Coupon (作成 / 一覧 / 詳細 / close、`type:"coupon"` メッセージ)
 
 ### 未実装 (呼ぶと 501 を返す)
 

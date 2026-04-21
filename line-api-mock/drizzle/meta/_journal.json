@@ -8,6 +8,13 @@
       "when": 1776426464306,
       "tag": "0000_cultured_power_man",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1776690145869,
+      "tag": "0001_tense_gladiator",
+      "breakpoints": true
     }
   ]
 }
