@@ -21,7 +21,7 @@ func TestRichMenuValidate(t *testing.T) {
 	if err != nil {
 		t.Fatalf("validate failed: %s\nstdout: %s\nstderr: %s", err, out, errOut)
 	}
-	if !strings.Contains(out, "Rich menu payload valid") && !strings.Contains(out, "message") {
+	if !strings.Contains(out, "Rich menu payload valid") {
 		t.Errorf("validate output missing success marker: %s", out)
 	}
 }
@@ -94,9 +94,11 @@ func TestRichMenuLifecycle(t *testing.T) {
 	if err != nil {
 		t.Fatalf("get-image failed: %s\nstdout: %s\nstderr: %s", err, out, errOut)
 	}
-	info, err := os.Stat(outFile)
-	if err != nil || info.Size() == 0 {
-		t.Errorf("get-image produced empty file: %v size=%d", err, info.Size())
+	info, statErr := os.Stat(outFile)
+	if statErr != nil {
+		t.Errorf("get-image: stat output file: %v", statErr)
+	} else if info.Size() == 0 {
+		t.Errorf("get-image produced empty file")
 	}
 
 	// 6. set-default
