@@ -121,5 +121,38 @@ function authHeaders() {
 }
 
 describe("rich menu batch", () => {
-  // tests appended by subsequent tasks
+  it("POST /validate/batch accepts valid shape with 200", async () => {
+    const res = await app.request("/v2/bot/richmenu/validate/batch", {
+      method: "POST",
+      headers: authHeaders(),
+      body: JSON.stringify({
+        operations: [
+          { type: "link", from: rmA, to: rmB },
+          { type: "unlink", from: rmA },
+          { type: "unlinkAll" },
+        ],
+      }),
+    });
+    expect(res.status).toBe(200);
+  });
+
+  it("POST /validate/batch rejects missing type", async () => {
+    const res = await app.request("/v2/bot/richmenu/validate/batch", {
+      method: "POST",
+      headers: authHeaders(),
+      body: JSON.stringify({
+        operations: [{ from: rmA }],
+      }),
+    });
+    expect(res.status).toBe(400);
+  });
+
+  it("POST /validate/batch rejects empty operations array", async () => {
+    const res = await app.request("/v2/bot/richmenu/validate/batch", {
+      method: "POST",
+      headers: authHeaders(),
+      body: JSON.stringify({ operations: [] }),
+    });
+    expect(res.status).toBe(400);
+  });
 });

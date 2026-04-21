@@ -38,3 +38,19 @@ function genRequestId(): string {
     Math.random().toString(16).slice(2) + Math.random().toString(16).slice(2)
   ).slice(0, 32);
 }
+
+richMenuBatchRouter.post(
+  "/v2/bot/richmenu/validate/batch",
+  validate({
+    requestSchema: "#/components/schemas/RichMenuBatchRequest",
+  }),
+  async (c) => {
+    const body = (await c.req.json()) as {
+      operations: Array<Record<string, unknown>>;
+    };
+    if (!Array.isArray(body.operations) || body.operations.length === 0) {
+      return errors.badRequest(c, "operations must be a non-empty array");
+    }
+    return c.body(null, 200);
+  }
+);
