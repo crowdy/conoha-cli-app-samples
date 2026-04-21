@@ -70,6 +70,21 @@ cp .line-cli.yaml.example .line-cli.yaml
 | `content get` | メッセージコンテンツ取得 |
 | `quota get` | メッセージクォータ取得 |
 | `quota consumption` | クォータ消費量取得 |
+| `richmenu create` | リッチメニュー作成 (`--payload-file`) |
+| `richmenu validate` | リッチメニュー JSON 検証 (dry-run) |
+| `richmenu list` | リッチメニュー一覧 |
+| `richmenu get` | リッチメニュー取得 |
+| `richmenu delete` | リッチメニュー削除 |
+| `richmenu set-image` | 画像アップロード (`--image` / stdin 可) |
+| `richmenu get-image` | 画像ダウンロード (`--output` / stdout 可) |
+| `richmenu set-default` | 既定リッチメニュー設定 |
+| `richmenu get-default` | 既定リッチメニュー ID 取得 |
+| `richmenu cancel-default` | 既定リッチメニュー解除 |
+| `richmenu link` | ユーザーにリンク |
+| `richmenu unlink` | ユーザーのリンク解除 |
+| `richmenu get-for-user` | ユーザーのリンク先取得 |
+| `richmenu bulk-link` | 複数ユーザーへの一括リンク |
+| `richmenu bulk-unlink` | 複数ユーザーの一括リンク解除 |
 
 ## 設定
 
@@ -106,3 +121,88 @@ channel_secret: "abcdef..."
 - [line-bot-sdk-go](https://github.com/line/line-bot-sdk-go) v8
 - [cobra](https://github.com/spf13/cobra) — CLI フレームワーク
 - [viper](https://github.com/spf13/viper) — 設定管理
+
+## リッチメニュー使用例
+
+### 作成 / 取得
+
+```bash
+# JSON からリッチメニュー作成
+./line-cli-go richmenu create --payload-file rm.json
+
+# 検証のみ (作成しない)
+./line-cli-go richmenu validate --payload-file rm.json
+
+# 一覧
+./line-cli-go --json richmenu list
+
+# 1 件取得
+./line-cli-go richmenu get --rich-menu-id RM123
+```
+
+### 画像
+
+```bash
+# PNG アップロード (拡張子で Content-Type 判定)
+./line-cli-go richmenu set-image --rich-menu-id RM123 --image menu.png
+
+# stdin からアップロード
+curl -s https://example.com/menu.png | \
+  ./line-cli-go richmenu set-image --rich-menu-id RM123 --image -
+
+# ファイル保存
+./line-cli-go richmenu get-image --rich-menu-id RM123 --output out.png
+
+# stdout へ (リダイレクト可)
+./line-cli-go richmenu get-image --rich-menu-id RM123 > out.png
+```
+
+### 既定リッチメニュー
+
+```bash
+./line-cli-go richmenu set-default --rich-menu-id RM123
+./line-cli-go --json richmenu get-default
+./line-cli-go richmenu cancel-default
+```
+
+### ユーザーリンク
+
+```bash
+# 単体
+./line-cli-go richmenu link --user-id U123 --rich-menu-id RM123
+./line-cli-go --json richmenu get-for-user --user-id U123
+./line-cli-go richmenu unlink --user-id U123
+
+# 一括 (1 呼び出しあたり 1-500 ユーザー)
+./line-cli-go richmenu bulk-link --rich-menu-id RM123 --user-ids U1,U2,U3
+./line-cli-go richmenu bulk-unlink --user-ids U1,U2,U3
+
+# payload-file で直接指定
+./line-cli-go richmenu bulk-link --payload-file bulk.json
+```
+
+### 最小エンドツーエンドフロー
+
+```bash
+# 1. 作成
+ID=$(./line-cli-go --json richmenu create --payload-file rm.json | jq -r .richMenuId)
+
+# 2. 画像アップロード
+./line-cli-go richmenu set-image --rich-menu-id "$ID" --image menu.png
+
+# 3. 既定にセット
+./line-cli-go richmenu set-default --rich-menu-id "$ID"
+```
+
+## 統合テスト
+
+リッチメニューまわりは `TEST_ACCESS_TOKEN` と `TEST_USER_ID` が設定されているときのみ実行:
+
+```bash
+export LINE_BASE_URL=http://localhost:3000
+export TEST_ACCESS_TOKEN=<mock トークン>
+export TEST_USER_ID=U1234567890abcdef1234567890abcdef
+go test ./test/integration/... -v -run RichMenu
+```
+
+env var がない場合はスキップされる。
