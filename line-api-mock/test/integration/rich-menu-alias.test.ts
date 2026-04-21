@@ -188,4 +188,123 @@ describe("rich menu alias", () => {
     );
     expect(res.status).toBe(400);
   });
+
+  it("DELETE /alias/:aliasId removes the alias", async () => {
+    // Create a disposable alias first so earlier tests remain stable.
+    await app.request("/v2/bot/richmenu/alias", {
+      method: "POST",
+      headers: authHeaders(),
+      body: JSON.stringify({
+        richMenuAliasId: "richmenu-alias-del",
+        richMenuId: richMenuIdA,
+      }),
+    });
+    const res = await app.request(
+      "/v2/bot/richmenu/alias/richmenu-alias-del",
+      { method: "DELETE", headers: authHeaders() }
+    );
+    expect(res.status).toBe(200);
+
+    const get = await app.request(
+      "/v2/bot/richmenu/alias/richmenu-alias-del",
+      { headers: authHeaders() }
+    );
+    expect(get.status).toBe(404);
+  });
+
+  it("DELETE /alias/:aliasId for unknown alias returns 400", async () => {
+    const res = await app.request(
+      "/v2/bot/richmenu/alias/richmenu-alias-missing",
+      { method: "DELETE", headers: authHeaders() }
+    );
+    expect(res.status).toBe(400);
+  });
+
+  it("channel isolation: alias from channel A is invisible to channel B", async () => {
+    const { db } = await import("../../src/db/client.js");
+    const { channels, accessTokens, richMenus, richMenuAliases } =
+      await import("../../src/db/schema.js");
+    const { randomHex, accessTokenStr, richMenuId } = await import(
+      "../../src/lib/id.js"
+    );
+
+    const [chB] = await db
+      .insert(channels)
+      .values({
+        channelId: "9500000102",
+        channelSecret: randomHex(16),
+        name: "Alias Test B",
+      })
+      .returning();
+    const tokenB = accessTokenStr();
+    await db.insert(accessTokens).values({
+      channelId: chB.id,
+      token: tokenB,
+      expiresAt: new Date(Date.now() + 24 * 3600 * 1000),
+    });
+
+    // Channel B has its own richMenu
+    const rmB = richMenuId();
+    await db.insert(richMenus).values({
+      richMenuId: rmB,
+      channelId: chB.id,
+      payload: { name: "B-only" },
+    });
+
+    const res = await app.request(
+      "/v2/bot/richmenu/alias/richmenu-alias-a",
+      {
+        headers: {
+          "content-type": "application/json",
+          authorization: `Bearer ${tokenB}`,
+        },
+      }
+    );
+    expect(res.status).toBe(404);
+
+    const list = await app.request("/v2/bot/richmenu/alias/list", {
+      headers: {
+        "content-type": "application/json",
+        authorization: `Bearer ${tokenB}`,
+      },
+    });
+    const json = await list.json();
+    expect(json.aliases).toEqual([]);
+  });
+
+  it("richMenu deletion cascades to alias", async () => {
+    const { db } = await import("../../src/db/client.js");
+    const { richMenus, richMenuAliases } = await import(
+      "../../src/db/schema.js"
+    );
+    const { richMenuId } = await import("../../src/lib/id.js");
+    const { eq } = await import("drizzle-orm");
+
+    const cascadeRmId = richMenuId();
+    const [rm] = await db
+      .insert(richMenus)
+      .values({
+        richMenuId: cascadeRmId,
+        channelId: channelDbId,
+        payload: { name: "cascade-me" },
+      })
+      .returning();
+
+    await app.request("/v2/bot/richmenu/alias", {
+      method: "POST",
+      headers: authHeaders(),
+      body: JSON.stringify({
+        richMenuAliasId: "richmenu-alias-cascade",
+        richMenuId: cascadeRmId,
+      }),
+    });
+
+    await db.delete(richMenus).where(eq(richMenus.id, rm.id));
+
+    const rows = await db
+      .select()
+      .from(richMenuAliases)
+      .where(eq(richMenuAliases.aliasId, "richmenu-alias-cascade"));
+    expect(rows).toEqual([]);
+  });
 });

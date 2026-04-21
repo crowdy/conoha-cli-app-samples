@@ -171,3 +171,35 @@ richMenuAliasRouter.post(
     return c.json({});
   }
 );
+
+richMenuAliasRouter.delete(
+  "/v2/bot/richmenu/alias/:aliasId",
+  async (c) => {
+    const aliasId = c.req.param("aliasId");
+    const channelDbId = c.get("channelDbId");
+
+    const [existing] = await db
+      .select({ aliasId: richMenuAliases.aliasId })
+      .from(richMenuAliases)
+      .where(
+        and(
+          eq(richMenuAliases.channelId, channelDbId),
+          eq(richMenuAliases.aliasId, aliasId)
+        )
+      )
+      .limit(1);
+    if (!existing) {
+      return errors.badRequest(c, "Unknown richMenuAliasId");
+    }
+
+    await db
+      .delete(richMenuAliases)
+      .where(
+        and(
+          eq(richMenuAliases.channelId, channelDbId),
+          eq(richMenuAliases.aliasId, aliasId)
+        )
+      );
+    return c.json({});
+  }
+);
