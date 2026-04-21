@@ -36,7 +36,9 @@ async function findRichMenuInternalId(
 function genRequestId(): string {
   return (
     Math.random().toString(16).slice(2) + Math.random().toString(16).slice(2)
-  ).slice(0, 32);
+  )
+    .padEnd(32, "0")
+    .slice(0, 32);
 }
 
 richMenuBatchRouter.post(
@@ -52,5 +54,64 @@ richMenuBatchRouter.post(
       return errors.badRequest(c, "operations must be a non-empty array");
     }
     return c.body(null, 200);
+  }
+);
+
+type LinkOp = { type: "link"; from: string; to: string };
+type UnlinkOp = { type: "unlink"; from: string };
+type UnlinkAllOp = { type: "unlinkAll" };
+type BatchOp = LinkOp | UnlinkOp | UnlinkAllOp;
+
+richMenuBatchRouter.post(
+  "/v2/bot/richmenu/batch",
+  validate({
+    requestSchema: "#/components/schemas/RichMenuBatchRequest",
+  }),
+  async (c) => {
+    const body = (await c.req.json()) as { operations: BatchOp[] };
+    if (!Array.isArray(body.operations) || body.operations.length === 0) {
+      return errors.badRequest(c, "operations must be a non-empty array");
+    }
+    const channelDbId = c.get("channelDbId");
+
+    for (const op of body.operations) {
+      if (op.type === "unlinkAll") {
+        await db
+          .delete(userRichMenuLinks)
+          .where(eq(userRichMenuLinks.channelId, channelDbId));
+        continue;
+      }
+      if (op.type === "unlink") {
+        const fromId = await findRichMenuInternalId(channelDbId, op.from);
+        if (fromId === null) continue;
+        await db
+          .delete(userRichMenuLinks)
+          .where(
+            and(
+              eq(userRichMenuLinks.channelId, channelDbId),
+              eq(userRichMenuLinks.richMenuId, fromId)
+            )
+          );
+        continue;
+      }
+      if (op.type === "link") {
+        const fromId = await findRichMenuInternalId(channelDbId, op.from);
+        const toId = await findRichMenuInternalId(channelDbId, op.to);
+        if (fromId === null || toId === null) continue;
+        await db
+          .update(userRichMenuLinks)
+          .set({ richMenuId: toId })
+          .where(
+            and(
+              eq(userRichMenuLinks.channelId, channelDbId),
+              eq(userRichMenuLinks.richMenuId, fromId)
+            )
+          );
+        continue;
+      }
+    }
+
+    c.header("X-Line-Request-Id", genRequestId());
+    return c.body(null, 202);
   }
 );

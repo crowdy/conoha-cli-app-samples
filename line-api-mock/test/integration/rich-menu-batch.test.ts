@@ -155,4 +155,125 @@ describe("rich menu batch", () => {
     });
     expect(res.status).toBe(400);
   });
+
+  it("POST /batch link replaces from→to and returns 202 with request id", async () => {
+    const res = await app.request("/v2/bot/richmenu/batch", {
+      method: "POST",
+      headers: authHeaders(),
+      body: JSON.stringify({
+        operations: [{ type: "link", from: rmA, to: rmB }],
+      }),
+    });
+    expect(res.status).toBe(202);
+    expect(res.headers.get("x-line-request-id")).toMatch(/^[0-9a-f]{32}$/);
+
+    // Verify DB state: both users now point to rmB
+    const { db } = await import("../../src/db/client.js");
+    const { userRichMenuLinks, richMenus } = await import(
+      "../../src/db/schema.js"
+    );
+    const { eq } = await import("drizzle-orm");
+    const rows = await db
+      .select({ rid: richMenus.richMenuId })
+      .from(userRichMenuLinks)
+      .innerJoin(richMenus, eq(userRichMenuLinks.richMenuId, richMenus.id))
+      .where(eq(userRichMenuLinks.channelId, channelDbId));
+    expect(rows.every((r) => r.rid === rmB)).toBe(true);
+    expect(rows.length).toBe(2);
+  });
+
+  it("POST /batch unlink removes all links for `from`", async () => {
+    const res = await app.request("/v2/bot/richmenu/batch", {
+      method: "POST",
+      headers: authHeaders(),
+      body: JSON.stringify({
+        operations: [{ type: "unlink", from: rmA }],
+      }),
+    });
+    expect(res.status).toBe(202);
+    const { db } = await import("../../src/db/client.js");
+    const { userRichMenuLinks } = await import("../../src/db/schema.js");
+    const { eq } = await import("drizzle-orm");
+    const rows = await db
+      .select()
+      .from(userRichMenuLinks)
+      .where(eq(userRichMenuLinks.channelId, channelDbId));
+    expect(rows).toEqual([]);
+  });
+
+  it("POST /batch unlinkAll removes every user link in channel", async () => {
+    const res = await app.request("/v2/bot/richmenu/batch", {
+      method: "POST",
+      headers: authHeaders(),
+      body: JSON.stringify({
+        operations: [{ type: "unlinkAll" }],
+      }),
+    });
+    expect(res.status).toBe(202);
+    const { db } = await import("../../src/db/client.js");
+    const { userRichMenuLinks } = await import("../../src/db/schema.js");
+    const { eq } = await import("drizzle-orm");
+    const rows = await db
+      .select()
+      .from(userRichMenuLinks)
+      .where(eq(userRichMenuLinks.channelId, channelDbId));
+    expect(rows).toEqual([]);
+  });
+
+  it("POST /batch silently skips unknown `from` richMenuId", async () => {
+    const res = await app.request("/v2/bot/richmenu/batch", {
+      method: "POST",
+      headers: authHeaders(),
+      body: JSON.stringify({
+        operations: [
+          {
+            type: "unlink",
+            from: "richmenu-0000000000000000000000000000ffff",
+          },
+        ],
+      }),
+    });
+    expect(res.status).toBe(202);
+    // Baseline still intact: 2 links to rmA
+    const { db } = await import("../../src/db/client.js");
+    const { userRichMenuLinks } = await import("../../src/db/schema.js");
+    const { eq } = await import("drizzle-orm");
+    const rows = await db
+      .select()
+      .from(userRichMenuLinks)
+      .where(eq(userRichMenuLinks.channelId, channelDbId));
+    expect(rows.length).toBe(2);
+  });
+
+  it("POST /batch applies multiple operations in order", async () => {
+    // Mix: link all rmA users to rmB, then unlinkAll
+    const res = await app.request("/v2/bot/richmenu/batch", {
+      method: "POST",
+      headers: authHeaders(),
+      body: JSON.stringify({
+        operations: [
+          { type: "link", from: rmA, to: rmB },
+          { type: "unlinkAll" },
+        ],
+      }),
+    });
+    expect(res.status).toBe(202);
+    const { db } = await import("../../src/db/client.js");
+    const { userRichMenuLinks } = await import("../../src/db/schema.js");
+    const { eq } = await import("drizzle-orm");
+    const rows = await db
+      .select()
+      .from(userRichMenuLinks)
+      .where(eq(userRichMenuLinks.channelId, channelDbId));
+    expect(rows).toEqual([]);
+  });
+
+  it("POST /batch rejects empty operations with 400", async () => {
+    const res = await app.request("/v2/bot/richmenu/batch", {
+      method: "POST",
+      headers: authHeaders(),
+      body: JSON.stringify({ operations: [] }),
+    });
+    expect(res.status).toBe(400);
+  });
 });
