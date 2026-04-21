@@ -73,3 +73,56 @@ richMenuAliasRouter.post(
     return c.json({});
   }
 );
+
+// IMPORTANT: /alias/list must be registered BEFORE /alias/:aliasId so Hono
+// doesn't capture "list" as aliasId.
+richMenuAliasRouter.get(
+  "/v2/bot/richmenu/alias/list",
+  validate({
+    responseSchema: "#/components/schemas/RichMenuAliasListResponse",
+  }),
+  async (c) => {
+    const channelDbId = c.get("channelDbId");
+    const rows = await db
+      .select({
+        aliasId: richMenuAliases.aliasId,
+        richMenuIdStr: richMenus.richMenuId,
+      })
+      .from(richMenuAliases)
+      .innerJoin(richMenus, eq(richMenuAliases.richMenuId, richMenus.id))
+      .where(eq(richMenuAliases.channelId, channelDbId));
+    return c.json({
+      aliases: rows.map((r) => ({
+        richMenuAliasId: r.aliasId,
+        richMenuId: r.richMenuIdStr,
+      })),
+    });
+  }
+);
+
+richMenuAliasRouter.get(
+  "/v2/bot/richmenu/alias/:aliasId",
+  validate({
+    responseSchema: "#/components/schemas/RichMenuAliasResponse",
+  }),
+  async (c) => {
+    const aliasId = c.req.param("aliasId");
+    const channelDbId = c.get("channelDbId");
+    const [row] = await db
+      .select({ richMenuIdStr: richMenus.richMenuId })
+      .from(richMenuAliases)
+      .innerJoin(richMenus, eq(richMenuAliases.richMenuId, richMenus.id))
+      .where(
+        and(
+          eq(richMenuAliases.channelId, channelDbId),
+          eq(richMenuAliases.aliasId, aliasId)
+        )
+      )
+      .limit(1);
+    if (!row) return errors.notFound(c);
+    return c.json({
+      richMenuAliasId: aliasId,
+      richMenuId: row.richMenuIdStr,
+    });
+  }
+);

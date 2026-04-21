@@ -108,4 +108,39 @@ describe("rich menu alias", () => {
     });
     expect(res.status).toBe(400);
   });
+
+  it("GET /alias/list returns the created aliases", async () => {
+    const res = await app.request("/v2/bot/richmenu/alias/list", {
+      headers: authHeaders(),
+    });
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(Array.isArray(json.aliases)).toBe(true);
+    const hit = json.aliases.find(
+      (a: any) => a.richMenuAliasId === "richmenu-alias-a"
+    );
+    expect(hit).toBeDefined();
+    expect(hit.richMenuId).toBe(richMenuIdA);
+  });
+
+  it("GET /alias/:aliasId returns the mapping", async () => {
+    const res = await app.request(
+      "/v2/bot/richmenu/alias/richmenu-alias-a",
+      { headers: authHeaders() }
+    );
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json).toEqual({
+      richMenuAliasId: "richmenu-alias-a",
+      richMenuId: richMenuIdA,
+    });
+  });
+
+  it("GET /alias/:aliasId unknown returns 404", async () => {
+    const res = await app.request(
+      "/v2/bot/richmenu/alias/richmenu-alias-missing",
+      { headers: authHeaders() }
+    );
+    expect(res.status).toBe(404);
+  });
 });
