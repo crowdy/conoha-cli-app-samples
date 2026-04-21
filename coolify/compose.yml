@@ -5,7 +5,7 @@ services:
     # which point at v3). Pin to a published v4 beta so `docker pull`
     # resolves. Bump to a newer beta or switch to :latest once Coolify
     # 4.0.0 ships a stable tag.
-    image: ghcr.io/coollabsio/coolify:4.0.0-beta.420
+    image: ghcr.io/coollabsio/coolify:4.0.0-beta.473
     ports:
       - "8000:8000"
       - "6001:6001"
