@@ -320,6 +320,70 @@ describe("rich menu batch", () => {
     expect(typeof json.completedTime).toBe("string");
   });
 
+  it("POST /validate/batch rejects link operation missing `to`", async () => {
+    const res = await app.request("/v2/bot/richmenu/validate/batch", {
+      method: "POST",
+      headers: authHeaders(),
+      body: JSON.stringify({
+        operations: [{ type: "link", from: rmA }],
+      }),
+    });
+    expect(res.status).toBe(400);
+  });
+
+  it("POST /validate/batch rejects link operation missing `from`", async () => {
+    const res = await app.request("/v2/bot/richmenu/validate/batch", {
+      method: "POST",
+      headers: authHeaders(),
+      body: JSON.stringify({
+        operations: [{ type: "link", to: rmB }],
+      }),
+    });
+    expect(res.status).toBe(400);
+  });
+
+  it("POST /validate/batch rejects unlink operation missing `from`", async () => {
+    const res = await app.request("/v2/bot/richmenu/validate/batch", {
+      method: "POST",
+      headers: authHeaders(),
+      body: JSON.stringify({
+        operations: [{ type: "unlink" }],
+      }),
+    });
+    expect(res.status).toBe(400);
+  });
+
+  it("POST /batch rejects malformed link operation", async () => {
+    const res = await app.request("/v2/bot/richmenu/batch", {
+      method: "POST",
+      headers: authHeaders(),
+      body: JSON.stringify({
+        operations: [{ type: "link", from: rmA }],
+      }),
+    });
+    expect(res.status).toBe(400);
+    // Baseline intact (handler must 400 BEFORE applying any op)
+    const { db } = await import("../../src/db/client.js");
+    const { userRichMenuLinks } = await import("../../src/db/schema.js");
+    const { eq } = await import("drizzle-orm");
+    const rows = await db
+      .select()
+      .from(userRichMenuLinks)
+      .where(eq(userRichMenuLinks.channelId, channelDbId));
+    expect(rows.length).toBe(2);
+  });
+
+  it("POST /batch rejects malformed unlink operation", async () => {
+    const res = await app.request("/v2/bot/richmenu/batch", {
+      method: "POST",
+      headers: authHeaders(),
+      body: JSON.stringify({
+        operations: [{ type: "unlink" }],
+      }),
+    });
+    expect(res.status).toBe(400);
+  });
+
   it("POST /batch silently skips foreign-channel richMenuId", async () => {
     // Seed a second channel with its own richMenu. The batch request is
     // authenticated as channel A, so even if channel B's richMenuId happens

@@ -41,6 +41,30 @@ function genRequestId(): string {
     .slice(0, 32);
 }
 
+// ajv's discriminator wiring only enforces the `type` enum — not the
+// variant-specific required fields (`from`/`to` on link, `from` on unlink).
+// Real LINE rejects these with 400, so we gate them in the handler.
+function invalidBatchOperation(
+  op: Record<string, unknown>
+): string | null {
+  if (op.type === "link") {
+    if (typeof op.from !== "string" || typeof op.to !== "string") {
+      return "link operation requires `from` and `to` strings";
+    }
+    return null;
+  }
+  if (op.type === "unlink") {
+    if (typeof op.from !== "string") {
+      return "unlink operation requires `from` string";
+    }
+    return null;
+  }
+  if (op.type === "unlinkAll") {
+    return null;
+  }
+  return `unknown operation type: ${String(op.type)}`;
+}
+
 richMenuBatchRouter.post(
   "/v2/bot/richmenu/validate/batch",
   validate({
@@ -52,6 +76,10 @@ richMenuBatchRouter.post(
     };
     if (!Array.isArray(body.operations) || body.operations.length === 0) {
       return errors.badRequest(c, "operations must be a non-empty array");
+    }
+    for (const op of body.operations) {
+      const err = invalidBatchOperation(op as Record<string, unknown>);
+      if (err) return errors.badRequest(c, err);
     }
     return c.body(null, 200);
   }
@@ -71,6 +99,10 @@ richMenuBatchRouter.post(
     const body = (await c.req.json()) as { operations: BatchOp[] };
     if (!Array.isArray(body.operations) || body.operations.length === 0) {
       return errors.badRequest(c, "operations must be a non-empty array");
+    }
+    for (const op of body.operations) {
+      const err = invalidBatchOperation(op as Record<string, unknown>);
+      if (err) return errors.badRequest(c, err);
     }
     const channelDbId = c.get("channelDbId");
 
