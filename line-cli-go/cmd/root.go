@@ -9,6 +9,7 @@ import (
 	"line-cli-go/cmd/message"
 	"line-cli-go/cmd/profile"
 	"line-cli-go/cmd/quota"
+	"line-cli-go/cmd/richmenu"
 	"line-cli-go/cmd/token"
 	"line-cli-go/cmd/webhook"
 	"line-cli-go/internal/config"
@@ -50,6 +51,7 @@ func init() {
 	rootCmd.AddCommand(message.MessageCmd)
 	rootCmd.AddCommand(profile.ProfileCmd)
 	rootCmd.AddCommand(quota.QuotaCmd)
+	rootCmd.AddCommand(richmenu.RichMenuCmd)
 	rootCmd.AddCommand(token.TokenCmd)
 	rootCmd.AddCommand(webhook.WebhookCmd)
 
