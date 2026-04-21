@@ -61,5 +61,51 @@ function authHeaders() {
 }
 
 describe("rich menu alias", () => {
-  // tests appended by subsequent tasks
+  it("creates an alias and returns 200", async () => {
+    const res = await app.request("/v2/bot/richmenu/alias", {
+      method: "POST",
+      headers: authHeaders(),
+      body: JSON.stringify({
+        richMenuAliasId: "richmenu-alias-a",
+        richMenuId: richMenuIdA,
+      }),
+    });
+    expect(res.status).toBe(200);
+  });
+
+  it("rejects duplicate aliasId with 400", async () => {
+    const res = await app.request("/v2/bot/richmenu/alias", {
+      method: "POST",
+      headers: authHeaders(),
+      body: JSON.stringify({
+        richMenuAliasId: "richmenu-alias-a",
+        richMenuId: richMenuIdB,
+      }),
+    });
+    expect(res.status).toBe(400);
+  });
+
+  it("rejects unknown richMenuId with 400", async () => {
+    const res = await app.request("/v2/bot/richmenu/alias", {
+      method: "POST",
+      headers: authHeaders(),
+      body: JSON.stringify({
+        richMenuAliasId: "richmenu-alias-unknown",
+        richMenuId: "richmenu-0000000000000000000000000000ffff",
+      }),
+    });
+    expect(res.status).toBe(400);
+  });
+
+  it("rejects aliasId violating pattern with 400", async () => {
+    const res = await app.request("/v2/bot/richmenu/alias", {
+      method: "POST",
+      headers: authHeaders(),
+      body: JSON.stringify({
+        richMenuAliasId: "UPPERCASE-BAD",
+        richMenuId: richMenuIdA,
+      }),
+    });
+    expect(res.status).toBe(400);
+  });
 });

@@ -30,3 +30,46 @@ async function findRichMenuInternalId(
     .limit(1);
   return row ? row.id : null;
 }
+
+richMenuAliasRouter.post(
+  "/v2/bot/richmenu/alias",
+  validate({
+    requestSchema: "#/components/schemas/CreateRichMenuAliasRequest",
+  }),
+  async (c) => {
+    const body = (await c.req.json()) as {
+      richMenuAliasId: string;
+      richMenuId: string;
+    };
+    const channelDbId = c.get("channelDbId");
+
+    const rmInternalId = await findRichMenuInternalId(
+      channelDbId,
+      body.richMenuId
+    );
+    if (rmInternalId === null) {
+      return errors.badRequest(c, "Unknown richMenuId for this channel");
+    }
+
+    const [existing] = await db
+      .select({ aliasId: richMenuAliases.aliasId })
+      .from(richMenuAliases)
+      .where(
+        and(
+          eq(richMenuAliases.channelId, channelDbId),
+          eq(richMenuAliases.aliasId, body.richMenuAliasId)
+        )
+      )
+      .limit(1);
+    if (existing) {
+      return errors.badRequest(c, "richMenuAliasId already exists");
+    }
+
+    await db.insert(richMenuAliases).values({
+      channelId: channelDbId,
+      aliasId: body.richMenuAliasId,
+      richMenuId: rmInternalId,
+    });
+    return c.json({});
+  }
+);
