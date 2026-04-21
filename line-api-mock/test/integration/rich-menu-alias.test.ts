@@ -143,4 +143,49 @@ describe("rich menu alias", () => {
     );
     expect(res.status).toBe(404);
   });
+
+  it("POST /alias/:aliasId updates the target richMenuId", async () => {
+    const res = await app.request(
+      "/v2/bot/richmenu/alias/richmenu-alias-a",
+      {
+        method: "POST",
+        headers: authHeaders(),
+        body: JSON.stringify({ richMenuId: richMenuIdB }),
+      }
+    );
+    expect(res.status).toBe(200);
+
+    const get = await app.request(
+      "/v2/bot/richmenu/alias/richmenu-alias-a",
+      { headers: authHeaders() }
+    );
+    const json = await get.json();
+    expect(json.richMenuId).toBe(richMenuIdB);
+  });
+
+  it("POST /alias/:aliasId for unknown alias returns 400", async () => {
+    const res = await app.request(
+      "/v2/bot/richmenu/alias/richmenu-alias-missing",
+      {
+        method: "POST",
+        headers: authHeaders(),
+        body: JSON.stringify({ richMenuId: richMenuIdA }),
+      }
+    );
+    expect(res.status).toBe(400);
+  });
+
+  it("POST /alias/:aliasId with unknown richMenuId returns 400", async () => {
+    const res = await app.request(
+      "/v2/bot/richmenu/alias/richmenu-alias-a",
+      {
+        method: "POST",
+        headers: authHeaders(),
+        body: JSON.stringify({
+          richMenuId: "richmenu-0000000000000000000000000000ffff",
+        }),
+      }
+    );
+    expect(res.status).toBe(400);
+  });
 });

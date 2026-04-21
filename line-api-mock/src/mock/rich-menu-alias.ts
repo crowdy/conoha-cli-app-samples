@@ -126,3 +126,48 @@ richMenuAliasRouter.get(
     });
   }
 );
+
+richMenuAliasRouter.post(
+  "/v2/bot/richmenu/alias/:aliasId",
+  validate({
+    requestSchema: "#/components/schemas/UpdateRichMenuAliasRequest",
+  }),
+  async (c) => {
+    const aliasId = c.req.param("aliasId");
+    const channelDbId = c.get("channelDbId");
+    const body = (await c.req.json()) as { richMenuId: string };
+
+    const [existing] = await db
+      .select({ aliasId: richMenuAliases.aliasId })
+      .from(richMenuAliases)
+      .where(
+        and(
+          eq(richMenuAliases.channelId, channelDbId),
+          eq(richMenuAliases.aliasId, aliasId)
+        )
+      )
+      .limit(1);
+    if (!existing) {
+      return errors.badRequest(c, "Unknown richMenuAliasId");
+    }
+
+    const rmInternalId = await findRichMenuInternalId(
+      channelDbId,
+      body.richMenuId
+    );
+    if (rmInternalId === null) {
+      return errors.badRequest(c, "Unknown richMenuId for this channel");
+    }
+
+    await db
+      .update(richMenuAliases)
+      .set({ richMenuId: rmInternalId })
+      .where(
+        and(
+          eq(richMenuAliases.channelId, channelDbId),
+          eq(richMenuAliases.aliasId, aliasId)
+        )
+      );
+    return c.json({});
+  }
+);
