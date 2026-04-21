@@ -319,4 +319,47 @@ describe("rich menu batch", () => {
     expect(typeof json.acceptedTime).toBe("string");
     expect(typeof json.completedTime).toBe("string");
   });
+
+  it("POST /batch silently skips foreign-channel richMenuId", async () => {
+    // Seed a second channel with its own richMenu. The batch request is
+    // authenticated as channel A, so even if channel B's richMenuId happens
+    // to leak into operations[], channel A's links must not move.
+    const { db } = await import("../../src/db/client.js");
+    const { channels, richMenus, userRichMenuLinks } = await import(
+      "../../src/db/schema.js"
+    );
+    const { randomHex, richMenuId } = await import("../../src/lib/id.js");
+    const { eq } = await import("drizzle-orm");
+
+    const [chB] = await db
+      .insert(channels)
+      .values({
+        channelId: "9500000299",
+        channelSecret: randomHex(16),
+        name: "Batch Isolation B",
+      })
+      .returning();
+    const foreignRm = richMenuId();
+    await db.insert(richMenus).values({
+      richMenuId: foreignRm,
+      channelId: chB.id,
+      payload: { name: "foreign" },
+    });
+
+    const res = await app.request("/v2/bot/richmenu/batch", {
+      method: "POST",
+      headers: authHeaders(),
+      body: JSON.stringify({
+        operations: [{ type: "unlink", from: foreignRm }],
+      }),
+    });
+    expect(res.status).toBe(202);
+
+    // Baseline intact: 2 links in channel A
+    const rows = await db
+      .select()
+      .from(userRichMenuLinks)
+      .where(eq(userRichMenuLinks.channelId, channelDbId));
+    expect(rows.length).toBe(2);
+  });
 });
