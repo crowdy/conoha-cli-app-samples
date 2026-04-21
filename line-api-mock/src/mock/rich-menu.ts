@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { and, eq } from "drizzle-orm";
 import { db } from "../db/client.js";
-import { richMenus, richMenuImages } from "../db/schema.js";
+import { channels, richMenus, richMenuImages } from "../db/schema.js";
 import { bearerAuth, type AuthVars } from "./middleware/auth.js";
 import { requestLog } from "./middleware/request-log.js";
 import { validate } from "./middleware/validate.js";
@@ -96,16 +96,23 @@ richMenuRouter.get(
 richMenuRouter.delete("/v2/bot/richmenu/:richMenuId", async (c) => {
   const id = c.req.param("richMenuId");
   const channelDbId = c.get("channelDbId");
-  const result = await db
-    .delete(richMenus)
+  const [row] = await db
+    .select({ internalId: richMenus.id })
+    .from(richMenus)
     .where(
       and(
         eq(richMenus.richMenuId, id),
         eq(richMenus.channelId, channelDbId)
       )
     )
-    .returning({ id: richMenus.id });
-  if (result.length === 0) return errors.notFound(c);
+    .limit(1);
+  if (!row) return errors.notFound(c);
+  // Clear channels.defaultRichMenuId if this menu is the default.
+  await db
+    .update(channels)
+    .set({ defaultRichMenuId: null })
+    .where(eq(channels.defaultRichMenuId, row.internalId));
+  await db.delete(richMenus).where(eq(richMenus.id, row.internalId));
   return c.json({});
 });
 

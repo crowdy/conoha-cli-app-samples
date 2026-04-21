@@ -650,6 +650,17 @@ adminRouter.post("/admin/richmenus/:richMenuId/link", async (c) => {
 
 adminRouter.delete("/admin/richmenus/:richMenuId", async (c) => {
   const id = c.req.param("richMenuId");
-  await db.delete(richMenus).where(eq(richMenus.richMenuId, id));
+  const [row] = await db
+    .select({ internalId: richMenus.id })
+    .from(richMenus)
+    .where(eq(richMenus.richMenuId, id))
+    .limit(1);
+  if (row) {
+    await db
+      .update(channels)
+      .set({ defaultRichMenuId: null })
+      .where(eq(channels.defaultRichMenuId, row.internalId));
+    await db.delete(richMenus).where(eq(richMenus.id, row.internalId));
+  }
   return c.redirect("/admin/richmenus");
 });

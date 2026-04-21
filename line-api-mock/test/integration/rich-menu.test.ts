@@ -588,3 +588,49 @@ describe("Bulk link/unlink", () => {
     expect(res.status).toBe(400);
   });
 });
+
+describe("Delete clears stale default", () => {
+  it("removes default pointer when default menu is deleted", async () => {
+    // Create and image-upload a menu, then set it as default.
+    const create = await app.request("/v2/bot/richmenu", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ ...validRichMenuBody(), name: "default-to-delete" }),
+    });
+    const { richMenuId } = await create.json();
+    await app.request(`/v2/bot/richmenu/${richMenuId}/content`, {
+      method: "POST",
+      headers: {
+        "content-type": "image/png",
+        authorization: `Bearer ${token}`,
+      },
+      body: PNG_1x1,
+    });
+    const set = await app.request(`/v2/bot/user/all/richmenu/${richMenuId}`, {
+      method: "POST",
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(set.status).toBe(200);
+
+    // Delete the rich menu.
+    const del = await app.request(`/v2/bot/richmenu/${richMenuId}`, {
+      method: "DELETE",
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(del.status).toBe(200);
+
+    // Verify default was cleared by checking the channels row directly.
+    const { db } = await import("../../src/db/client.js");
+    const { channels } = await import("../../src/db/schema.js");
+    const { eq: eqFn } = await import("drizzle-orm");
+    const [row] = await db
+      .select({ defaultId: channels.defaultRichMenuId })
+      .from(channels)
+      .where(eqFn(channels.channelId, "9500000001"))
+      .limit(1);
+    expect(row.defaultId).toBeNull();
+  });
+});
