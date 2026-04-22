@@ -37,5 +37,7 @@ var linkCmd = &cobra.Command{
 func init() {
 	linkCmd.Flags().String("user-id", "", "user ID (required)")
 	linkCmd.Flags().String("rich-menu-id", "", "rich menu ID (required)")
+	_ = linkCmd.MarkFlagRequired("user-id")
+	_ = linkCmd.MarkFlagRequired("rich-menu-id")
 	RichMenuCmd.AddCommand(linkCmd)
 }

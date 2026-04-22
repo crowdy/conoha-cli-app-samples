@@ -33,5 +33,6 @@ var getForUserCmd = &cobra.Command{
 
 func init() {
 	getForUserCmd.Flags().String("user-id", "", "user ID (required)")
+	_ = getForUserCmd.MarkFlagRequired("user-id")
 	RichMenuCmd.AddCommand(getForUserCmd)
 }

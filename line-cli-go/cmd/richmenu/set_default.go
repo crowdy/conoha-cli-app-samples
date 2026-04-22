@@ -32,5 +32,6 @@ var setDefaultCmd = &cobra.Command{
 
 func init() {
 	setDefaultCmd.Flags().String("rich-menu-id", "", "rich menu ID (required)")
+	_ = setDefaultCmd.MarkFlagRequired("rich-menu-id")
 	RichMenuCmd.AddCommand(setDefaultCmd)
 }

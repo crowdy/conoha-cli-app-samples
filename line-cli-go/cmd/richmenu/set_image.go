@@ -44,5 +44,7 @@ var setImageCmd = &cobra.Command{
 func init() {
 	setImageCmd.Flags().String("rich-menu-id", "", "rich menu ID (required)")
 	setImageCmd.Flags().String("image", "", "image file path (use '-' for stdin) (required)")
+	_ = setImageCmd.MarkFlagRequired("rich-menu-id")
+	_ = setImageCmd.MarkFlagRequired("image")
 	RichMenuCmd.AddCommand(setImageCmd)
 }

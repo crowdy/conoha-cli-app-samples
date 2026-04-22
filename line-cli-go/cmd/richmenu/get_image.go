@@ -59,5 +59,6 @@ var getImageCmd = &cobra.Command{
 func init() {
 	getImageCmd.Flags().String("rich-menu-id", "", "rich menu ID (required)")
 	getImageCmd.Flags().String("output", "", "save to file path (default: stdout)")
+	_ = getImageCmd.MarkFlagRequired("rich-menu-id")
 	RichMenuCmd.AddCommand(getImageCmd)
 }

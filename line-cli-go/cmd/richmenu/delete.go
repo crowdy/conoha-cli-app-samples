@@ -32,5 +32,6 @@ var deleteCmd = &cobra.Command{
 
 func init() {
 	deleteCmd.Flags().String("rich-menu-id", "", "rich menu ID (required)")
+	_ = deleteCmd.MarkFlagRequired("rich-menu-id")
 	RichMenuCmd.AddCommand(deleteCmd)
 }

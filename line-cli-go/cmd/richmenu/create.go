@@ -36,5 +36,6 @@ var createCmd = &cobra.Command{
 
 func init() {
 	createCmd.Flags().String("payload-file", "", "path to JSON payload (use '-' for stdin) (required)")
+	_ = createCmd.MarkFlagRequired("payload-file")
 	RichMenuCmd.AddCommand(createCmd)
 }

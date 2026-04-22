@@ -32,5 +32,6 @@ var unlinkCmd = &cobra.Command{
 
 func init() {
 	unlinkCmd.Flags().String("user-id", "", "user ID (required)")
+	_ = unlinkCmd.MarkFlagRequired("user-id")
 	RichMenuCmd.AddCommand(unlinkCmd)
 }
