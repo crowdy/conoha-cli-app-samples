@@ -24,6 +24,9 @@ func LoadJSON(path string, v any) error {
 	}
 	var r io.Reader
 	if path == "-" {
+		if err := guardStdinTTY(); err != nil {
+			return err
+		}
 		r = os.Stdin
 	} else {
 		f, err := os.Open(path)
@@ -51,6 +54,9 @@ func LoadImage(path string) (io.ReadCloser, string, error) {
 		return nil, "", &config.ClientError{Msg: "--image is required"}
 	}
 	if path == "-" {
+		if err := guardStdinTTY(); err != nil {
+			return nil, "", err
+		}
 		data, err := io.ReadAll(os.Stdin)
 		if err != nil {
 			return nil, "", &config.ClientError{Msg: fmt.Sprintf("reading stdin: %v", err)}
@@ -74,6 +80,20 @@ func LoadImage(path string) (io.ReadCloser, string, error) {
 		}
 	}
 	return f, ct, nil
+}
+
+// guardStdinTTY returns a ClientError when stdin is an interactive terminal,
+// so `--payload-file -` or `--image -` fails fast instead of hanging on a
+// blocking read waiting for the user to type EOF.
+func guardStdinTTY() error {
+	fi, err := os.Stdin.Stat()
+	if err != nil {
+		return nil
+	}
+	if (fi.Mode() & os.ModeCharDevice) != 0 {
+		return &config.ClientError{Msg: "stdin is a TTY; pipe input or pass a file path instead of '-'"}
+	}
+	return nil
 }
 
 func contentTypeByExt(path string) string {
