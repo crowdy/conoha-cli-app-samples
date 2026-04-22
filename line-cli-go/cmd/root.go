@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strings"
 
 	"line-cli-go/cmd/content"
 	"line-cli-go/cmd/message"
@@ -31,15 +32,24 @@ var rootCmd = &cobra.Command{
 }
 
 func Execute() {
-	if err := rootCmd.Execute(); err != nil {
-		var ce *config.ClientError
-		if errors.As(err, &ce) {
-			fmt.Fprintf(os.Stderr, "Error: %s\n", ce.Msg)
-			os.Exit(2)
-		}
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-		os.Exit(1)
+	err := rootCmd.Execute()
+	if err == nil {
+		return
 	}
+	// Treat cobra's ValidateRequiredFlags error as a user input error so it
+	// exits with the same code (2) as our manual ClientError validation.
+	// Parse-time flag errors are already wrapped as ClientError via
+	// rootCmd.SetFlagErrorFunc in init().
+	if strings.HasPrefix(err.Error(), `required flag(s) `) {
+		err = &config.ClientError{Msg: err.Error()}
+	}
+	var ce *config.ClientError
+	if errors.As(err, &ce) {
+		fmt.Fprintf(os.Stderr, "Error: %s\n", ce.Msg)
+		os.Exit(2)
+	}
+	fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+	os.Exit(1)
 }
 
 func mustBindPFlag(key string, flag *pflag.Flag) {
@@ -50,6 +60,10 @@ func mustBindPFlag(key string, flag *pflag.Flag) {
 
 func init() {
 	cobra.OnInitialize(initConfig)
+
+	rootCmd.SetFlagErrorFunc(func(_ *cobra.Command, err error) error {
+		return &config.ClientError{Msg: err.Error()}
+	})
 
 	rootCmd.AddCommand(content.ContentCmd)
 	rootCmd.AddCommand(message.MessageCmd)
