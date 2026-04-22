@@ -62,4 +62,5 @@ var getCmd = &cobra.Command{
 func init() {
 	getCmd.Flags().String("message-id", "", "message ID (required)")
 	getCmd.Flags().String("output", "", "save to file path (default: stdout)")
+	_ = getCmd.MarkFlagRequired("message-id")
 }

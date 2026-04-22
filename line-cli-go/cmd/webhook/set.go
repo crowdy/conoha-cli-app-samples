@@ -42,4 +42,5 @@ var setCmd = &cobra.Command{
 
 func init() {
 	setCmd.Flags().String("url", "", "webhook endpoint URL (required)")
+	_ = setCmd.MarkFlagRequired("url")
 }

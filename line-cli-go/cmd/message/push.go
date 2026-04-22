@@ -61,4 +61,5 @@ func init() {
 	pushCmd.Flags().String("to", "", "recipient user ID (required)")
 	pushCmd.Flags().String("text", "", "text message content")
 	pushCmd.Flags().String("payload-file", "", "JSON file with message payload")
+	_ = pushCmd.MarkFlagRequired("to")
 }

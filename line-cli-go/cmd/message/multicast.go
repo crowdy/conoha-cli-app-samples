@@ -59,4 +59,5 @@ func init() {
 	multicastCmd.Flags().String("to", "", "comma-separated user IDs (required)")
 	multicastCmd.Flags().String("text", "", "text message content")
 	multicastCmd.Flags().String("payload-file", "", "JSON file with message payload")
+	_ = multicastCmd.MarkFlagRequired("to")
 }

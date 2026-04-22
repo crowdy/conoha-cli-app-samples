@@ -42,4 +42,5 @@ var getCmd = &cobra.Command{
 
 func init() {
 	getCmd.Flags().String("user-id", "", "LINE user ID (required)")
+	_ = getCmd.MarkFlagRequired("user-id")
 }
