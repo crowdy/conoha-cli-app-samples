@@ -37,5 +37,6 @@ var submitCmd = &cobra.Command{
 
 func init() {
 	submitCmd.Flags().String("payload-file", "", "path to JSON payload (use '-' for stdin) (required)")
+	_ = submitCmd.MarkFlagRequired("payload-file")
 	BatchCmd.AddCommand(submitCmd)
 }

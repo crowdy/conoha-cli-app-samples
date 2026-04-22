@@ -35,5 +35,6 @@ var validateCmd = &cobra.Command{
 
 func init() {
 	validateCmd.Flags().String("payload-file", "", "path to JSON payload (use '-' for stdin) (required)")
+	_ = validateCmd.MarkFlagRequired("payload-file")
 	BatchCmd.AddCommand(validateCmd)
 }

@@ -33,5 +33,6 @@ var getCmd = &cobra.Command{
 
 func init() {
 	getCmd.Flags().String("alias-id", "", "alias ID (required)")
+	_ = getCmd.MarkFlagRequired("alias-id")
 	AliasCmd.AddCommand(getCmd)
 }

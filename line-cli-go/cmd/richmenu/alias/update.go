@@ -42,5 +42,7 @@ var updateCmd = &cobra.Command{
 func init() {
 	updateCmd.Flags().String("alias-id", "", "alias ID (required)")
 	updateCmd.Flags().String("rich-menu-id", "", "new rich menu ID (required)")
+	_ = updateCmd.MarkFlagRequired("alias-id")
+	_ = updateCmd.MarkFlagRequired("rich-menu-id")
 	AliasCmd.AddCommand(updateCmd)
 }

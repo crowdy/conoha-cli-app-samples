@@ -32,5 +32,6 @@ var deleteCmd = &cobra.Command{
 
 func init() {
 	deleteCmd.Flags().String("alias-id", "", "alias ID (required)")
+	_ = deleteCmd.MarkFlagRequired("alias-id")
 	AliasCmd.AddCommand(deleteCmd)
 }

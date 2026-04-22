@@ -33,5 +33,6 @@ var progressCmd = &cobra.Command{
 
 func init() {
 	progressCmd.Flags().String("request-id", "", "batch request ID from the submit command (required)")
+	_ = progressCmd.MarkFlagRequired("request-id")
 	BatchCmd.AddCommand(progressCmd)
 }
