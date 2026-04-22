@@ -21,7 +21,7 @@ var consumptionCmd = &cobra.Command{
 		resp, err := api.GetMessageQuotaConsumption()
 		if err != nil {
 			p.Error(output.ExtractHTTPStatus(err), err.Error())
-			return err
+			return output.Printed(err)
 		}
 
 		p.Raw(map[string]any{

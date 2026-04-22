@@ -20,7 +20,7 @@ var listCmd = &cobra.Command{
 		resp, err := api.GetRichMenuList()
 		if err != nil {
 			p.Error(output.ExtractHTTPStatus(err), err.Error())
-			return err
+			return output.Printed(err)
 		}
 		p.Raw(resp)
 		return nil

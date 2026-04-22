@@ -26,7 +26,7 @@ var validateCmd = &cobra.Command{
 		}
 		if _, err := api.ValidateRichMenuBatchRequest(&req); err != nil {
 			p.Error(output.ExtractHTTPStatus(err), err.Error())
-			return err
+			return output.Printed(err)
 		}
 		p.Success("Batch payload valid", nil)
 		return nil

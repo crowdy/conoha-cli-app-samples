@@ -47,7 +47,7 @@ var bulkLinkCmd = &cobra.Command{
 		}
 		if _, err := api.LinkRichMenuIdToUsers(&req); err != nil {
 			p.Error(output.ExtractHTTPStatus(err), err.Error())
-			return err
+			return output.Printed(err)
 		}
 		p.Success("Bulk link accepted", map[string]string{
 			"richMenuId": req.RichMenuId,

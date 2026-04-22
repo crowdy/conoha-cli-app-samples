@@ -19,7 +19,7 @@ var cancelDefaultCmd = &cobra.Command{
 		}
 		if _, err := api.CancelDefaultRichMenu(); err != nil {
 			p.Error(output.ExtractHTTPStatus(err), err.Error())
-			return err
+			return output.Printed(err)
 		}
 		p.Success("Default rich menu cancelled", nil)
 		return nil

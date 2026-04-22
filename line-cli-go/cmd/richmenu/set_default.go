@@ -23,7 +23,7 @@ var setDefaultCmd = &cobra.Command{
 		}
 		if _, err := api.SetDefaultRichMenu(richMenuID); err != nil {
 			p.Error(output.ExtractHTTPStatus(err), err.Error())
-			return err
+			return output.Printed(err)
 		}
 		p.Success("Default rich menu set", map[string]string{"richMenuId": richMenuID})
 		return nil

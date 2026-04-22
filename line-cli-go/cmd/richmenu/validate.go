@@ -26,7 +26,7 @@ var validateCmd = &cobra.Command{
 		}
 		if _, err := api.ValidateRichMenuObject(&req); err != nil {
 			p.Error(output.ExtractHTTPStatus(err), err.Error())
-			return err
+			return output.Printed(err)
 		}
 		p.Success("Rich menu payload valid", nil)
 		return nil

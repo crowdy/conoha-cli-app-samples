@@ -41,7 +41,7 @@ var pushCmd = &cobra.Command{
 		)
 		if err != nil {
 			p.Error(output.ExtractHTTPStatus(err), err.Error())
-			return err
+			return output.Printed(err)
 		}
 
 		sentIDs := make([]string, 0)

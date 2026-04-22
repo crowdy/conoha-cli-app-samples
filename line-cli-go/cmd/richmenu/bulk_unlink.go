@@ -39,7 +39,7 @@ var bulkUnlinkCmd = &cobra.Command{
 		}
 		if _, err := api.UnlinkRichMenuIdFromUsers(&req); err != nil {
 			p.Error(output.ExtractHTTPStatus(err), err.Error())
-			return err
+			return output.Printed(err)
 		}
 		p.Success("Bulk unlink accepted", map[string]string{
 			"userCount": strconv.Itoa(len(req.UserIds)),

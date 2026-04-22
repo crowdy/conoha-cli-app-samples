@@ -32,7 +32,7 @@ var getCmd = &cobra.Command{
 		resp, err := blobAPI.GetMessageContent(messageID)
 		if err != nil {
 			p.Error(output.ExtractHTTPStatus(err), err.Error())
-			return err
+			return output.Printed(err)
 		}
 		defer resp.Body.Close()
 

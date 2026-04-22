@@ -29,7 +29,7 @@ var getImageCmd = &cobra.Command{
 		resp, err := blob.GetRichMenuImage(richMenuID)
 		if err != nil {
 			p.Error(output.ExtractHTTPStatus(err), err.Error())
-			return err
+			return output.Printed(err)
 		}
 		defer resp.Body.Close()
 

@@ -23,7 +23,7 @@ var deleteCmd = &cobra.Command{
 		}
 		if _, err := api.DeleteRichMenu(richMenuID); err != nil {
 			p.Error(output.ExtractHTTPStatus(err), err.Error())
-			return err
+			return output.Printed(err)
 		}
 		p.Success("Rich menu deleted", map[string]string{"richMenuId": richMenuID})
 		return nil

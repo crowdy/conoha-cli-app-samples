@@ -2,9 +2,27 @@ package output
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"testing"
 )
+
+func TestPrintedSentinel(t *testing.T) {
+	base := errors.New("boom")
+	wrapped := Printed(base)
+	if !errors.Is(wrapped, ErrPrinted) {
+		t.Fatal("errors.Is(wrapped, ErrPrinted) = false, want true")
+	}
+	if !errors.Is(wrapped, base) {
+		t.Fatal("errors.Is(wrapped, base) = false, want true (chain broken)")
+	}
+	if Printed(nil) != nil {
+		t.Fatal("Printed(nil) should return nil")
+	}
+	if got := Printed(wrapped); got != wrapped {
+		t.Fatal("Printed should be idempotent")
+	}
+}
 
 func TestPrintSuccess_Text(t *testing.T) {
 	var buf bytes.Buffer

@@ -27,7 +27,7 @@ var linkCmd = &cobra.Command{
 		}
 		if _, err := api.LinkRichMenuIdToUser(userID, richMenuID); err != nil {
 			p.Error(output.ExtractHTTPStatus(err), err.Error())
-			return err
+			return output.Printed(err)
 		}
 		p.Success("Rich menu linked", map[string]string{"userId": userID, "richMenuId": richMenuID})
 		return nil

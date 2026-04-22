@@ -16,6 +16,7 @@ import (
 	"line-cli-go/cmd/token"
 	"line-cli-go/cmd/webhook"
 	"line-cli-go/internal/config"
+	"line-cli-go/internal/output"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
@@ -48,7 +49,12 @@ func Execute() {
 		fmt.Fprintf(os.Stderr, "Error: %s\n", ce.Msg)
 		os.Exit(2)
 	}
-	fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+	// Subcommands that already rendered the error via Printer.Error wrap it
+	// with output.Printed so we skip the generic fallback and avoid a second
+	// "Error: ..." line on stderr.
+	if !errors.Is(err, output.ErrPrinted) {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+	}
 	os.Exit(1)
 }
 

@@ -29,7 +29,7 @@ var updateCmd = &cobra.Command{
 		req := messaging_api.UpdateRichMenuAliasRequest{RichMenuId: richMenuID}
 		if _, err := api.UpdateRichMenuAlias(aliasID, &req); err != nil {
 			p.Error(output.ExtractHTTPStatus(err), err.Error())
-			return err
+			return output.Printed(err)
 		}
 		p.Success("Rich menu alias updated", map[string]string{
 			"richMenuAliasId": aliasID,

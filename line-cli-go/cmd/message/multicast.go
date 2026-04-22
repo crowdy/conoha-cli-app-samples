@@ -45,7 +45,7 @@ var multicastCmd = &cobra.Command{
 		)
 		if err != nil {
 			p.Error(output.ExtractHTTPStatus(err), err.Error())
-			return err
+			return output.Printed(err)
 		}
 
 		p.Success("Multicast sent", map[string]string{
