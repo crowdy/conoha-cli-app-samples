@@ -90,6 +90,25 @@ func TestPrintRaw_TextSortedKeys(t *testing.T) {
 	}
 }
 
+func TestPrintRaw_TextStructPreservesFieldNames(t *testing.T) {
+	type inner struct {
+		AliasID    string `json:"richMenuAliasId"`
+		RichMenuID string `json:"richMenuId"`
+	}
+	type outer struct {
+		Aliases []inner `json:"aliases"`
+	}
+	var buf bytes.Buffer
+	p := NewPrinter(false, &buf)
+	p.Raw(outer{Aliases: []inner{{AliasID: "a1", RichMenuID: "rm1"}}})
+	out := buf.String()
+	for _, want := range []string{"richMenuAliasId", "richMenuId", "a1", "rm1"} {
+		if !bytes.Contains([]byte(out), []byte(want)) {
+			t.Errorf("expected %q in text output, got:\n%s", want, out)
+		}
+	}
+}
+
 func TestExtractHTTPStatus(t *testing.T) {
 	tests := []struct {
 		name string

@@ -63,7 +63,9 @@ func (p *Printer) Error(status int, msg string) {
 	fmt.Fprintf(p.errW, "  %s\n", msg)
 }
 
-// Raw prints arbitrary data (JSON mode: marshal; text mode: formatted key-value).
+// Raw prints arbitrary data. JSON mode marshals the value. Text mode renders
+// map[string]any as sorted key: value lines, and any other value (including
+// structs and slices) as pretty-printed JSON so field names are preserved.
 func (p *Printer) Raw(data any) {
 	if p.jsonMode {
 		p.writeJSON(data)
@@ -80,7 +82,12 @@ func (p *Printer) Raw(data any) {
 			fmt.Fprintf(p.w, "  %s: %v\n", k, v[k])
 		}
 	default:
-		fmt.Fprintf(p.w, "%v\n", data)
+		buf, err := json.MarshalIndent(data, "", "  ")
+		if err != nil {
+			fmt.Fprintf(p.w, "%v\n", data)
+			return
+		}
+		fmt.Fprintln(p.w, string(buf))
 	}
 }
 
