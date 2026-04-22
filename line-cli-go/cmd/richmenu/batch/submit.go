@@ -29,7 +29,10 @@ var submitCmd = &cobra.Command{
 			p.Error(output.ExtractHTTPStatus(err), err.Error())
 			return err
 		}
-		requestID := httpResp.Header.Get("X-Line-Request-Id")
+		var requestID string
+		if httpResp != nil {
+			requestID = httpResp.Header.Get("X-Line-Request-Id")
+		}
 		p.Raw(map[string]any{"requestId": requestID})
 		return nil
 	},
