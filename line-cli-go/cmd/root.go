@@ -37,6 +37,7 @@ func Execute() {
 			fmt.Fprintf(os.Stderr, "Error: %s\n", ce.Msg)
 			os.Exit(2)
 		}
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		os.Exit(1)
 	}
 }
