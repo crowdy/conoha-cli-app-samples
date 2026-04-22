@@ -34,6 +34,7 @@ func Execute() {
 	if err := rootCmd.Execute(); err != nil {
 		var ce *config.ClientError
 		if errors.As(err, &ce) {
+			fmt.Fprintf(os.Stderr, "Error: %s\n", ce.Msg)
 			os.Exit(2)
 		}
 		os.Exit(1)
