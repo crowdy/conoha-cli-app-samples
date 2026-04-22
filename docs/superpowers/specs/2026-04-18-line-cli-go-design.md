@@ -267,5 +267,5 @@ LINE_ACCESS_TOKEN=
 
 - トークン自動保存 (発行後の永続化はしない、サンプルの単純性を維持)
 - REPL / インタラクティブモード
-- 未実装エンドポイント (Rich Menu, LIFF, Insight, Audience 等)
+- 未実装エンドポイント (LIFF, Insight, Audience 等) — Rich Menu は別 spec (`2026-04-21-line-cli-go-richmenu-design.md`) で PR-1 (core + linking) 実装済み / PR-2 (alias + batch) 予定
 - CLI 自体のサーバー配備 (クライアントツールのため不要)
