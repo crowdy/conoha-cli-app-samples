@@ -10,6 +10,8 @@ import (
 	"line-cli-go/cmd/profile"
 	"line-cli-go/cmd/quota"
 	"line-cli-go/cmd/richmenu"
+	_ "line-cli-go/cmd/richmenu/alias" // registers alias subgroup
+	_ "line-cli-go/cmd/richmenu/batch" // registers batch subgroup
 	"line-cli-go/cmd/token"
 	"line-cli-go/cmd/webhook"
 	"line-cli-go/internal/config"

@@ -85,6 +85,14 @@ cp .line-cli.yaml.example .line-cli.yaml
 | `richmenu get-for-user` | ユーザーのリンク先取得 |
 | `richmenu bulk-link` | 複数ユーザーへの一括リンク |
 | `richmenu bulk-unlink` | 複数ユーザーの一括リンク解除 |
+| `richmenu alias create` | リッチメニューエイリアス作成 |
+| `richmenu alias list` | エイリアス一覧 |
+| `richmenu alias get` | エイリアス取得 |
+| `richmenu alias update` | エイリアス更新 |
+| `richmenu alias delete` | エイリアス削除 |
+| `richmenu batch validate` | バッチ操作 JSON 検証 (dry-run) |
+| `richmenu batch submit` | バッチ操作送信 (非同期 / request ID 返却) |
+| `richmenu batch progress` | バッチ進捗取得 (単発呼び出し) |
 
 ## 設定
 
@@ -194,6 +202,49 @@ ID=$(./line-cli-go --json richmenu create --payload-file rm.json | jq -r .richMe
 ./line-cli-go richmenu set-default --rich-menu-id "$ID"
 ```
 
+### エイリアス
+
+```bash
+# 作成 (インラインフラグ)
+./line-cli-go richmenu alias create --alias-id my-alias --rich-menu-id RM123
+
+# 作成 (payload-file)
+./line-cli-go richmenu alias create --payload-file alias.json
+
+# 一覧 / 取得
+./line-cli-go --json richmenu alias list
+./line-cli-go --json richmenu alias get --alias-id my-alias
+
+# 参照先変更
+./line-cli-go richmenu alias update --alias-id my-alias --rich-menu-id RM456
+
+# 削除
+./line-cli-go richmenu alias delete --alias-id my-alias
+```
+
+### バッチ操作 (非同期)
+
+```bash
+# 検証のみ
+./line-cli-go richmenu batch validate --payload-file batch_ops.json
+
+# 実行 (202 Accepted → requestId 返却)
+REQ=$(./line-cli-go --json richmenu batch submit --payload-file batch_ops.json | jq -r .requestId)
+
+# 進捗確認 (単発呼び出し; polling 要なら shell loop)
+./line-cli-go --json richmenu batch progress --request-id "$REQ"
+```
+
+`batch_ops.json` の例:
+
+```json
+{
+  "operations": [
+    { "type": "link", "from": "", "to": "RM123" }
+  ]
+}
+```
+
 ## 統合テスト
 
 リッチメニューまわりは `TEST_ACCESS_TOKEN` と `TEST_USER_ID` が設定されているときのみ実行:
@@ -206,3 +257,6 @@ go test ./test/integration/... -v -run RichMenu
 ```
 
 env var がない場合はスキップされる。
+
+- `TestRichMenuLifecycle` / `TestRichMenuBulkViaPayload` — 両方の env var が必要 (ユーザーへのリンクを伴うため)
+- `TestRichMenuValidate` / `TestRichMenuAliasLifecycle` / `TestRichMenuBatchLifecycle` — `TEST_ACCESS_TOKEN` のみでスキップ回避可能
