@@ -37,14 +37,21 @@ conoha server create --name myserver --flavor g2l-t-2 --image ubuntu-24.04 --key
 # 3. proxy を起動（サーバーごとに 1 回だけ）
 conoha proxy boot --acme-email you@example.com myserver
 
-# 4. アプリ登録・デプロイ
+# 4. アプリ登録
 conoha app init myserver
+
+# 5. 環境変数を設定（このステップは必須 — Grafana Admin パスワードを
+#    設定しないと公開 FQDN から anonymous アクセスが可能になる危険あり）
+conoha app env set myserver \
+  GF_SECURITY_ADMIN_PASSWORD=$(openssl rand -base64 32)
+
+# 6. デプロイ
 conoha app deploy myserver
 ```
 
 ## 動作確認
 
-Grafana: `https://<あなたの FQDN>` にアクセス（初回は Let's Encrypt 証明書発行に数十秒かかります）。[quickwit-quickwit-datasource](https://grafana.com/grafana/plugins/quickwit-quickwit-datasource/) プラグインを入れて、URL `http://quickwit:7280` で data source を追加。
+Grafana: `https://<あなたの FQDN>` にアクセス（初回は Let's Encrypt 証明書発行に数十秒かかります）。ユーザー名 `admin` と step 5 で設定したパスワードでログイン。[quickwit-quickwit-datasource](https://grafana.com/grafana/plugins/quickwit-quickwit-datasource/) プラグインを入れて、URL `http://quickwit:7280` で data source を追加。
 
 ### テレメトリ送信（VPS 内部から）
 
@@ -68,5 +75,5 @@ docker exec $(docker ps -q -f name=grafana) wget -O- --post-data='{...OTLP JSON.
 ## カスタマイズ
 
 - `otel-collector-config.yaml` を編集してフィルタリング・サンプリング・複数エクスポーター設定が可能です
-- 本番環境では `GF_AUTH_ANONYMOUS_ENABLED=false` に設定し、`GF_SECURITY_ADMIN_PASSWORD` を `conoha app env set` で設定してください
+- デフォルトは anonymous アクセス無効・admin 認証必須。社内で閲覧のみ許可したい場合は `conoha app env set` で `GF_AUTH_ANONYMOUS_ENABLED=true` `GF_AUTH_ANONYMOUS_ORG_ROLE=Viewer` を設定可能（公開 FQDN で Admin ロールを anonymous に与えるのは非推奨）
 - データ量が多い場合は g2l-t-4（4GB）フレーバーを推奨します

@@ -168,6 +168,11 @@ curl http://<サーバーIP>:9010/api/public
 ## カスタマイズ
 
 - `main.py` の `login_post` を変更して実際のユーザー認証ロジックを実装
-- `compose.yml` の `SECRETS_SYSTEM` を本番用の強力なシークレットに変更
+- 本番用シークレットは `conoha app env set` で設定:
+  ```bash
+  conoha app env set <SERVER> \
+    SECRETS_SYSTEM=$(openssl rand -hex 32) \
+    POSTGRES_PASSWORD=$(openssl rand -base64 32)
+  ```
 - HTTPS が必要な場合は nginx リバースプロキシを前段に追加
 - 本番環境では `--dev` フラグを削除し、`.env` の `SERVER_HOST` を実際のドメインに設定

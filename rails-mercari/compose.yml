@@ -17,14 +17,14 @@ services:
       - RAILS_ENV=production
       - DB_HOST=db
       - DB_USER=postgres
-      - DB_PASSWORD=postgres
+      - DB_PASSWORD=${DB_PASSWORD:-postgres}
       - DB_NAME=app_production
-      - SECRET_KEY_BASE=placeholder_change_me_in_production
+      - SECRET_KEY_BASE=${SECRET_KEY_BASE:-placeholder_change_me_in_production}
       - REDIS_URL=redis://redis:6379/0
       - OIDC_ISSUER=http://dex:5556/dex
       - OIDC_EXTERNAL_HOST=${RAILS_HOST:-localhost}
       - OIDC_CLIENT_ID=mercari-app
-      - OIDC_CLIENT_SECRET=mercari-dex-secret
+      - OIDC_CLIENT_SECRET=${RAILS_OIDC_CLIENT_SECRET:-mercari-dex-secret}
       - OIDC_REDIRECT_URI=http://${RAILS_HOST:-localhost}/auth/dex/callback
     depends_on:
       db:
@@ -41,9 +41,9 @@ services:
       - RAILS_ENV=production
       - DB_HOST=db
       - DB_USER=postgres
-      - DB_PASSWORD=postgres
+      - DB_PASSWORD=${DB_PASSWORD:-postgres}
       - DB_NAME=app_production
-      - SECRET_KEY_BASE=placeholder_change_me_in_production
+      - SECRET_KEY_BASE=${SECRET_KEY_BASE:-placeholder_change_me_in_production}
       - REDIS_URL=redis://redis:6379/0
     depends_on:
       db:
@@ -76,9 +76,9 @@ services:
         exec dex serve /tmp/dex.yml
     environment:
       - DEX_ISSUER_HOST=${DEX_ISSUER_HOST:-localhost}
-      - DEX_DB_PASSWORD=dex
+      - DEX_DB_PASSWORD=${DEX_DB_PASSWORD:-dex}
       - RAILS_OIDC_CLIENT_ID=mercari-app
-      - RAILS_OIDC_CLIENT_SECRET=mercari-dex-secret
+      - RAILS_OIDC_CLIENT_SECRET=${RAILS_OIDC_CLIENT_SECRET:-mercari-dex-secret}
       - RAILS_HOST=${RAILS_HOST:-localhost}
     volumes:
       - ./dex.yml:/etc/dex/dex.yml:ro
@@ -95,11 +95,11 @@ services:
     image: postgres:17-alpine
     environment:
       - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_PASSWORD=${DB_PASSWORD:-postgres}
       - POSTGRES_DB=app_production
       - DEX_DB_NAME=dex
       - DEX_DB_USER=dex
-      - DEX_DB_PASSWORD=dex
+      - DEX_DB_PASSWORD=${DEX_DB_PASSWORD:-dex}
     volumes:
       - db_data:/var/lib/postgresql/data
       - ./init-db.sh:/docker-entrypoint-initdb.d/init-db.sh:ro

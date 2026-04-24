@@ -10,11 +10,11 @@ services:
       - "4444"
       - "4445"
     environment:
-      - DSN=postgres://hydra:hydra@db:5432/hydra?sslmode=disable
-      - URLS_SELF_ISSUER=http://${SERVER_HOST}:4444
-      - URLS_LOGIN=http://${SERVER_HOST}:9010/login
-      - URLS_CONSENT=http://${SERVER_HOST}:9010/consent
-      - SECRETS_SYSTEM=a-very-secret-key-that-must-be-changed
+      - DSN=postgres://hydra:${POSTGRES_PASSWORD:-hydra}@db:5432/hydra?sslmode=disable
+      - URLS_SELF_ISSUER=http://${SERVER_HOST:-localhost}:4444
+      - URLS_LOGIN=http://${SERVER_HOST:-localhost}:9010/login
+      - URLS_CONSENT=http://${SERVER_HOST:-localhost}:9010/consent
+      - SECRETS_SYSTEM=${SECRETS_SYSTEM:-a-very-secret-key-that-must-be-changed}
       - LOG_LEVEL=info
     command: serve all --dev
     depends_on:
@@ -26,7 +26,7 @@ services:
   hydra-migrate:
     image: oryd/hydra:v2.2
     environment:
-      - DSN=postgres://hydra:hydra@db:5432/hydra?sslmode=disable
+      - DSN=postgres://hydra:${POSTGRES_PASSWORD:-hydra}@db:5432/hydra?sslmode=disable
     command: migrate sql -e --yes
     depends_on:
       db:
@@ -49,7 +49,7 @@ services:
     image: postgres:17-alpine
     environment:
       - POSTGRES_USER=hydra
-      - POSTGRES_PASSWORD=hydra
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-hydra}
       - POSTGRES_DB=hydra
     volumes:
       - db_data:/var/lib/postgresql/data
