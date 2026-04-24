@@ -7,7 +7,7 @@ services:
     expose:
       - "8000"
     environment:
-      - BASE_URL=${BASE_URL:-http://localhost:8000}
+      - BASE_URL=${BASE_URL:?BASE_URL must be set to your public FQDN via conoha app env set — Plausible generates tracking script paths and OAuth redirects from this value}
       - SECRET_KEY_BASE=${SECRET_KEY_BASE:-please-change-me-to-a-random-64-char-string-use-openssl-rand-base64-48}
       - DATABASE_URL=postgres://plausible:${DB_PASSWORD:-plausible}@db:5432/plausible
       - CLICKHOUSE_DATABASE_URL=http://clickhouse:8123/plausible
