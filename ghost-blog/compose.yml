@@ -1,8 +1,11 @@
 services:
   ghost:
     image: ghost:5
-    ports:
-      - "2368:2368"
+    # No host-side port: conoha-proxy injects a randomly-bound
+    # 127.0.0.1:0:2368 mapping at deploy time so two slots (blue/green)
+    # can coexist. Publishing explicitly here would conflict.
+    expose:
+      - "2368"
     environment:
       - url=http://localhost:2368
       - database__client=mysql

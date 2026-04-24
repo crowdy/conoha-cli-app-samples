@@ -98,40 +98,48 @@ nextjs-fastapi-postgresql/
 - [conoha-cli](https://github.com/crowdy/conoha-cli) がインストール済み
 - ConoHa VPS3 アカウント
 - SSH キーペア設定済み
+- 公開したい FQDN の DNS A レコードがサーバー IP を指している
 
 ## デプロイ
 
 ```bash
-# サーバー作成（まだない場合）
+# 1. サーバー作成（まだない場合）
 conoha server create --name myserver --flavor g2l-t-2 --image ubuntu-24.04 --key mykey
 
-# アプリ初期化
-conoha app init myserver --app-name nextjs-fastapi-app
+# 2. conoha.yml の `hosts:` を自分の FQDN に書き換える
 
-# デプロイ
-conoha app deploy myserver --app-name nextjs-fastapi-app
+# 3. proxy を起動（サーバーごとに 1 回だけ）
+conoha proxy boot --acme-email you@example.com myserver
+
+# 4. アプリ登録
+conoha app init myserver
+
+# 5. デプロイ
+conoha app deploy myserver
 ```
 
-テーブル作成は FastAPI 起動時に自動実行されます（Alembic 不要）。
+テーブル作成は FastAPI 起動時に自動実行されます（Alembic 不要）。`backend` と `db` は accessory として宣言されているため、blue/green 切替時も再起動されません — `frontend` のみが新スロットに立ち上がります。
+
+> **注意**: 現在の `compose.yml` は `NEXT_PUBLIC_API_URL=http://localhost/api` を frontend に渡しています。これはサーバーサイドの Next.js rewrite 経由で `backend:8000/api` にプロキシされる前提です。ブラウザ側 JS から直接呼ばれるケースは動きません（pre-existing issue、本 PR の対象外）。
 
 ## 動作確認
 
 ```bash
 # コンテナ状態を確認
-conoha app status myserver --app-name nextjs-fastapi-app
+conoha app status myserver
 
 # ログを確認
-conoha app logs myserver --app-name nextjs-fastapi-app
+conoha app logs myserver
 
-# API をテスト
-curl http://<サーバーIP>/api/health
-curl http://<サーバーIP>/api/posts
-curl -X POST http://<サーバーIP>/api/posts \
+# API をテスト（proxy 経由で frontend → backend にルーティング）
+curl https://<あなたの FQDN>/api/health
+curl https://<あなたの FQDN>/api/posts
+curl -X POST https://<あなたの FQDN>/api/posts \
   -H 'Content-Type: application/json' \
   -d '{"title":"テスト投稿","body":"本文です。"}'
 ```
 
-ブラウザで `http://<サーバーIP>` にアクセスするとコーポレートサイト風のトップページが表示されます。
+ブラウザで `https://<あなたの FQDN>` にアクセスするとコーポレートサイト風のトップページが表示されます。初回は Let's Encrypt 証明書発行に数十秒かかる場合があります。
 
 ## ページ構成
 

@@ -73,16 +73,25 @@ docker compose up --build
 ## ConoHa VPS にデプロイ
 
 ```bash
-# サーバー作成(既存があればスキップ)
+# 1. サーバー作成（既存があればスキップ）
 conoha server create --name line-mock --flavor g2l-t-2 --image ubuntu-24.04 --key mykey
 
+# 2. conoha.yml の `hosts:` を自分の FQDN に書き換える
+#    DNS A レコードがサーバー IP を指している必要があります
+
+# 3. proxy を起動（サーバーごとに 1 回だけ）
+conoha proxy boot --acme-email you@example.com line-mock
+
 cd line-api-mock
-conoha app init line-mock --app-name line-mock
-conoha app deploy line-mock --app-name line-mock
+conoha app init line-mock
+conoha app deploy line-mock
 
 # シードされた認証情報を確認
-conoha app logs line-mock --app-name line-mock
+conoha app logs line-mock
 ```
+
+`db` は accessory として宣言されているため、blue/green 切替時も PostgreSQL は再起動されません。
+管理 UI は `https://<あなたの FQDN>/admin` で利用できます。
 
 ## テスト
 

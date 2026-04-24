@@ -1,0 +1,12 @@
+name: ollama-webui
+# Replace with your own FQDN before running `conoha app init`.
+hosts:
+  - ollama-webui.example.com
+web:
+  service: webui
+  port: 8080
+# `ollama` is marked as an accessory: the model store and running
+# server are expensive to restart, so we keep it alive across
+# blue/green swaps — only `webui` is duplicated per slot.
+accessories:
+  - ollama
