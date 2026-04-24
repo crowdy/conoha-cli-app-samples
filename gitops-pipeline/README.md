@@ -106,7 +106,9 @@ git push -u origin main
 
 ### 環境変数の受け渡し
 
-`DEPLOY_SHA` / `DEPLOY_TIMESTAMP` は `conoha app env set` でサーバ上の共有 `.env.server` に書かれ、次回以降のすべての slot の `compose.yml` から参照されます。ページ側は `process.env.DEPLOY_SHA` として読みます (`app/page.tsx`)。
+デプロイ直前に workflow が `.env` を生成し、`conoha app deploy` が同梱する tar に含めてターゲットへ届けます。docker compose は compose ファイルと同じディレクトリの `.env` を自動で読み込むため、`compose.yml` の `${DEPLOY_SHA:-dev}` 展開がそのまま機能します。ページ側は `process.env.DEPLOY_SHA` として読みます (`app/page.tsx`)。
+
+> **補足**: proxy モードでは `conoha app env set` が slot に反映されない既知の挙動があるため ([conoha-cli#94](https://github.com/crowdy/conoha-cli/issues/94))、本サンプルは proxy / no-proxy 両対応の `.env` 同梱方式を採っています。`.env` は `.gitignore` 済みなのでリポジトリには残りません。
 
 ## 動作確認
 

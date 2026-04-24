@@ -67,17 +67,15 @@ jobs:
           mkdir -p "$CONOHA_CONFIG_DIR"
           conoha auth login
 
-      - name: Set per-deploy env vars on the server
-        env:
-          CONOHA_NO_INPUT: "1"
-          CONOHA_YES: "1"
-          CONOHA_CONFIG_DIR: ${{ runner.temp }}/conoha
+      - name: Write per-deploy .env (picked up by compose substitution)
+        # `conoha app env set` is no-op in proxy-mode slots (see conoha-cli#94),
+        # so we ship the values inside the deploy tar instead. docker compose
+        # auto-loads `.env` from the compose file's directory on the target.
         run: |
-          conoha app env set "${{ vars.CONOHA_SERVER_NAME }}" \
-            --app-name "$APP_NAME" \
-            --identity ~/.ssh/conoha_deploy \
-            DEPLOY_SHA="${{ github.sha }}" \
-            DEPLOY_TIMESTAMP="${{ github.event.head_commit.timestamp }}"
+          cat > .env <<EOF
+          DEPLOY_SHA=${{ github.sha }}
+          DEPLOY_TIMESTAMP=${{ github.event.head_commit.timestamp }}
+          EOF
 
       - name: Deploy
         env:
