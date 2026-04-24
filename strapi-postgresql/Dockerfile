@@ -4,23 +4,24 @@ RUN apk add --no-cache build-base python3
 
 WORKDIR /app
 
-# Create Strapi project non-interactively (pipe yes to skip cloud login prompt)
+# Skip the Strapi Cloud login prompt that otherwise hangs headless
+# deploys on the arrow-key "Login/Sign up | Skip" menu.
 ENV STRAPI_DISABLE_REMOTE_DATA_TRANSFER=true
-RUN echo "n" | npx --yes create-strapi-app@4.25.9 . \
+ENV STRAPI_TELEMETRY_DISABLED=true
+
+RUN npx --yes create-strapi-app@4.25.9 . \
   --no-run \
+  --skip-cloud \
   --dbclient postgres \
   --dbhost db \
   --dbport 5432 \
   --dbname strapi \
   --dbusername strapi \
   --dbpassword strapi \
-  --dbssl false \
-  || true
+  --dbssl false
 
-# Verify package.json exists (project was created)
 RUN test -f /app/package.json
 
-# Install pg driver
 RUN npm install pg
 
 EXPOSE 1337
