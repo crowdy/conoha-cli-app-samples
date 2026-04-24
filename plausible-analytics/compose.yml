@@ -1,6 +1,6 @@
 services:
   plausible:
-    image: ghcr.io/plausible/community-edition:v2.1.6
+    image: ghcr.io/plausible/community-edition:v2.1.5
     # No host-side port: conoha-proxy injects a randomly-bound
     # 127.0.0.1:0:8000 mapping at deploy time so two slots (blue/green)
     # can coexist. Publishing explicitly here would conflict.
