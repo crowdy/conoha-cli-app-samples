@@ -32,10 +32,12 @@ conoha app init myserver
 # 5. 環境変数を設定（このステップは必須 —
 #    - パスワードは compose.yml のデフォルト値が公開リポジトリに記載されているため
 #    - GHOST_URL はこの値が Ghost の投稿・画像 URL 生成に使われるため本番 FQDN を指定）
+#    `ghost-blog.example.com` の部分は conoha.yml の `hosts:` に
+#    合わせて自分の FQDN に置き換えてください。
 conoha app env set myserver \
   MYSQL_ROOT_PASSWORD=$(openssl rand -base64 32) \
   GHOST_DB_PASSWORD=$(openssl rand -base64 32) \
-  GHOST_URL=https://<あなたの FQDN>
+  GHOST_URL=https://ghost-blog.example.com
 
 # 6. デプロイ
 conoha app deploy myserver

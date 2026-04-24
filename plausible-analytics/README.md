@@ -35,8 +35,10 @@ conoha app init myserver
 #    DB_PASSWORD は DATABASE_URL に埋め込まれるため、`/` や `+` を含む
 #    base64 ではなく hex で生成する — URI パーサが password 区間を
 #    誤って切り詰めてしまうのを防ぐため）
+#    `plausible-analytics.example.com` の部分は conoha.yml の
+#    `hosts:` に合わせて自分の FQDN に置き換えてください。
 conoha app env set myserver \
-  BASE_URL=https://<あなたの FQDN> \
+  BASE_URL=https://plausible-analytics.example.com \
   SECRET_KEY_BASE=$(openssl rand -base64 48) \
   DB_PASSWORD=$(openssl rand -hex 32)
 
