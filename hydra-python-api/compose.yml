@@ -2,9 +2,13 @@ services:
   # Ory Hydra — OAuth2 / OpenID Connect server
   hydra:
     image: oryd/hydra:v2.2
-    ports:
-      - "4444:4444"   # Public API (OAuth2 endpoints)
-      - "4445:4445"   # Admin API (login/consent provider calls)
+    # ⚠ Internal only. Public OAuth2 API (4444) and Admin API (4445)
+    # are on the compose network. Browser-driven OAuth2 flows that
+    # redirect users to hydra:4444 don't work in this layout — see
+    # README for workarounds.
+    expose:
+      - "4444"
+      - "4445"
     environment:
       - DSN=postgres://hydra:hydra@db:5432/hydra?sslmode=disable
       - URLS_SELF_ISSUER=http://${SERVER_HOST}:4444
@@ -31,8 +35,10 @@ services:
   # Python app — Login/consent provider + protected API
   app:
     build: .
-    ports:
-      - "9010:9010"
+    # No host-side port: conoha-proxy injects 127.0.0.1:0:9010 at
+    # deploy time so two slots (blue/green) can coexist.
+    expose:
+      - "9010"
     environment:
       - HYDRA_ADMIN_URL=http://hydra:4445/admin
     depends_on:

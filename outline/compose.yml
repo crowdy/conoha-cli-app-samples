@@ -1,8 +1,10 @@
 services:
   outline:
     image: outlinewiki/outline:0.82.0
-    ports:
-      - "3000:3000"
+    # No host-side port: conoha-proxy injects 127.0.0.1:0:3000 at
+    # deploy time so two slots (blue/green) can coexist.
+    expose:
+      - "3000"
     environment:
       - DATABASE_URL=postgres://outline:${DB_PASSWORD:-outline}@db:5432/outline
       - REDIS_URL=redis://redis:6379
@@ -49,10 +51,12 @@ services:
     volumes:
       - outline_redis:/data
 
+  # ⚠ Browser OIDC flow doesn't work in this layout — see README.
+  # Dex is retained for future subdomain-split restructuring.
   dex:
     image: dexidp/dex:v2.39.1
-    ports:
-      - "5556:5556"
+    expose:
+      - "5556"
     volumes:
       - ./dex-config.yml:/etc/dex/config.docker.yaml
       - dex_data:/var/dex

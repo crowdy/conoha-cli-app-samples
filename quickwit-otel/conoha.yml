@@ -1,0 +1,19 @@
+name: quickwit-otel
+# Replace with your own FQDN before running `conoha app init`.
+hosts:
+  - quickwit-otel.example.com
+web:
+  service: grafana
+  port: 3000
+# `quickwit` (log search backend) and `otel-collector` are accessories.
+#
+# ⚠ KNOWN LIMITATION: the OTLP gRPC endpoint on otel-collector:4317
+# and the Quickwit UI on quickwit:7280 are **only reachable internally**
+# via the compose network. External agents that push OTLP over gRPC
+# from outside the VPS won't work. The OTLP HTTP endpoint on :4318
+# has the same problem. Use Grafana's data source (queries Quickwit
+# over the internal network) for viewing, and deploy telemetry agents
+# on the same VPS that push to `otel-collector:4317` locally.
+accessories:
+  - quickwit
+  - otel-collector

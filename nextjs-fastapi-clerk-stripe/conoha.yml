@@ -1,0 +1,29 @@
+name: nextjs-fastapi-clerk-stripe
+# Replace with your own FQDN before running `conoha app init`.
+hosts:
+  - nextjs-fastapi-clerk-stripe.example.com
+web:
+  service: frontend
+  port: 3000
+# `backend` (FastAPI) and `db` (PostgreSQL) are accessories.
+#
+# ⚠ KNOWN LIMITATION: backend:8000 hosts the Clerk/Stripe webhook
+# endpoints that require verifying the original request body byte-for-
+# byte against an HMAC signature. The usual Next.js rewrite path
+# (`/api/webhooks/*` → frontend → backend) mutates the body and breaks
+# signature verification, so in the pre-migration layout `backend:8000`
+# was directly bound to the host. With the proxy in front, there is
+# no clean way to expose backend externally while keeping the single
+# public FQDN.
+#
+# Workarounds (until a subdomain-split batch restructures this sample):
+# 1. Put `backend` in its own `conoha.yml` project under
+#    `api.example.com` and register webhook URLs there.
+# 2. Use Clerk/Stripe test mode and Stripe CLI webhook forwarding
+#    from a local machine during development.
+#
+# Non-webhook features (sign-in flow, API calls from the browser via
+# Next.js server components) still work against this layout.
+accessories:
+  - backend
+  - db

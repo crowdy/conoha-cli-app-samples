@@ -1,0 +1,27 @@
+name: supabase-selfhost
+# Replace with your own FQDN before running `conoha app init`.
+hosts:
+  - supabase-selfhost.example.com
+web:
+  service: kong
+  port: 8000
+# Kong is the API gateway — supabase client SDKs call `<FQDN>/rest/*`,
+# `<FQDN>/auth/*`, etc., all routed through Kong. Studio (the admin UI)
+# is a separate container that the proxy can't front in this layout.
+#
+# ⚠ KNOWN LIMITATION: Supabase Studio (admin UI on :3000) is an
+# accessory — reachable only via `docker exec` / SSH on the VPS:
+#
+#     ssh root@<vps>
+#     docker exec $(docker ps -q -f name=studio) wget -qO- http://localhost:3000
+#
+# For browser access to Studio, either split Studio into its own
+# `conoha.yml` project under a separate subdomain
+# (`admin.supabase.example.com`), or use the hosted Supabase Studio
+# against this self-hosted API. Planned for a future PR.
+accessories:
+  - studio
+  - auth
+  - rest
+  - meta
+  - db

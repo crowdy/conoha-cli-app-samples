@@ -1,8 +1,10 @@
 services:
   studio:
     image: supabase/studio:latest
-    ports:
-      - "3000:3000"
+    # ⚠ Internal only — Studio admin UI is reachable via `docker exec`
+    # on the VPS. See README for subdomain-split workaround.
+    expose:
+      - "3000"
     environment:
       - STUDIO_PG_META_URL=http://meta:8080
       - SUPABASE_URL=http://kong:8000
@@ -14,8 +16,10 @@ services:
 
   kong:
     image: kong:3.9
-    ports:
-      - "8000:8000"
+    # No host-side port: conoha-proxy injects 127.0.0.1:0:8000 at
+    # deploy time so two slots (blue/green) can coexist.
+    expose:
+      - "8000"
     environment:
       - KONG_DATABASE=off
       - KONG_DECLARATIVE_CONFIG=/home/kong/kong.yml
@@ -74,8 +78,10 @@ services:
 
   db:
     image: supabase/postgres:15.8.1.060
-    ports:
-      - "127.0.0.1:5432:5432"
+    # Internal only. If you need psql from outside, SSH into the VPS
+    # and use `docker exec` on the db container.
+    expose:
+      - "5432"
     environment:
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
       - JWT_SECRET=${JWT_SECRET:-super-secret-jwt-token-with-at-least-32-characters}

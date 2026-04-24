@@ -4,8 +4,10 @@ services:
       context: ./frontend
       args:
         - NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=${NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY}
-    ports:
-      - "80:3000"
+    # No host-side port: conoha-proxy injects 127.0.0.1:0:3000 at
+    # deploy time so two slots (blue/green) can coexist.
+    expose:
+      - "3000"
     environment:
       - NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=${NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY}
       - CLERK_SECRET_KEY=${CLERK_SECRET_KEY}
@@ -21,8 +23,13 @@ services:
 
   backend:
     build: ./backend
-    ports:
-      - "8000:8000"  # Webhook endpoints (Clerk/Stripe signature verification breaks via Next.js rewrite)
+    # ⚠ Internal only in this layout. The original sample needed 8000
+    # bound to the host so Clerk/Stripe webhooks could hit it without
+    # body-mutating rewrites through Next.js. With conoha-proxy
+    # fronting a single FQDN there's no clean way to expose backend
+    # externally — see README for subdomain-split workaround.
+    expose:
+      - "8000"
     environment:
       - DATABASE_URL=postgresql+asyncpg://appuser:apppass@db:5432/appdb
       - STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY}

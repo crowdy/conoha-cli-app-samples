@@ -1,0 +1,26 @@
+name: rails-mercari
+# Replace with your own FQDN before running `conoha app init`.
+hosts:
+  - rails-mercari.example.com
+web:
+  service: nginx
+  port: 80
+# Inner services (`web` = Rails app, `sidekiq` = background workers,
+# `redis`, `dex` = OIDC provider, `db`) are all accessories. Only
+# `nginx` is duplicated per blue/green slot.
+#
+# ⚠ KNOWN LIMITATIONS:
+# - **Only nginx blue/green-swaps**. Code changes to the Rails `web`
+#   service ride on whatever build the slot was created with; the
+#   inner services are *not* re-rolled on a fresh `app deploy`. For
+#   independent blue/green on the Rails app, split `web` into its
+#   own `conoha.yml` project.
+# - **Dex OIDC browser flow doesn't work** (same issue as gitea and
+#   outline). Dex is kept in compose for future subdomain-split
+#   restructuring; for now use Rails' local session auth only.
+accessories:
+  - web
+  - sidekiq
+  - redis
+  - dex
+  - db

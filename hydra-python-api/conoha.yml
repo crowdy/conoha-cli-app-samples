@@ -1,0 +1,23 @@
+name: hydra-python-api
+# Replace with your own FQDN before running `conoha app init`.
+hosts:
+  - hydra-python-api.example.com
+web:
+  service: app
+  port: 9010
+# `hydra` (OAuth2/OIDC server), `hydra-migrate` (one-shot DB migration),
+# and `db` are accessories.
+#
+# ⚠ KNOWN LIMITATION: Hydra's public OAuth2 endpoints (:4444) and admin
+# API (:4445) are only reachable on the compose network. This means a
+# real browser-driven OAuth2 flow (where a client app redirects the
+# user to `hydra:4444/oauth2/auth`) cannot land. The bundled Python
+# `app` (login/consent provider + protected API) works standalone for
+# UI inspection, and hydra-to-app server-to-server calls still work,
+# but the full end-to-end authorization code flow requires splitting
+# Hydra onto its own subdomain (`auth.example.com`). Planned for a
+# future PR.
+accessories:
+  - hydra
+  - hydra-migrate
+  - db
