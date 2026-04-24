@@ -1,0 +1,7 @@
+name: bun-elysia-chat
+# Replace with your own FQDN before running `conoha app init`.
+hosts:
+  - chat.example.com
+web:
+  service: web
+  port: 3000

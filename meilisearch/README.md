@@ -12,29 +12,34 @@ Algolia 代替の高速セルフホスティング全文検索エンジン。タ
 - conoha-cli がインストール済み
 - ConoHa VPS3 アカウント
 - SSH キーペアが設定済み
+- 公開したい FQDN の DNS A レコードがサーバー IP を指している
 
 ## デプロイ
 
 ```bash
-# サーバー作成
+# 1. サーバー作成
 conoha server create --name myserver --flavor g2l-t-1 --image ubuntu-24.04 --key mykey
 
-# アプリ初期化
-conoha app init myserver --app-name meilisearch
+# 2. conoha.yml の `hosts:` を自分の FQDN に書き換える
 
-# 環境変数を設定
-conoha app env set myserver --app-name meilisearch \
-  MEILI_MASTER_KEY=$(openssl rand -base64 32)
+# 3. proxy を起動（サーバーごとに 1 回だけ）
+conoha proxy boot --acme-email you@example.com myserver
 
-# デプロイ
-conoha app deploy myserver --app-name meilisearch
+# 4. アプリ登録
+conoha app init myserver
+
+# 5. 環境変数を設定（master key は自分で生成）
+conoha app env set myserver MEILI_MASTER_KEY=$(openssl rand -base64 32)
+
+# 6. デプロイ
+conoha app deploy myserver
 ```
 
 ## 動作確認
 
 ```bash
 # ドキュメントを追加
-curl -X POST "http://<サーバーIP>:7700/indexes/movies/documents" \
+curl -X POST "https://<あなたの FQDN>/indexes/movies/documents" \
   -H "Authorization: Bearer <MEILI_MASTER_KEY>" \
   -H "Content-Type: application/json" \
   --data-binary '[
@@ -44,11 +49,11 @@ curl -X POST "http://<サーバーIP>:7700/indexes/movies/documents" \
   ]'
 
 # 検索（タイポ耐性あり）
-curl "http://<サーバーIP>:7700/indexes/movies/search?q=千と千尋" \
+curl "https://<あなたの FQDN>/indexes/movies/search?q=千と千尋" \
   -H "Authorization: Bearer <MEILI_MASTER_KEY>"
 ```
 
-ブラウザで `http://<サーバーIP>:7700` にアクセスするとミニダッシュボードも利用可能です。
+ブラウザで `https://<あなたの FQDN>` にアクセスするとミニダッシュボードも利用可能です。初回は Let's Encrypt 証明書発行に数十秒かかる場合があります。
 
 ## カスタマイズ
 

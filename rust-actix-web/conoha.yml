@@ -1,0 +1,7 @@
+name: rust-actix-web
+# Replace with your own FQDN before running `conoha app init`.
+hosts:
+  - rust-api.example.com
+web:
+  service: web
+  port: 3000

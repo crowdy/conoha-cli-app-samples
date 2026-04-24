@@ -1,8 +1,10 @@
 services:
   uptime-kuma:
     image: louislam/uptime-kuma:1
-    ports:
-      - "3001:3001"
+    # No host-side port: conoha-proxy injects a randomly-bound
+    # 127.0.0.1:0:3001 mapping at deploy time for blue/green discovery.
+    expose:
+      - "3001"
     volumes:
       - uptime_kuma_data:/app/data
     restart: unless-stopped
