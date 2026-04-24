@@ -1,0 +1,19 @@
+name: outline
+# Replace with your own FQDN before running `conoha app init`.
+hosts:
+  - outline.example.com
+web:
+  service: outline
+  port: 3000
+# `db` (PostgreSQL), `redis`, and `dex` are accessories.
+#
+# ⚠ KNOWN LIMITATION: Dex (`:5556`) is kept on the compose network
+# only, which means the browser-side OIDC flow breaks (Outline
+# redirects the browser to `http://dex:5556/...` which isn't reachable
+# from outside). See README "既知の制限" for workarounds. For now,
+# use local account signup or email-based magic-link auth instead of
+# OIDC.
+accessories:
+  - db
+  - redis
+  - dex

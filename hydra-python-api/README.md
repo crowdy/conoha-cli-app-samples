@@ -40,7 +40,19 @@ docker compose up -d
 bash setup.sh
 ```
 
-`setup.sh` が完了すると CLIENT_ID と CLIENT_SECRET が表示されます。
+`setup.sh` が完了すると CLIENT_ID と CLIENT_SECRET が表示されます。ローカル実行時は 3 ポート全てが手元の 127.0.0.1 で公開されるため、後述の VPS 向けの制限には当たりません。
+
+## ⚠ 既知の制限: ブラウザ OAuth2 フローが完結しない
+
+**このサンプルの実 OAuth2 認可フローは現行の conoha-proxy 構成では完結しません**。理由:
+
+- ブラウザ → `hydra:4444/oauth2/auth` へのリダイレクトが必要
+- Hydra から `app:9010/login` へのリダイレクトも browser 経由
+- conoha-proxy は FQDN につき 1 サービスしかフロントできないため、`app:9010` か `hydra:4444` のどちらか一方しか外部公開できない
+
+本 PR では **`app:9010` を proxy フロント対象** として migrate しました。`app` 単体の login / consent 画面は `https://<FQDN>/login` 等で開けますが、通常の OAuth2 クライアントが `hydra:4444/oauth2/auth` にリダイレクトする経路は動きません。
+
+完全な E2E 動作には Hydra を別 `conoha.yml` プロジェクトに切り出して `auth.example.com` サブドメインで proxy 下に並べる構成が必要です（future batch で対応予定）。
 
 ## ConoHa VPS デプロイ
 
@@ -48,64 +60,64 @@ bash setup.sh
 
 - conoha-cli がインストール・認証済み
 - SSH キーペア設定済み
-- セキュリティグループでポート 4444, 4445, 9010 が開放されていること
+- 公開したい FQDN の DNS A レコードがサーバー IP を指している
 
 ### 手順
 
 ```bash
-# 1. アプリ初期化
-conoha app init <SERVER> --app-name hydra-python-api
+# 1. conoha.yml の `hosts:` を自分の FQDN に書き換える
 
-# 2. デプロイ（hydra-python-api ディレクトリから実行）
-conoha app deploy <SERVER> --app-name hydra-python-api
+# 2. proxy を起動（サーバーごとに 1 回だけ）
+conoha proxy boot --acme-email you@example.com <SERVER>
 
-# 3. セットアップ（IP 自動検出 + OAuth2 クライアント登録）
+# 3. アプリ初期化
+conoha app init <SERVER>
+
+# 4. デプロイ（hydra-python-api ディレクトリから実行）
+conoha app deploy <SERVER>
+
+# 5. セットアップ（`setup.sh` は内部で OAuth2 クライアントを Hydra 管理 API に登録）
 conoha server deploy <SERVER> --script setup.sh
 ```
 
-`setup.sh` がサーバーの Public IP を自動検出し、`.env` を更新してコンテナを再起動した後、OAuth2 クライアントを登録します。
+setup.sh はコンテナネットワーク越しに `http://hydra:4445/admin` を叩いて OAuth2 クライアントを登録します。サーバー内部で閉じた処理のため、proxy layer の制約には影響されません。
 
 ## Agent デプロイ手順 (Claude Code etc.)
 
 AI エージェントがこのサンプルをデプロイする場合、以下の手順を順番に実行してください。
 
-### 前提条件
-- `conoha-cli` が認証済みであること
-- 対象サーバーが ACTIVE 状態であること
-- セキュリティグループでポート 4444, 4445, 9010 が開放されていること
-
 ### 手順
 
-1. アプリ初期化（Docker 環境セットアップ）
+1. proxy 起動（まだの場合）
    ```bash
-   conoha app init <SERVER_ID> --app-name hydra-python-api --no-input
+   conoha proxy boot --acme-email you@example.com <SERVER_ID>
    ```
 
-2. アプリデプロイ（hydra-python-api ディレクトリから実行）
+2. アプリ初期化
+   ```bash
+   conoha app init <SERVER_ID> --no-input
+   ```
+
+3. アプリデプロイ（hydra-python-api ディレクトリから実行）
    ```bash
    cd <path-to>/hydra-python-api
-   conoha app deploy <SERVER_ID> --app-name hydra-python-api --no-input
+   conoha app deploy <SERVER_ID> --no-input
    ```
 
-3. セットアップスクリプト実行（IP 自動検出 + OAuth2 クライアント登録）
+4. セットアップスクリプト実行（OAuth2 クライアント登録）
    ```bash
    conoha server deploy <SERVER_ID> --script setup.sh --no-input
    ```
-   - `setup.sh` はサーバー上の `/opt/conoha/hydra-python-api` を自動検出して `cd` する
    - 出力から CLIENT_ID と CLIENT_SECRET をキャプチャすること
 
-4. 動作確認
-   - サーバー IP を `conoha server show <SERVER_ID>` で取得
-   - ブラウザで認可 URL にアクセス:
-     ```
-     http://<IP>:4444/oauth2/auth?response_type=code&client_id=<CLIENT_ID>&redirect_uri=http://<IP>:9010/callback&scope=openid+profile+email&state=random-state-12345
-     ```
-   - curl でトークン交換・API アクセスを確認
+5. 動作確認（**login/consent UI のみ — 実 OAuth2 flow は subdomain split 必要**）
+   - ブラウザで `https://<あなたの FQDN>/login` にアクセス → Python アプリの login 画面
+   - 実 OAuth2 flow は subdomain split 後に有効化
 
 ### 注意事項
 - `--no-input` と `--yes` フラグを使用すること（非 TTY 環境対応）
 - setup.sh の出力にクライアント情報が含まれるので、必ずキャプチャすること
-- ポートが開放されていない場合、セキュリティグループを事前に設定すること
+- 完全な E2E OAuth2 flow には追加作業が必要 — 上述「既知の制限」参照
 
 ## 動作確認
 
@@ -156,6 +168,11 @@ curl http://<サーバーIP>:9010/api/public
 ## カスタマイズ
 
 - `main.py` の `login_post` を変更して実際のユーザー認証ロジックを実装
-- `compose.yml` の `SECRETS_SYSTEM` を本番用の強力なシークレットに変更
+- 本番用シークレットは `conoha app env set` で設定:
+  ```bash
+  conoha app env set <SERVER> \
+    SECRETS_SYSTEM=$(openssl rand -hex 32) \
+    POSTGRES_PASSWORD=$(openssl rand -base64 32)
+  ```
 - HTTPS が必要な場合は nginx リバースプロキシを前段に追加
 - 本番環境では `--dev` フラグを削除し、`.env` の `SERVER_HOST` を実際のドメインに設定

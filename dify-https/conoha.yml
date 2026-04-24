@@ -1,0 +1,21 @@
+name: dify-https
+# Replace with your own FQDN before running `conoha app init`.
+hosts:
+  - dify-https.example.com
+web:
+  service: nginx
+  port: 80
+# Inner services (`api`, `worker`, `web`, `db`, `redis`) are all
+# accessories. Only `nginx` is duplicated per blue/green slot.
+#
+# ⚠ KNOWN LIMITATION: **Only nginx blue/green-swaps**. Updates to the
+# Dify `api`, `worker`, or `web` containers don't get a fresh slot on
+# `app deploy`. For independent blue/green on those services, split
+# them into their own `conoha.yml` projects under subdomains
+# (`api.dify.example.com` etc.).
+accessories:
+  - api
+  - worker
+  - web
+  - db
+  - redis
