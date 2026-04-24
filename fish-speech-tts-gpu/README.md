@@ -69,7 +69,17 @@ GPU が認識されていることを確認してください。
 ## デプロイ
 
 ```bash
-conoha app deploy fish-speech --app fish-speech-tts-gpu
+# 1. conoha.yml の `hosts:` を自分の FQDN に書き換える
+#    (DNS A レコードがサーバー IP を指している必要があります)
+
+# 2. proxy を起動（サーバーごとに 1 回だけ）
+conoha proxy boot --acme-email you@example.com fish-speech
+
+# 3. アプリ登録
+conoha app init fish-speech
+
+# 4. デプロイ
+conoha app deploy fish-speech
 ```
 
 初回起動時は Fish Speech モデル（s2-pro）の自動ダウンロードが行われるため、数分かかります。2 回目以降はモデルがキャッシュされているため即座に起動します。
@@ -78,22 +88,19 @@ conoha app deploy fish-speech --app fish-speech-tts-gpu
 
 ### WebUI
 
-ブラウザで `http://<サーバーIP>:7860` にアクセスしてください。
+ブラウザで `https://<あなたの FQDN>` にアクセスしてください。初回は Let's Encrypt 証明書発行に数十秒かかる場合があります。
 
-### API ヘルスチェック
+### REST API
 
-```bash
-curl http://<サーバーIP>:8080/v1/health
-# {"status":"ok"}
-```
+API サーバー（ポート 8080）は **conoha-proxy 経由では公開されません** — proxy は HTTP ホスト 1 つにつき 1 ポートしかルーティングできず、WebUI（7860）のみを外部公開しています。さらに `expose:` のみで host-side binding も無いため、SSH トンネル (`-L 8080:localhost:8080`) ではホスト側の 8080 に何もバインドされておらず到達できません。
 
-### CLI から音声生成
+API を叩くには VPS に SSH でログイン後、実行中の fish-speech コンテナ内から実行してください：
 
 ```bash
-curl -X POST http://<サーバーIP>:8080/v1/tts \
-  -H "Content-Type: application/json" \
-  -d '{"text":"こんにちは、世界！","format":"wav"}' \
-  -o hello.wav
+conoha server ssh fish-speech
+# コンテナ内で curl:
+docker exec $(docker ps --filter label=com.docker.compose.service=fish-speech --format '{{.Names}}') \
+  curl -s http://localhost:8080/v1/health
 ```
 
 ## Go CLI クライアント
@@ -114,27 +121,35 @@ sudo apt install libasound2-dev
 
 ### 使い方
 
+CLI は `--server` で API ベース URL を受け取ります。blue/green proxy 構成では 8080 が外部ネットワークに露出しないため、**この構成ではローカル端末から直接 CLI を実行できません**。以下いずれかの方法を使用してください：
+
+- **VPS 内で CLI を実行**: バイナリを VPS に転送し、同じ compose ネットワーク上のコンテナとして起動するか、`docker cp` で fish-speech コンテナに入れて `docker exec` で実行。CLI 内からは `--server http://localhost:8080` が到達可能。
+- **API 用 FQDN を追加**: 別の `conoha.yml` プロジェクトで 8080 を proxy 経由で公開し、CLI から `--server https://api.<your FQDN>` で接続（2 つの FQDN が必要）。
+- **開発/ローカル用途**: `compose.yml` で `expose:` を `ports: ["8080:8080"]` に戻す（blue/green 2 スロット共存時には衝突するため本番非推奨）。
+
+以下はコンテナ内から CLI を実行する想定のコマンド例です：
+
 ```bash
 # テキスト → スピーカー再生
-./fish-speech-cli tts -t "こんにちは" --server http://<サーバーIP>:8080
+./fish-speech-cli tts -t "こんにちは" --server http://localhost:8080
 
 # ファイルに保存
-./fish-speech-cli tts -t "Hello, world!" -o hello.wav --server http://<サーバーIP>:8080
+./fish-speech-cli tts -t "Hello, world!" -o hello.wav --server http://localhost:8080
 
 # 音声クローニング（リファレンス音声を使用）
-./fish-speech-cli ref add --name my-voice --file voice.wav --text "音声のテキスト" --server http://<サーバーIP>:8080
-./fish-speech-cli tts -t "クローニングされた声" --ref my-voice --server http://<サーバーIP>:8080
+./fish-speech-cli ref add --name my-voice --file voice.wav --text "音声のテキスト" --server http://localhost:8080
+./fish-speech-cli tts -t "クローニングされた声" --ref my-voice --server http://localhost:8080
 
 # リファレンス音声の管理
-./fish-speech-cli ref list --server http://<サーバーIP>:8080
-./fish-speech-cli ref delete --name my-voice --server http://<サーバーIP>:8080
+./fish-speech-cli ref list --server http://localhost:8080
+./fish-speech-cli ref delete --name my-voice --server http://localhost:8080
 
 # オーディオ → VQ トークン変換
-./fish-speech-cli encode --input audio.wav --output tokens.json --server http://<サーバーIP>:8080
-./fish-speech-cli decode --input tokens.json --output output.wav --server http://<サーバーIP>:8080
+./fish-speech-cli encode --input audio.wav --output tokens.json --server http://localhost:8080
+./fish-speech-cli decode --input tokens.json --output output.wav --server http://localhost:8080
 
 # ヘルスチェック
-./fish-speech-cli health --server http://<サーバーIP>:8080
+./fish-speech-cli health --server http://localhost:8080
 ```
 
 ## カスタマイズ

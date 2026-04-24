@@ -1,0 +1,10 @@
+name: fish-speech-tts-gpu
+# Replace with your own FQDN before running `conoha app init`.
+hosts:
+  - fish-speech-tts-gpu.example.com
+web:
+  service: fish-speech
+  # WebUI (Gradio) port. The container also listens on 8080 for the REST
+  # API used by the bundled Go CLI client, but proxy can only front one
+  # HTTP port — see README for SSH-tunnel access to the API.
+  port: 7860

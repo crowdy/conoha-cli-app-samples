@@ -1,0 +1,13 @@
+name: minio-n8n
+# Replace with your own FQDN before running `conoha app init`.
+hosts:
+  - minio-n8n.example.com
+web:
+  service: n8n
+  port: 5678
+# `minio` is marked as an accessory: n8n reaches it internally via the
+# compose network at `minio:9000`, so the MinIO API/console don't need
+# external access. The MinIO console (9001) is reachable via SSH tunnel
+# if you need to inspect buckets directly — see README.
+accessories:
+  - minio

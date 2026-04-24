@@ -1,9 +1,12 @@
 services:
   minio:
     image: minio/minio:latest
-    ports:
-      - "9000:9000"
-      - "9001:9001"
+    # No host-side ports: n8n reaches MinIO internally at `minio:9000`
+    # over the compose network. The MinIO console (9001) is reachable
+    # via SSH tunnel — see README — but it's not on the public proxy.
+    expose:
+      - "9000"
+      - "9001"
     environment:
       - MINIO_ROOT_USER=${MINIO_ROOT_USER:-minioadmin}
       - MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD:-minioadmin}
@@ -18,8 +21,10 @@ services:
 
   n8n:
     image: n8nio/n8n:latest
-    ports:
-      - "5678:5678"
+    # No host-side port: conoha-proxy injects 127.0.0.1:0:5678 at
+    # deploy time so two slots (blue/green) can coexist.
+    expose:
+      - "5678"
     environment:
       - N8N_BASIC_AUTH_ACTIVE=true
       - N8N_BASIC_AUTH_USER=${N8N_USER:-admin}
@@ -27,6 +32,11 @@ services:
       - N8N_PROTOCOL=http
       - N8N_HOST=0.0.0.0
       - N8N_PORT=5678
+      # WEBHOOK_URL must be set to your public FQDN via `conoha app env
+      # set WEBHOOK_URL=https://<FQDN>` — n8n uses this to generate
+      # externally-reachable webhook URLs. Leaving it empty falls back
+      # to the container-local URL which isn't reachable from outside.
+      - WEBHOOK_URL=${WEBHOOK_URL:-}
     volumes:
       - n8n_data:/home/node/.n8n
 

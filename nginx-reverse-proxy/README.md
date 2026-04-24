@@ -9,31 +9,57 @@ nginx をリバースプロキシとして使い、複数のアプリを1台の 
 - App 2: Python（API サーバー、`/api/` でアクセス）
 - ポート: 80
 
+## このサンプルの位置付け
+
+> **note**: conoha-proxy が Host ベースのルーティングと Let's Encrypt による
+> TLS 終端を担うようになったため、**新規プロジェクトでは内側に nginx を置く必要は
+> 通常ありません**。conoha-proxy 単体で `https://app.example.com` → app1、
+> `https://api.example.com` → app2 のような分離が可能です（複数の `hosts:` を
+> 別々のアプリとして登録するか、それぞれ別の `conoha.yml` プロジェクトとして
+> 並べる）。
+>
+> このサンプルは、**1 つの FQDN でパスごと（`/` → app1、`/api/` → app2）に
+> 振り分けたい**ようなケースの参考実装として残しています。conoha-proxy が
+> nginx をフロントし、nginx がさらに app1/app2 にパスベースで振り分ける
+> 二段構成です。
+
 ## 前提条件
 
 - conoha-cli がインストール済み
 - ConoHa VPS3 アカウント
 - SSH キーペア設定済み
+- 公開したい FQDN の DNS A レコードがサーバー IP を指している
 
 ## デプロイ
 
 ```bash
-# サーバー作成（まだない場合）
+# 1. サーバー作成（まだない場合）
 conoha server create --name myserver --flavor g2l-t-1 --image ubuntu-24.04 --key mykey
 
-# アプリ初期化
-conoha app init myserver --app-name reverse-proxy
+# 2. conoha.yml の `hosts:` を自分の FQDN に書き換える
 
-# デプロイ
-conoha app deploy myserver --app-name reverse-proxy
+# 3. proxy を起動（サーバーごとに 1 回だけ）
+conoha proxy boot --acme-email you@example.com myserver
+
+# 4. アプリ登録
+conoha app init myserver
+
+# 5. デプロイ
+conoha app deploy myserver
 ```
+
+`app1` と `app2` は accessory として宣言されているため、blue/green 切替時も
+再起動されません。`proxy` (nginx) コンテナのみが新スロットに立ち上がります
+— 内側の nginx 設定だけを変更して再デプロイしたい場合に有効な構成です。
 
 ## 動作確認
 
-- `http://<サーバーIP>/` → App 1（Node.js フロントエンド）
-- `http://<サーバーIP>/api/hello` → App 2（Python API）
-- `http://<サーバーIP>/health` → nginx ヘルスチェック
-- `http://<サーバーIP>/debug/headers` → プロキシ転送ヘッダーの確認
+- `https://<あなたの FQDN>/` → App 1（Node.js フロントエンド）
+- `https://<あなたの FQDN>/api/hello` → App 2（Python API）
+- `https://<あなたの FQDN>/health` → nginx ヘルスチェック
+- `https://<あなたの FQDN>/debug/headers` → プロキシ転送ヘッダーの確認
+
+初回は Let's Encrypt 証明書発行に数十秒かかる場合があります。
 
 ## リバースプロキシ機能
 
