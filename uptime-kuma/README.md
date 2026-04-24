@@ -25,8 +25,10 @@ conoha server create --name myserver --flavor g2l-t-1 --image ubuntu-24.04 --key
 # 3. proxy を起動（サーバーごとに 1 回だけ）
 conoha proxy boot --acme-email you@example.com myserver
 
-# 4. アプリ登録・デプロイ
+# 4. アプリ登録
 conoha app init myserver
+
+# 5. デプロイ
 conoha app deploy myserver
 ```
 

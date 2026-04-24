@@ -41,38 +41,27 @@ Rust と Actix-web で構築した高速 REST API サーバーです。インメ
 
 **ローカルに Rust toolchain は不要です。** ビルドはすべてサーバー上の Docker マルチステージビルドで完結します。
 
-## デプロイ手順
-
-### 1. サーバー作成（まだない場合）
+## デプロイ
 
 ```bash
+# 1. サーバー作成（まだない場合）
 conoha server create --name myserver --flavor g2l-t-2 --image ubuntu-24.04 --key mykey
-```
 
-### 2. `conoha.yml` の `hosts:` を自分の FQDN に書き換える
+# 2. conoha.yml の `hosts:` を自分の FQDN に書き換える
 
-### 3. proxy を起動（サーバーごとに 1 回だけ）
-
-```bash
+# 3. proxy を起動（サーバーごとに 1 回だけ）
 conoha proxy boot --acme-email you@example.com myserver
-```
 
-### 4. アプリ登録
-
-```bash
-cd rust-actix-web
+# 4. アプリ登録
 conoha app init myserver
-```
 
-### 5. デプロイ
-
-```bash
+# 5. デプロイ
 conoha app deploy myserver
 ```
 
 初回ビルドは Rust コンパイルに数分かかります。Docker レイヤーキャッシュにより、2回目以降は依存関係の変更がなければ数秒で完了します。
 
-### 6. 動作確認
+## 動作確認
 
 ```bash
 # ステータス確認

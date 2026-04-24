@@ -2,6 +2,7 @@ services:
   web:
     build: .
     # No host-side port: conoha-proxy injects a randomly-bound
-    # 127.0.0.1:0:80 mapping at deploy time for blue/green discovery.
+    # 127.0.0.1:0:80 mapping at deploy time so two slots (blue/green)
+    # can coexist. Publishing explicitly here would conflict.
     expose:
       - "80"
