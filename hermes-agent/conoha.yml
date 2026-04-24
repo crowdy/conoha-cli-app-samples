@@ -1,0 +1,15 @@
+name: hermes-agent
+# Replace with your own FQDN before running `conoha app init`.
+hosts:
+  - hermes-agent.example.com
+web:
+  service: nginx
+  port: 80
+# `gateway` (LLM agent gateway, port 8642 internal) and `dashboard`
+# (HTMX UI, port 9119 internal) are accessories — the in-container
+# nginx proxies to them. Same caveat as sendgrid-invitation: only
+# `nginx` is duplicated per blue/green slot, so updates to gateway
+# or dashboard ride with the slot's snapshot.
+accessories:
+  - gateway
+  - dashboard

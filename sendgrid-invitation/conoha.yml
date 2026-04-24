@@ -1,0 +1,17 @@
+name: sendgrid-invitation
+# Replace with your own FQDN before running `conoha app init`.
+hosts:
+  - sendgrid-invitation.example.com
+web:
+  service: nginx
+  port: 80
+# `frontend` (Next.js) and `backend` (FastAPI) are accessories — the
+# in-container nginx proxies to them on the compose network. NOTE:
+# only `nginx` is duplicated per blue/green slot. Code changes to
+# frontend/backend ride on whatever build the slot was created with;
+# the inner services are *not* re-rolled on a fresh `app deploy`. If
+# you need separate blue/green for the inner services, structure them
+# as their own conoha.yml projects fronted directly by conoha-proxy.
+accessories:
+  - frontend
+  - backend

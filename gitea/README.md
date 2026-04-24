@@ -1,30 +1,37 @@
 # gitea
 
-Gitea + Dex (OIDC) + PostgreSQL を使ったセルフホスティング Git サービスです。
-Dex を OpenID Connect プロバイダーとして統合し、外部認証によるシングルサインオンが可能です。
+Gitea + PostgreSQL を使ったセルフホスティング Git サービスです。Gitea のローカル認証で
+HTTPS 経由の Git ホスティングとして動きます。
+
+> **⚠ この layout では Dex 経由の OIDC ブラウザログインは動作しません。** 理由と回避策は
+> 後述の「[既知の制限: ブラウザ OIDC ログイン](#既知の制限-ブラウザ-oidc-ログイン)」を参照。
+> compose には Dex + PostgreSQL 用 `dex` データベースが含まれていますが、現行 layout では
+> OIDC endpoint が公開 FQDN 経由で browser から到達できません。
 
 ## 技術スタック
 
-| レイヤー | 技術 | バージョン |
-|---------|------|-----------|
-| Git サーバー | Gitea | latest |
-| OIDC プロバイダー | Dex | v2.45.1 |
-| データベース | PostgreSQL | 17 |
+| レイヤー | 技術 | バージョン | この layout での状態 |
+|---------|------|-----------|-------------------|
+| Git サーバー | Gitea | latest | 公開 FQDN で動作 |
+| OIDC プロバイダー | Dex | v2.45.1 | compose 内部のみ（browser flow 不可） |
+| データベース | PostgreSQL | 17 | accessory（永続化） |
 
 ## アーキテクチャ
 
 ```
-ブラウザ → :3000 → [Gitea] ──OIDC──→ :5556 → [Dex]
-              │                              │
-              │ postgres                     │ postgres
-              ▼                              ▼
-          [PostgreSQL 17] ← DB: gitea    DB: dex
-              SSH: :2222
+ブラウザ → conoha-proxy (HTTPS, FQDN) → gitea:3000
+                                          │
+                                          │ internal compose net
+                                          ▼
+                                        db:5432
+                                        (gitea container, ssh:22)
+
+※ dex:5556 は compose 内にいるが、browser から到達する経路がない
 ```
 
-- **gitea**: セルフホスティング Git サーバー。Web UI（:3000）と SSH（:2222）を公開
-- **dex**: OIDC プロバイダー。Gitea の外部認証バックエンドとして機能（:5556）
-- **db**: PostgreSQL 17。`gitea` と `dex` の2つのデータベースを管理。データは Docker ボリューム `db_data` に永続化
+- **gitea**: セルフホスティング Git サーバー。HTTP UI (`:3000`) は conoha-proxy 経由で公開、`git+ssh` ポート（`:22`）は **コンテナ内部のみ** — 後述の `docker exec` で利用
+- **dex**: OIDC プロバイダー。公開 FQDN 経由で browser から到達できないため、このサンプルでは実質的に遊んでいる状態（将来のサブドメイン分離移行に備えて compose には残している）
+- **db**: PostgreSQL 17。`gitea` と `dex` の 2 つのデータベースを管理。データは Docker ボリュームに永続化
 
 ## ディレクトリ構成
 
@@ -66,47 +73,51 @@ PostgreSQL の初回起動時に実行される初期化スクリプトです。
 | 変数名 | デフォルト値 | 説明 |
 |--------|-------------|------|
 | `GITEA_VERSION` | `latest` | Gitea イメージタグ |
-| `GITEA_HTTP_PORT` | `3000` | Gitea Web UI ポート |
-| `GITEA_SSH_PORT` | `2222` | Gitea SSH ポート |
 | `GITEA_DB_NAME` | `gitea` | Gitea データベース名 |
 | `GITEA_DB_USER` | `gitea` | Gitea データベースユーザー |
-| `GITEA_DB_PASSWORD` | `gitea` | Gitea データベースパスワード |
+| `GITEA_DB_PASSWORD` | `gitea` | Gitea データベースパスワード（必ず変更） |
 | `DEX_VERSION` | `v2.45.1` | Dex イメージタグ |
-| `DEX_HTTP_PORT` | `5556` | Dex HTTP ポート |
-| `DEX_ISSUER_HOST` | `localhost` | Dex の issuer ホスト名 |
 | `DEX_DB_NAME` | `dex` | Dex データベース名 |
 | `DEX_DB_USER` | `dex` | Dex データベースユーザー |
-| `DEX_DB_PASSWORD` | `dex` | Dex データベースパスワード |
-| `GITEA_OAUTH2_CLIENT_ID` | `gitea` | Dex に登録する OAuth2 クライアント ID |
-| `GITEA_OAUTH2_CLIENT_SECRET` | `gitea-dex-secret` | OAuth2 クライアントシークレット |
-| `GITEA_HOST` | `localhost` | Gitea のホスト名（コールバック URL に使用） |
+| `DEX_DB_PASSWORD` | `dex` | Dex データベースパスワード（必ず変更） |
+| `DEX_ISSUER_HOST` | `localhost` | ⚠ 現行 layout では使用不可（browser OIDC が届かない）|
+| `GITEA_HOST` | `localhost` | ⚠ 現行 layout では使用不可（同上）|
+| `GITEA_OAUTH2_CLIENT_ID` | `gitea` | ⚠ 現行 layout では使用不可（同上）|
+| `GITEA_OAUTH2_CLIENT_SECRET` | `gitea-dex-secret` | ⚠ 現行 layout では使用不可（同上）|
 | `POSTGRES_VERSION` | `17-alpine` | PostgreSQL イメージタグ |
+
+> **note**: 旧 `GITEA_HTTP_PORT` / `GITEA_SSH_PORT` / `DEX_HTTP_PORT` は削除しました
+> （proxy が HTTP のホスト側ポートを動的に決めるため、固定値にする意味がなくなった）。
 
 ## 前提条件
 
 - [conoha-cli](https://github.com/crowdy/conoha-cli) がインストール済み
 - ConoHa VPS3 アカウント
 - SSH キーペア設定済み
+- 公開したい FQDN の DNS A レコードがサーバー IP を指している
 
 ## デプロイ
 
 ```bash
-# サーバー作成（まだない場合）
+# 1. サーバー作成（まだない場合）
 conoha server create --name myserver --flavor g2l-t-2 --image ubuntu-24.04 --key mykey
 
-# アプリ初期化
-conoha app init myserver --app-name gitea
+# 2. conoha.yml の `hosts:` を自分の FQDN に書き換える
 
-# 環境変数を設定（パスワードを変更してください）
-conoha app env set myserver --app-name gitea \
-  GITEA_DB_PASSWORD=your_gitea_db_password \
-  DEX_DB_PASSWORD=your_dex_db_password \
-  GITEA_OAUTH2_CLIENT_SECRET=your_oauth2_secret \
-  DEX_ISSUER_HOST=your-server-ip \
-  GITEA_HOST=your-server-ip
+# 3. proxy を起動（サーバーごとに 1 回だけ）
+conoha proxy boot --acme-email you@example.com myserver
 
-# デプロイ
-conoha app deploy myserver --app-name gitea
+# 4. アプリ登録
+conoha app init myserver
+
+# 5. 環境変数を設定（このステップは必須 — compose のデフォルトは
+#    公開リポジトリに記載されています）
+conoha app env set myserver \
+  GITEA_DB_PASSWORD=$(openssl rand -base64 32) \
+  DEX_DB_PASSWORD=$(openssl rand -base64 32)
+
+# 6. デプロイ
+conoha app deploy myserver
 ```
 
 ## 動作確認
@@ -114,54 +125,76 @@ conoha app deploy myserver --app-name gitea
 ### 1. コンテナの状態確認
 
 ```bash
-conoha app status myserver --app-name gitea
-conoha app logs myserver --app-name gitea
+conoha app status myserver
+conoha app logs myserver
 ```
 
 ### 2. Gitea の初期セットアップ
 
-ブラウザで `http://<サーバーIP>:3000` にアクセスし、初期セットアップ画面で管理者アカウントを作成します。
+ブラウザで `https://<あなたの FQDN>` にアクセスし、初期セットアップ画面で管理者アカウントを作成します。初回は Let's Encrypt 証明書発行に数十秒かかる場合があります。
 
-### 3. Dex (OIDC) 認証プロバイダーの登録
+### 3. Git SSH アクセス（compose 内部からのみ）
 
-Gitea の管理画面から OIDC プロバイダーを登録します:
+> **重要**: conoha-proxy は HTTP のみフロントするため、Gitea コンテナの `:22`
+> はホストには公開されません。git+ssh を使うにはサーバーに SSH ログインしたあと、
+> `docker exec` で gitea コンテナに入る必要があります。
 
-1. **サイト管理** → **認証ソース** → **認証ソースを追加**
-2. 以下の値を入力:
+ホストから直接 git+ssh で push / clone することは **このサンプルでは想定していません**。
+代わりに次のいずれかを採用してください:
 
-| 項目 | 値 |
-|------|-----|
-| 認証タイプ | OAuth2 |
-| 認証名 | `dex` |
-| OAuth2 プロバイダー | OpenID Connect |
-| クライアント ID | `gitea`（または `GITEA_OAUTH2_CLIENT_ID` の値） |
-| クライアントシークレット | `gitea-dex-secret`（または `GITEA_OAUTH2_CLIENT_SECRET` の値） |
-| OpenID Connect 自動検出 URL | `http://dex:5556/dex/.well-known/openid-configuration` |
+- **HTTPS で push / clone**（推奨）: `git clone https://<あなたの FQDN>/user/repo.git`
+  Gitea の Personal Access Token (Settings > Applications) を使えばパスワード入力なしで push できます。
+- **VPS 内で git 作業**: `ssh root@<サーバー IP>` してから VPS 上で `git clone` するか、
+  `docker exec -it $(docker ps -q -f name=gitea) git ...` を使う。
 
-3. **認証ソースを追加** をクリック
+ssh 越しの git+ssh をサーバー外部から使いたい場合は、別途ホスト側で `:22` を
+バインドする (gitea を accessory にして `ports: ["2222:22"]` を残し、blue/green
+対象から外す) などの構成変更が必要です。本サンプルではスコープ外です。
 
-### 4. Dex 経由でログイン
+## 既知の制限: ブラウザ OIDC ログイン
 
-1. Gitea のログイン画面に「Dex でサインイン」ボタンが表示されます
-2. クリックすると Dex のログイン画面に遷移します
-3. テスト用ユーザー（`admin@example.com` / `password`）でログインできます
+`dex.yml` と compose にある `dex` サービスは **この layout では browser OIDC フローが
+動作しません**。原因:
 
-### 5. Git SSH アクセス
+- Dex の issuer URL は `http://<DEX_ISSUER_HOST>:5556/dex`
+- conoha-proxy は **FQDN あたり 1 ポート (443)** しかフロントしないため、Dex の `:5556`
+  は browser からは到達不能
+- `DEX_ISSUER_HOST` を公開 FQDN に揃えても、`https://<FQDN>:5556/...` は proxy を
+  経由できず失敗（mixed-content でも弾かれる）
+- Gitea → Dex の server-to-server 呼び出し（discovery doc 取得）は compose 内部
+  ネットワーク経由で成立するため、「設定は通るがログインで失敗する」状態になる
 
-```bash
-git clone ssh://git@<サーバーIP>:2222/user/repo.git
-```
+結果として Gitea 管理画面で OAuth2 認証ソースを登録しても、「Dex でサインイン」
+ボタンを押したあとのリダイレクト先 (`http://<FQDN>:5556/dex/auth?...`) に browser が
+到達できません。**このサンプルでは Gitea のローカル認証だけを使ってください** (step 2
+の初期セットアップで作る管理者アカウント)。
+
+browser OIDC が必要な場合の選択肢:
+
+1. **Dex を別の conoha.yml プロジェクトに切り出す**: `dex.example.com` のような
+   サブドメインを用意し、`gitea.example.com` の隣に `dex` 単体プロジェクトを proxy
+   直下に並べる。issuer は `https://dex.example.com/dex` になり browser も到達可能
+2. **外部の OIDC プロバイダーを使う**: Auth0 / Keycloak / GitHub OAuth などを
+   Gitea の認証ソースとして登録する（Dex と `DEX_*` 変数はすべて不要になる）
+3. **Dex をそのまま使う場合は `--no-proxy` モード**: proxy を介さず host 側で
+   port 3000 と port 5556 を直接公開する（ただし HTTPS を別途用意する必要あり）
+
+このサンプル PR のスコープでは (1) が「conoha-proxy 流儀」として最も自然ですが、
+サブドメイン分離は別 PR で扱う想定です (同種の問題を持つ `outline` と合わせて
+batch 7 以降で対応予定)。
 
 ## カスタマイズ
 
 ### 本番環境
 
-- `GITEA_DB_PASSWORD`、`DEX_DB_PASSWORD`、`GITEA_OAUTH2_CLIENT_SECRET` は必ず変更してください
-- `dex.yml` の `staticPasswords` セクションを削除し、LDAP や SAML などの外部コネクタに置き換えてください
-- `DEX_ISSUER_HOST` と `GITEA_HOST` を実際のドメイン名に設定してください
-- HTTPS が必要な場合は nginx リバースプロキシを前段に追加してください
+- `GITEA_DB_PASSWORD`、`DEX_DB_PASSWORD` は必ず変更してください（step 5 で `openssl rand` を使う方式に従ってください）
+- HTTPS は conoha-proxy が Let's Encrypt で自動終端します（別途 nginx 不要）
+- 外部認証（OIDC / LDAP / SAML）が必要な場合は上述「既知の制限: ブラウザ OIDC ログイン」の回避策を参照してください
 
 ### Dex コネクタの追加
+
+> ※ 以下は Dex を別プロジェクトに切り出して browser から到達できる形に組み直した
+> あとで意味を持ちます (「[既知の制限: ブラウザ OIDC ログイン](#既知の制限-ブラウザ-oidc-ログイン)」参照)。
 
 `dex.yml` に connectors セクションを追加して、外部 IdP と連携できます:
 
