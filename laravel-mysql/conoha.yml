@@ -1,0 +1,11 @@
+name: laravel-mysql
+# Replace with your own FQDN before running `conoha app init`.
+hosts:
+  - laravel-mysql.example.com
+web:
+  service: web
+  port: 80
+# `db` is marked as an accessory so it's started once and kept alive
+# across blue/green swaps — only `web` is duplicated per slot.
+accessories:
+  - db

@@ -1,0 +1,11 @@
+name: django-postgresql
+# Replace with your own FQDN before running `conoha app init`.
+hosts:
+  - django-postgresql.example.com
+web:
+  service: web
+  port: 8000
+# `db` is marked as an accessory so it's started once and kept alive
+# across blue/green swaps — only `web` is duplicated per slot.
+accessories:
+  - db

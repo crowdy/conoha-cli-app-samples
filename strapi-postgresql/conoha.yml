@@ -1,0 +1,11 @@
+name: strapi-postgresql
+# Replace with your own FQDN before running `conoha app init`.
+hosts:
+  - strapi-postgresql.example.com
+web:
+  service: strapi
+  port: 1337
+# `db` is marked as an accessory so it's started once and kept alive
+# across blue/green swaps — only `strapi` is duplicated per slot.
+accessories:
+  - db

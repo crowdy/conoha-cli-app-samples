@@ -1,0 +1,11 @@
+name: wordpress-mysql
+# Replace with your own FQDN before running `conoha app init`.
+hosts:
+  - wordpress-mysql.example.com
+web:
+  service: wordpress
+  port: 80
+# `db` is marked as an accessory so it's started once and kept alive
+# across blue/green swaps — only `wordpress` is duplicated per slot.
+accessories:
+  - db
