@@ -1,0 +1,16 @@
+name: coolify
+# Replace with your own FQDN before running `conoha app init`.
+hosts:
+  - coolify.example.com
+web:
+  service: coolify
+  # HTTP UI port. The container also exposes 6001 (Soketi / socket.io
+  # for realtime UI updates) and 6002 (Laravel Reverb / WebSocket).
+  # conoha-proxy fronts HTTP only, so realtime updates in the UI may
+  # not work via the public FQDN — see README for details.
+  port: 8000
+# `postgres` and `redis` are accessories: schema and queue state must
+# survive blue/green swaps.
+accessories:
+  - postgres
+  - redis

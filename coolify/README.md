@@ -5,43 +5,64 @@
 ## 構成
 
 - [Coolify](https://coolify.io/) v4 — PaaS プラットフォーム
-- PostgreSQL 16 — データベース
-- Redis 7 — キャッシュ・キュー
-- ポート: 8000（Web UI）
+- PostgreSQL 16 — データベース（accessory）
+- Redis 7 — キャッシュ・キュー（accessory）
+- proxy 公開ポート: 8000（HTTP UI）
+- 内部のみ: 6001（Soketi / socket.io 用）、6002（Laravel Reverb 用）
 
 ## 前提条件
 
 - conoha-cli がインストール済み
 - ConoHa VPS3 アカウント
 - SSH キーペアが設定済み
+- 公開したい FQDN の DNS A レコードがサーバー IP を指している
 
 ## デプロイ
 
 > **推奨**: Coolify は公式インストールスクリプトの利用が最も簡単です。
 > `curl -fsSL https://cdn.coollabs.io/coolify/install.sh | bash`
 >
-> 以下は compose.yml を使ったデプロイ方法です。
+> 以下は conoha-proxy 経由で Coolify を立てる手順です。
 
 ```bash
-# サーバー作成（4GB 以上推奨）
+# 1. サーバー作成（4GB 以上推奨）
 conoha server create --name myserver --flavor g2l-t-4 --image ubuntu-24.04 --key mykey
 
-# アプリ初期化
-conoha app init myserver --app-name coolify
+# 2. conoha.yml の `hosts:` を自分の FQDN に書き換える
 
-# 環境変数を設定
-conoha app env set myserver --app-name coolify \
-  APP_KEY=$(echo "base64:$(openssl rand -base64 32)") \
-  DB_PASSWORD=your-secure-password \
-  REDIS_PASSWORD=your-secure-password
+# 3. proxy を起動（サーバーごとに 1 回だけ）
+conoha proxy boot --acme-email you@example.com myserver
 
-# デプロイ
-conoha app deploy myserver --app-name coolify
+# 4. アプリ登録
+conoha app init myserver
+
+# 5. 環境変数を設定（このステップは必須 — compose のデフォルト値は
+#    公開リポジトリに記載されています。APP_URL は Coolify が生成する
+#    リンクの基準 URL なので、公開 FQDN に揃えてください）
+conoha app env set myserver \
+  APP_KEY=base64:$(openssl rand -base64 32) \
+  APP_URL=https://coolify.example.com \
+  DB_PASSWORD=$(openssl rand -base64 32) \
+  REDIS_PASSWORD=$(openssl rand -base64 32)
+
+# 6. デプロイ
+conoha app deploy myserver
 ```
+
+`postgres` と `redis` は accessory として宣言されているため、blue/green 切替時も再起動されません。
 
 ## 動作確認
 
-ブラウザで `http://<サーバーIP>:8000` にアクセスし、初期管理者アカウントを作成します。
+ブラウザで `https://<あなたの FQDN>` にアクセスし、初期管理者アカウントを作成します。初回は Let's Encrypt 証明書発行に数十秒かかる場合があります。
+
+### realtime UI 機能の制限
+
+Coolify のデプロイ進捗ストリーム表示は内部で **socket.io (port 6001)** と **Laravel Reverb (port 6002)** を使います。conoha-proxy は HTTP のホストにつき 1 ポートしかフロントしないため、これらの WebSocket 接続は公開 FQDN 経由では到達できません。**通常の管理画面操作（プロジェクト作成、デプロイ実行、ログ閲覧）は問題ありません**が、リアルタイム進捗バーやライブログ更新は手動リフレッシュに代わります。
+
+サーバー内部からは正常に動作するため、リアルタイム機能を本番で使いたい場合は次のいずれかを検討してください:
+
+- 公式インストールスクリプトでデプロイし、Coolify 同梱の Caddy にすべての routing を任せる（このサンプルの目的とは外れます）
+- conoha-proxy をスキップして `--no-proxy` モードで Coolify を立て、Coolify 自身で TLS 終端させる
 
 ## カスタマイズ
 

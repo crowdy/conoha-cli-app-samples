@@ -1,9 +1,13 @@
 services:
   gitea:
     image: gitea/gitea:${GITEA_VERSION:-latest}
-    ports:
-      - "${GITEA_HTTP_PORT:-3000}:3000"
-      - "${GITEA_SSH_PORT:-2222}:22"
+    # No host-side port: conoha-proxy injects 127.0.0.1:0:3000 at
+    # deploy time so two slots (blue/green) can coexist. Port 22
+    # (git+ssh) stays on the compose network only — see README for
+    # `docker exec` usage from a logged-in VPS shell.
+    expose:
+      - "3000"
+      - "22"
     environment:
       - GITEA__database__DB_TYPE=postgres
       - GITEA__database__HOST=db:5432
@@ -22,6 +26,9 @@ services:
       dex:
         condition: service_healthy
 
+  # NOTE: dex's port 5556 stays on the compose network only — used by
+  # gitea internally for OIDC. The original dual host binding would
+  # conflict between blue/green slots if it stayed.
   dex:
     image: dexidp/dex:${DEX_VERSION:-v2.45.1}
     entrypoint: ["sh", "-c"]
@@ -37,8 +44,8 @@ services:
           -e "s|__GITEA_HOST__|$$GITEA_HOST|g" \
           /etc/dex/dex.yml > /tmp/dex.yml &&
         exec dex serve /tmp/dex.yml
-    ports:
-      - "${DEX_HTTP_PORT:-5556}:5556"
+    expose:
+      - "5556"
     environment:
       - DEX_ISSUER_HOST=${DEX_ISSUER_HOST:-localhost}
       - DEX_DB_NAME=${DEX_DB_NAME:-dex}

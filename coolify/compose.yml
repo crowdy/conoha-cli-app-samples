@@ -6,10 +6,16 @@ services:
     # resolves. Bump to a newer beta or switch to :latest once Coolify
     # 4.0.0 ships a stable tag.
     image: ghcr.io/coollabsio/coolify:4.0.0-beta.473
-    ports:
-      - "8000:8000"
-      - "6001:6001"
-      - "6002:6002"
+    # No host-side ports: conoha-proxy injects 127.0.0.1:0:8000 (HTTP)
+    # at deploy time. Ports 6001 (Soketi / socket.io) and 6002
+    # (Laravel Reverb / WebSocket) stay on the compose network only —
+    # the proxy fronts a single HTTP port per service, so realtime UI
+    # updates that depend on these ports may not work via the public
+    # FQDN. See README for the recommended workaround.
+    expose:
+      - "8000"
+      - "6001"
+      - "6002"
     environment:
       - APP_ID=${APP_ID:-coolify}
       - APP_KEY=${APP_KEY:-}
