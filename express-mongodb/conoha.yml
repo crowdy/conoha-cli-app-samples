@@ -1,7 +1,7 @@
 name: express-mongodb
 # Replace with your own FQDN before running `conoha app init`.
 hosts:
-  - express.example.com
+  - express-mongodb.example.com
 web:
   service: web
   port: 3000

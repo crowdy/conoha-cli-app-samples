@@ -1,7 +1,7 @@
 name: go-fiber
 # Replace with your own FQDN before running `conoha app init`.
 hosts:
-  - go-api.example.com
+  - go-fiber.example.com
 web:
   service: web
   port: 3000
