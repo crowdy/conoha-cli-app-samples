@@ -29,12 +29,17 @@ conoha proxy boot --acme-email you@example.com myserver
 conoha app init myserver
 
 # 5. 環境変数を設定（このステップは必須 — compose.yml のデフォルト値
-#    minioadmin/admin は公開リポジトリに記載されています）
+#    minioadmin/admin は公開リポジトリに記載されています。
+#    WEBHOOK_URL は n8n の webhook 機能で外部到達可能な URL を生成
+#    するために公開 FQDN を指定）
+#    `minio-n8n.example.com` は conoha.yml の `hosts:` に合わせて
+#    自分の FQDN に置き換えてください。
 conoha app env set myserver \
-  MINIO_ROOT_USER=$(openssl rand -hex 8) \
+  MINIO_ROOT_USER=admin \
   MINIO_ROOT_PASSWORD=$(openssl rand -base64 32) \
-  N8N_USER=$(openssl rand -hex 8) \
-  N8N_PASSWORD=$(openssl rand -base64 32)
+  N8N_USER=admin \
+  N8N_PASSWORD=$(openssl rand -base64 32) \
+  WEBHOOK_URL=https://minio-n8n.example.com
 
 # 6. デプロイ
 conoha app deploy myserver
@@ -64,8 +69,6 @@ mc mb local/new-bucket
 ```
 
 コンソール GUI が必要なユースケースでは、別 FQDN を `conoha.yml hosts:` に追加してコンソール専用エントリを立てる構成も可能ですが、本サンプルでは対応していません。
-
-> **note**: webhook を受け取るワークフローを作る場合、n8n の `WEBHOOK_URL` を `https://<あなたの FQDN>` に設定してください（compose に追加するか `conoha app env set` で渡す）。デフォルトのままだと webhook URL が `http://<container-id>:5678` 形式になり外部から到達できません。
 
 ## カスタマイズ
 

@@ -32,6 +32,11 @@ services:
       - N8N_PROTOCOL=http
       - N8N_HOST=0.0.0.0
       - N8N_PORT=5678
+      # WEBHOOK_URL must be set to your public FQDN via `conoha app env
+      # set WEBHOOK_URL=https://<FQDN>` — n8n uses this to generate
+      # externally-reachable webhook URLs. Leaving it empty falls back
+      # to the container-local URL which isn't reachable from outside.
+      - WEBHOOK_URL=${WEBHOOK_URL:-}
     volumes:
       - n8n_data:/home/node/.n8n
 
