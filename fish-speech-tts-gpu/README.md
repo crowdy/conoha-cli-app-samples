@@ -90,27 +90,18 @@ conoha app deploy fish-speech
 
 ブラウザで `https://<あなたの FQDN>` にアクセスしてください。初回は Let's Encrypt 証明書発行に数十秒かかる場合があります。
 
-### REST API（コンテナ内 / SSH トンネル経由）
+### REST API
 
-API サーバー（ポート 8080）は **conoha-proxy 経由では公開されません**。proxy は HTTP ホスト 1 つにつき 1 ポートしかルーティングできないため、WebUI（7860）のみが外部から到達可能です。API を呼ぶには次のいずれかの方法を使用してください。
+API サーバー（ポート 8080）は **conoha-proxy 経由では公開されません** — proxy は HTTP ホスト 1 つにつき 1 ポートしかルーティングできず、WebUI（7860）のみを外部公開しています。さらに `expose:` のみで host-side binding も無いため、SSH トンネル (`-L 8080:localhost:8080`) ではホスト側の 8080 に何もバインドされておらず到達できません。
 
-- **SSH トンネル**（手元のマシンから API を叩く場合）:
+API を叩くには VPS に SSH でログイン後、実行中の fish-speech コンテナ内から実行してください：
 
-  ```bash
-  ssh -L 8080:localhost:8080 root@<サーバー IP>
-  # 別ターミナルから:
-  curl http://localhost:8080/v1/health
-  curl -X POST http://localhost:8080/v1/tts \
-    -H "Content-Type: application/json" \
-    -d '{"text":"こんにちは、世界！","format":"wav"}' \
-    -o hello.wav
-  ```
-
-- **VPS 内で直接実行**（SSH ログイン後）:
-
-  ```bash
-  curl http://localhost:8080/v1/health
-  ```
+```bash
+conoha server ssh fish-speech
+# コンテナ内で curl:
+docker exec $(docker ps --filter label=com.docker.compose.service=fish-speech --format '{{.Names}}') \
+  curl -s http://localhost:8080/v1/health
+```
 
 ## Go CLI クライアント
 
@@ -130,7 +121,13 @@ sudo apt install libasound2-dev
 
 ### 使い方
 
-CLI は `--server` で API ベース URL を受け取ります。proxy 経由では API が公開されないため、SSH トンネル (`ssh -L 8080:localhost:8080 root@<サーバー IP>`) を張ったローカル端末から `--server http://localhost:8080` で接続するか、VPS 内に CLI バイナリを配置してそこから実行してください。
+CLI は `--server` で API ベース URL を受け取ります。blue/green proxy 構成では 8080 が外部ネットワークに露出しないため、**この構成ではローカル端末から直接 CLI を実行できません**。以下いずれかの方法を使用してください：
+
+- **VPS 内で CLI を実行**: バイナリを VPS に転送し、同じ compose ネットワーク上のコンテナとして起動するか、`docker cp` で fish-speech コンテナに入れて `docker exec` で実行。CLI 内からは `--server http://localhost:8080` が到達可能。
+- **API 用 FQDN を追加**: 別の `conoha.yml` プロジェクトで 8080 を proxy 経由で公開し、CLI から `--server https://api.<your FQDN>` で接続（2 つの FQDN が必要）。
+- **開発/ローカル用途**: `compose.yml` で `expose:` を `ports: ["8080:8080"]` に戻す（blue/green 2 スロット共存時には衝突するため本番非推奨）。
+
+以下はコンテナ内から CLI を実行する想定のコマンド例です：
 
 ```bash
 # テキスト → スピーカー再生

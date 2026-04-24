@@ -3,10 +3,8 @@ services:
     image: fishaudio/fish-speech:latest-webui-cuda
     entrypoint: ["/bin/bash", "/app/custom-entrypoint.sh"]
     # No host-side ports: conoha-proxy injects 127.0.0.1:0:7860 (WebUI)
-    # at deploy time. The 8080 API stays internal — accessible from
-    # other containers on the compose network and via SSH tunnel
-    # (`ssh -L 8080:localhost:8080 root@<server>` then run the bundled
-    # CLI client locally), but not from the proxy.
+    # at deploy time. Port 8080 (REST API) stays on the compose network
+    # only — inspect it from the VPS via `docker exec` after SSH login.
     expose:
       - "7860"
       - "8080"

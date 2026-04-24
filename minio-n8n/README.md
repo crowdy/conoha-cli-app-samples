@@ -47,15 +47,23 @@ conoha app deploy myserver
 - n8n: `https://<あなたの FQDN>`（初回は Let's Encrypt 証明書発行に数十秒かかる場合があります）
 - n8n 内部から MinIO を呼ぶ場合のエンドポイント: `http://minio:9000`（compose 内部 DNS）
 
-### MinIO コンソールに直接アクセスしたい場合
+### MinIO を直接操作したい場合
 
-MinIO コンソール（9001）と API（9000）は **conoha-proxy 経由では公開されません**（proxy は 1 サービス・1 ポートのみフロント）。バケットを GUI で確認したいときは SSH トンネルを使ってください：
+MinIO コンソール（9001）と API（9000）は **conoha-proxy 経由では公開されません**（proxy は 1 サービス・1 ポートのみフロント）。`expose:` のみで host-side binding も無いため、SSH トンネル（`-L 9001:localhost:9001`）ではホスト側の 9001 に何もバインドされておらず到達できません。
+
+バケットを操作する場合は VPS に SSH ログイン後、MinIO コンテナ内の `mc` CLI を使ってください：
 
 ```bash
-# 手元のマシンから:
-ssh -L 9001:localhost:9001 -L 9000:localhost:9000 root@<サーバー IP>
-# 別ターミナル → ブラウザで http://localhost:9001
+conoha server ssh myserver
+# MinIO コンテナに入って mc で操作:
+docker exec -it $(docker ps --filter label=com.docker.compose.service=minio --format '{{.Names}}') sh
+# コンテナ内で:
+mc alias set local http://localhost:9000 "$MINIO_ROOT_USER" "$MINIO_ROOT_PASSWORD"
+mc ls local
+mc mb local/new-bucket
 ```
+
+コンソール GUI が必要なユースケースでは、別 FQDN を `conoha.yml hosts:` に追加してコンソール専用エントリを立てる構成も可能ですが、本サンプルでは対応していません。
 
 > **note**: webhook を受け取るワークフローを作る場合、n8n の `WEBHOOK_URL` を `https://<あなたの FQDN>` に設定してください（compose に追加するか `conoha app env set` で渡す）。デフォルトのままだと webhook URL が `http://<container-id>:5678` 形式になり外部から到達できません。
 
