@@ -31,11 +31,14 @@ conoha proxy boot --acme-email you@example.com myserver
 conoha app init myserver
 
 # 5. 環境変数を設定（BASE_URL は公開 FQDN に揃える — トラッキング
-#    スクリプトのパスや OAuth リダイレクト URL がこの値から生成される）
+#    スクリプトのパスや OAuth リダイレクト URL がこの値から生成される。
+#    DB_PASSWORD は DATABASE_URL に埋め込まれるため、`/` や `+` を含む
+#    base64 ではなく hex で生成する — URI パーサが password 区間を
+#    誤って切り詰めてしまうのを防ぐため）
 conoha app env set myserver \
   BASE_URL=https://<あなたの FQDN> \
   SECRET_KEY_BASE=$(openssl rand -base64 48) \
-  DB_PASSWORD=$(openssl rand -base64 32)
+  DB_PASSWORD=$(openssl rand -hex 32)
 
 # 6. デプロイ
 conoha app deploy myserver
