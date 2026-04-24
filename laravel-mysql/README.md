@@ -13,25 +13,31 @@ Laravel と MySQL を使ったシンプルな投稿アプリです。Eloquent OR
 - conoha-cli がインストール済み
 - ConoHa VPS3 アカウント
 - SSH キーペア設定済み
+- 公開したい FQDN の DNS A レコードがサーバー IP を指している
 
 ## デプロイ
 
 ```bash
-# サーバー作成（まだない場合）
+# 1. サーバー作成（まだない場合）
 conoha server create --name myserver --flavor g2l-t-2 --image ubuntu-24.04 --key mykey
 
-# アプリ初期化
-conoha app init myserver --app-name laravel-app
+# 2. conoha.yml の `hosts:` を自分の FQDN に書き換える
 
-# デプロイ
-conoha app deploy myserver --app-name laravel-app
+# 3. proxy を起動（サーバーごとに 1 回だけ）
+conoha proxy boot --acme-email you@example.com myserver
+
+# 4. アプリ登録
+conoha app init myserver
+
+# 5. デプロイ
+conoha app deploy myserver
 ```
 
-DB マイグレーションと APP_KEY 生成はコンテナ起動時に自動実行されます。
+DB マイグレーションと APP_KEY 生成はコンテナ起動時に自動実行されます。`db` は accessory として宣言されているため、blue/green 切替時も MySQL は再起動されません。
 
 ## 動作確認
 
-ブラウザで `http://<サーバーIP>` にアクセスすると投稿一覧ページが表示されます。
+ブラウザで `https://<あなたの FQDN>` にアクセスすると投稿一覧ページが表示されます。初回は Let's Encrypt 証明書発行に数十秒かかる場合があります。
 
 ## カスタマイズ
 

@@ -1,0 +1,11 @@
+name: spring-boot-postgresql
+# Replace with your own FQDN before running `conoha app init`.
+hosts:
+  - spring-boot-postgresql.example.com
+web:
+  service: web
+  port: 8080
+# `db` is marked as an accessory so it's started once and kept alive
+# across blue/green swaps — only `web` is duplicated per slot.
+accessories:
+  - db
