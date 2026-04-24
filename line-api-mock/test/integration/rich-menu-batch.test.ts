@@ -120,7 +120,10 @@ function authHeaders() {
   };
 }
 
-describe("rich menu batch", () => {
+// Tests here rely on the beforeEach baseline reset to start from a known
+// state. Marked sequential so --sequence.shuffle / .concurrent can't
+// interleave baseline setup with the next test's assertions. See #37.
+describe.sequential("rich menu batch", () => {
   it("POST /validate/batch accepts valid shape with 200", async () => {
     const res = await app.request("/v2/bot/richmenu/validate/batch", {
       method: "POST",
