@@ -132,9 +132,11 @@ conoha app status myserver
 conoha app logs myserver
 
 # API をテスト（proxy 経由で frontend → backend にルーティング）
-curl https://<あなたの FQDN>/api/health
-curl https://<あなたの FQDN>/api/posts
-curl -X POST https://<あなたの FQDN>/api/posts \
+# `nextjs-fastapi-postgresql.example.com` は conoha.yml の `hosts:` に
+# 合わせて自分の FQDN に置き換えてください。
+curl https://nextjs-fastapi-postgresql.example.com/api/health
+curl https://nextjs-fastapi-postgresql.example.com/api/posts
+curl -X POST https://nextjs-fastapi-postgresql.example.com/api/posts \
   -H 'Content-Type: application/json' \
   -d '{"title":"テスト投稿","body":"本文です。"}'
 ```

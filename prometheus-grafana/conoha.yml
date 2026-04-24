@@ -1,0 +1,15 @@
+name: prometheus-grafana
+# Replace with your own FQDN before running `conoha app init`.
+hosts:
+  - prometheus-grafana.example.com
+web:
+  service: grafana
+  port: 3000
+# `prometheus` and `node-exporter` are accessories — the proxy only
+# routes one public host, and Grafana already queries Prometheus
+# internally via the `prometheus:9090` data source, so we don't need
+# Prometheus's UI reachable from the browser. If you do need it, use
+# `conoha app logs` or an SSH port-forward to /var/run/docker.sock.
+accessories:
+  - prometheus
+  - node-exporter

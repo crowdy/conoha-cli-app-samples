@@ -1,0 +1,15 @@
+name: immich
+# Replace with your own FQDN before running `conoha app init`.
+hosts:
+  - immich.example.com
+web:
+  service: immich-server
+  port: 2283
+# `immich-machine-learning`, `db` (pgvecto-rs), and `redis` are marked
+# as accessories: ML model cache, photo metadata, and the job queue
+# all live in their volumes and must not be reset on redeploy.
+# Only `immich-server` is duplicated per blue/green slot.
+accessories:
+  - immich-machine-learning
+  - db
+  - redis

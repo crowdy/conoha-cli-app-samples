@@ -67,18 +67,21 @@ conoha app deploy myserver
 # ステータス確認
 conoha app status myserver
 
+# `rust-actix-web.example.com` は conoha.yml の `hosts:` に合わせて
+# 自分の FQDN に置き換えてください。
+
 # ヘルスチェック
-curl https://<あなたの FQDN>/health
+curl https://rust-actix-web.example.com/health
 # => {"status":"ok"}
 
 # メッセージ作成
-curl -X POST https://<あなたの FQDN>/api/messages \
+curl -X POST https://rust-actix-web.example.com/api/messages \
   -H 'Content-Type: application/json' \
   -d '{"text": "Hello from conoha-cli!"}'
 # => {"id":1,"text":"Hello from conoha-cli!"}
 
 # メッセージ一覧
-curl https://<あなたの FQDN>/api/messages
+curl https://rust-actix-web.example.com/api/messages
 # => [{"id":1,"text":"Hello from conoha-cli!"}]
 ```
 

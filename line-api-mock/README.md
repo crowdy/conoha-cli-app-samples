@@ -89,7 +89,9 @@ conoha app init line-mock
 # 5. 環境変数を設定（APP_BASE_URL は公開 FQDN を指定 — 本体が生成する
 #    webhook コールバック URL や自己参照 URL に使われるため、未設定だと
 #    モック内部の URL が http://localhost:3000 のままになり外部から届きません）
-conoha app env set line-mock APP_BASE_URL=https://<あなたの FQDN>
+#    `line-api-mock.example.com` は conoha.yml の `hosts:` に合わせて
+#    自分の FQDN に置き換えてください。
+conoha app env set line-mock APP_BASE_URL=https://line-api-mock.example.com
 
 # 6. デプロイ
 conoha app deploy line-mock
