@@ -46,7 +46,7 @@ var issueV21Cmd = &cobra.Command{
 		)
 		if err != nil {
 			p.Error(output.ExtractHTTPStatus(err), err.Error())
-			return err
+			return output.Printed(err)
 		}
 
 		p.Raw(map[string]any{

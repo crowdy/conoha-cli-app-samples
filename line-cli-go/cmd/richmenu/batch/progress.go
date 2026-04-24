@@ -24,7 +24,7 @@ var progressCmd = &cobra.Command{
 		resp, err := api.GetRichMenuBatchProgress(requestID)
 		if err != nil {
 			p.Error(output.ExtractHTTPStatus(err), err.Error())
-			return err
+			return output.Printed(err)
 		}
 		p.Raw(resp)
 		return nil
@@ -33,5 +33,6 @@ var progressCmd = &cobra.Command{
 
 func init() {
 	progressCmd.Flags().String("request-id", "", "batch request ID from the submit command (required)")
+	_ = progressCmd.MarkFlagRequired("request-id")
 	BatchCmd.AddCommand(progressCmd)
 }

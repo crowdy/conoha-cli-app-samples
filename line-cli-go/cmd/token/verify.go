@@ -27,7 +27,7 @@ var verifyCmd = &cobra.Command{
 		resp, err := tokenAPI.VerifyChannelToken(config.AccessToken())
 		if err != nil {
 			p.Error(output.ExtractHTTPStatus(err), err.Error())
-			return err
+			return output.Printed(err)
 		}
 
 		p.Raw(map[string]any{

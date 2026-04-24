@@ -23,7 +23,7 @@ var deleteCmd = &cobra.Command{
 		}
 		if _, err := api.DeleteRichMenuAlias(aliasID); err != nil {
 			p.Error(output.ExtractHTTPStatus(err), err.Error())
-			return err
+			return output.Printed(err)
 		}
 		p.Success("Rich menu alias deleted", map[string]string{"richMenuAliasId": aliasID})
 		return nil
@@ -32,5 +32,6 @@ var deleteCmd = &cobra.Command{
 
 func init() {
 	deleteCmd.Flags().String("alias-id", "", "alias ID (required)")
+	_ = deleteCmd.MarkFlagRequired("alias-id")
 	AliasCmd.AddCommand(deleteCmd)
 }

@@ -31,7 +31,7 @@ var setImageCmd = &cobra.Command{
 		}
 		if _, err := blob.SetRichMenuImage(richMenuID, contentType, reader); err != nil {
 			p.Error(output.ExtractHTTPStatus(err), err.Error())
-			return err
+			return output.Printed(err)
 		}
 		p.Success("Rich menu image uploaded", map[string]string{
 			"richMenuId":  richMenuID,
@@ -44,5 +44,7 @@ var setImageCmd = &cobra.Command{
 func init() {
 	setImageCmd.Flags().String("rich-menu-id", "", "rich menu ID (required)")
 	setImageCmd.Flags().String("image", "", "image file path (use '-' for stdin) (required)")
+	_ = setImageCmd.MarkFlagRequired("rich-menu-id")
+	_ = setImageCmd.MarkFlagRequired("image")
 	RichMenuCmd.AddCommand(setImageCmd)
 }

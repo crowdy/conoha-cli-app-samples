@@ -24,7 +24,7 @@ var getCmd = &cobra.Command{
 		resp, err := api.GetRichMenuAlias(aliasID)
 		if err != nil {
 			p.Error(output.ExtractHTTPStatus(err), err.Error())
-			return err
+			return output.Printed(err)
 		}
 		p.Raw(resp)
 		return nil
@@ -33,5 +33,6 @@ var getCmd = &cobra.Command{
 
 func init() {
 	getCmd.Flags().String("alias-id", "", "alias ID (required)")
+	_ = getCmd.MarkFlagRequired("alias-id")
 	AliasCmd.AddCommand(getCmd)
 }

@@ -27,7 +27,7 @@ var createCmd = &cobra.Command{
 		resp, err := api.CreateRichMenu(&req)
 		if err != nil {
 			p.Error(output.ExtractHTTPStatus(err), err.Error())
-			return err
+			return output.Printed(err)
 		}
 		p.Raw(resp)
 		return nil
@@ -36,5 +36,6 @@ var createCmd = &cobra.Command{
 
 func init() {
 	createCmd.Flags().String("payload-file", "", "path to JSON payload (use '-' for stdin) (required)")
+	_ = createCmd.MarkFlagRequired("payload-file")
 	RichMenuCmd.AddCommand(createCmd)
 }

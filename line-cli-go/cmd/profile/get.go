@@ -26,7 +26,7 @@ var getCmd = &cobra.Command{
 		resp, err := api.GetProfile(userID)
 		if err != nil {
 			p.Error(output.ExtractHTTPStatus(err), err.Error())
-			return err
+			return output.Printed(err)
 		}
 
 		p.Raw(map[string]any{
@@ -42,4 +42,5 @@ var getCmd = &cobra.Command{
 
 func init() {
 	getCmd.Flags().String("user-id", "", "LINE user ID (required)")
+	_ = getCmd.MarkFlagRequired("user-id")
 }

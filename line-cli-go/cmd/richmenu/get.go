@@ -24,7 +24,7 @@ var getCmd = &cobra.Command{
 		resp, err := api.GetRichMenu(richMenuID)
 		if err != nil {
 			p.Error(output.ExtractHTTPStatus(err), err.Error())
-			return err
+			return output.Printed(err)
 		}
 		p.Raw(resp)
 		return nil
@@ -33,5 +33,6 @@ var getCmd = &cobra.Command{
 
 func init() {
 	getCmd.Flags().String("rich-menu-id", "", "rich menu ID (required)")
+	_ = getCmd.MarkFlagRequired("rich-menu-id")
 	RichMenuCmd.AddCommand(getCmd)
 }

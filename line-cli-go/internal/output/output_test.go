@@ -2,9 +2,27 @@ package output
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"testing"
 )
+
+func TestPrintedSentinel(t *testing.T) {
+	base := errors.New("boom")
+	wrapped := Printed(base)
+	if !errors.Is(wrapped, ErrPrinted) {
+		t.Fatal("errors.Is(wrapped, ErrPrinted) = false, want true")
+	}
+	if !errors.Is(wrapped, base) {
+		t.Fatal("errors.Is(wrapped, base) = false, want true (chain broken)")
+	}
+	if Printed(nil) != nil {
+		t.Fatal("Printed(nil) should return nil")
+	}
+	if got := Printed(wrapped); got != wrapped {
+		t.Fatal("Printed should be idempotent")
+	}
+}
 
 func TestPrintSuccess_Text(t *testing.T) {
 	var buf bytes.Buffer
@@ -87,6 +105,25 @@ func TestPrintRaw_TextSortedKeys(t *testing.T) {
 	expected := "  apple: 2\n  mango: 3\n  zebra: 1\n"
 	if out != expected {
 		t.Errorf("expected sorted output:\n%s\ngot:\n%s", expected, out)
+	}
+}
+
+func TestPrintRaw_TextStructPreservesFieldNames(t *testing.T) {
+	type inner struct {
+		AliasID    string `json:"richMenuAliasId"`
+		RichMenuID string `json:"richMenuId"`
+	}
+	type outer struct {
+		Aliases []inner `json:"aliases"`
+	}
+	var buf bytes.Buffer
+	p := NewPrinter(false, &buf)
+	p.Raw(outer{Aliases: []inner{{AliasID: "a1", RichMenuID: "rm1"}}})
+	out := buf.String()
+	for _, want := range []string{"richMenuAliasId", "richMenuId", "a1", "rm1"} {
+		if !bytes.Contains([]byte(out), []byte(want)) {
+			t.Errorf("expected %q in text output, got:\n%s", want, out)
+		}
 	}
 }
 

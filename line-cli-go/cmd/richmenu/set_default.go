@@ -23,7 +23,7 @@ var setDefaultCmd = &cobra.Command{
 		}
 		if _, err := api.SetDefaultRichMenu(richMenuID); err != nil {
 			p.Error(output.ExtractHTTPStatus(err), err.Error())
-			return err
+			return output.Printed(err)
 		}
 		p.Success("Default rich menu set", map[string]string{"richMenuId": richMenuID})
 		return nil
@@ -32,5 +32,6 @@ var setDefaultCmd = &cobra.Command{
 
 func init() {
 	setDefaultCmd.Flags().String("rich-menu-id", "", "rich menu ID (required)")
+	_ = setDefaultCmd.MarkFlagRequired("rich-menu-id")
 	RichMenuCmd.AddCommand(setDefaultCmd)
 }

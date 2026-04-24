@@ -40,7 +40,7 @@ var replyCmd = &cobra.Command{
 		)
 		if err != nil {
 			p.Error(output.ExtractHTTPStatus(err), err.Error())
-			return err
+			return output.Printed(err)
 		}
 
 		sentIDs := make([]string, 0)
@@ -60,4 +60,5 @@ func init() {
 	replyCmd.Flags().String("reply-token", "", "reply token (required)")
 	replyCmd.Flags().String("text", "", "text message content")
 	replyCmd.Flags().String("payload-file", "", "JSON file with message payload")
+	_ = replyCmd.MarkFlagRequired("reply-token")
 }

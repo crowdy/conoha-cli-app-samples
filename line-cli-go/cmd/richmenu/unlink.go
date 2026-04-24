@@ -23,7 +23,7 @@ var unlinkCmd = &cobra.Command{
 		}
 		if _, err := api.UnlinkRichMenuIdFromUser(userID); err != nil {
 			p.Error(output.ExtractHTTPStatus(err), err.Error())
-			return err
+			return output.Printed(err)
 		}
 		p.Success("Rich menu unlinked", map[string]string{"userId": userID})
 		return nil
@@ -32,5 +32,6 @@ var unlinkCmd = &cobra.Command{
 
 func init() {
 	unlinkCmd.Flags().String("user-id", "", "user ID (required)")
+	_ = unlinkCmd.MarkFlagRequired("user-id")
 	RichMenuCmd.AddCommand(unlinkCmd)
 }

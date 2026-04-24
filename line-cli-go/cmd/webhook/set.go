@@ -30,7 +30,7 @@ var setCmd = &cobra.Command{
 		)
 		if err != nil {
 			p.Error(output.ExtractHTTPStatus(err), err.Error())
-			return err
+			return output.Printed(err)
 		}
 
 		p.Success("Webhook endpoint updated", map[string]string{
@@ -42,4 +42,5 @@ var setCmd = &cobra.Command{
 
 func init() {
 	setCmd.Flags().String("url", "", "webhook endpoint URL (required)")
+	_ = setCmd.MarkFlagRequired("url")
 }

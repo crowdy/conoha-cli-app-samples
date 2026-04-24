@@ -27,9 +27,12 @@ var submitCmd = &cobra.Command{
 		httpResp, _, err := api.RichMenuBatchWithHttpInfo(&req)
 		if err != nil {
 			p.Error(output.ExtractHTTPStatus(err), err.Error())
-			return err
+			return output.Printed(err)
 		}
-		requestID := httpResp.Header.Get("X-Line-Request-Id")
+		var requestID string
+		if httpResp != nil {
+			requestID = httpResp.Header.Get("X-Line-Request-Id")
+		}
 		p.Raw(map[string]any{"requestId": requestID})
 		return nil
 	},
@@ -37,5 +40,6 @@ var submitCmd = &cobra.Command{
 
 func init() {
 	submitCmd.Flags().String("payload-file", "", "path to JSON payload (use '-' for stdin) (required)")
+	_ = submitCmd.MarkFlagRequired("payload-file")
 	BatchCmd.AddCommand(submitCmd)
 }

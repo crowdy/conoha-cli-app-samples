@@ -27,7 +27,7 @@ var revokeCmd = &cobra.Command{
 		_, err = tokenAPI.RevokeChannelToken(config.AccessToken())
 		if err != nil {
 			p.Error(output.ExtractHTTPStatus(err), err.Error())
-			return err
+			return output.Printed(err)
 		}
 
 		p.Success("Token revoked", nil)

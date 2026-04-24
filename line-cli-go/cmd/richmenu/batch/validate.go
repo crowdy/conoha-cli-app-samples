@@ -26,7 +26,7 @@ var validateCmd = &cobra.Command{
 		}
 		if _, err := api.ValidateRichMenuBatchRequest(&req); err != nil {
 			p.Error(output.ExtractHTTPStatus(err), err.Error())
-			return err
+			return output.Printed(err)
 		}
 		p.Success("Batch payload valid", nil)
 		return nil
@@ -35,5 +35,6 @@ var validateCmd = &cobra.Command{
 
 func init() {
 	validateCmd.Flags().String("payload-file", "", "path to JSON payload (use '-' for stdin) (required)")
+	_ = validateCmd.MarkFlagRequired("payload-file")
 	BatchCmd.AddCommand(validateCmd)
 }

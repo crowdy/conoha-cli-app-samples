@@ -27,7 +27,7 @@ var linkCmd = &cobra.Command{
 		}
 		if _, err := api.LinkRichMenuIdToUser(userID, richMenuID); err != nil {
 			p.Error(output.ExtractHTTPStatus(err), err.Error())
-			return err
+			return output.Printed(err)
 		}
 		p.Success("Rich menu linked", map[string]string{"userId": userID, "richMenuId": richMenuID})
 		return nil
@@ -37,5 +37,7 @@ var linkCmd = &cobra.Command{
 func init() {
 	linkCmd.Flags().String("user-id", "", "user ID (required)")
 	linkCmd.Flags().String("rich-menu-id", "", "rich menu ID (required)")
+	_ = linkCmd.MarkFlagRequired("user-id")
+	_ = linkCmd.MarkFlagRequired("rich-menu-id")
 	RichMenuCmd.AddCommand(linkCmd)
 }

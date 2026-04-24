@@ -21,7 +21,7 @@ var getCmd = &cobra.Command{
 		resp, err := api.GetWebhookEndpoint()
 		if err != nil {
 			p.Error(output.ExtractHTTPStatus(err), err.Error())
-			return err
+			return output.Printed(err)
 		}
 
 		p.Raw(map[string]any{
