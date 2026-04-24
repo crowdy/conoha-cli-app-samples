@@ -60,7 +60,13 @@ function authHeaders() {
   };
 }
 
-describe("rich menu alias", () => {
+// Tests in this suite chain on state created by earlier tests — the first
+// POST creates `richmenu-alias-a`, and later GET/POST/DELETE cases assume
+// it exists. Mark sequential so `--sequence.concurrent` (and an explicit
+// `describe.concurrent`) cannot race them. Note: `describe.sequential`
+// does NOT protect against `--sequence.shuffle` in Vitest 2.x; that
+// requires Option B (self-contained tests). See issue #37.
+describe.sequential("rich menu alias", () => {
   it("creates an alias and returns 200", async () => {
     const res = await app.request("/v2/bot/richmenu/alias", {
       method: "POST",

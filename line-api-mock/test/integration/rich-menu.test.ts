@@ -148,7 +148,19 @@ describe("GET /v2/bot/richmenu/:richMenuId", () => {
 });
 
 describe("GET /v2/bot/richmenu/list", () => {
+  // Create a menu inside the test rather than leaning on leftovers from
+  // earlier POST tests in this file, so the case stays correct under
+  // --sequence.shuffle or single-test isolation. See issue #37.
   it("returns all rich menus for the channel", async () => {
+    await app.request("/v2/bot/richmenu", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(validRichMenuBody()),
+    });
+
     const res = await app.request("/v2/bot/richmenu/list", {
       headers: { authorization: `Bearer ${token}` },
     });
@@ -412,7 +424,9 @@ describe("User linking", () => {
   });
 });
 
-describe("Default rich menu", () => {
+// set → get → unset → get-404 is one logical flow; `.sequential` keeps
+// `--sequence.concurrent` from racing them. See issue #37.
+describe.sequential("Default rich menu", () => {
   let defaultMenuId: string;
 
   beforeAll(async () => {
@@ -461,7 +475,10 @@ describe("Default rich menu", () => {
   });
 });
 
-describe("Bulk link/unlink", () => {
+// link → unlink → link-with-unknown-uid → 500-cap chain shares `uids`
+// and `bulkMenuId`; `.sequential` guards against `--sequence.concurrent`.
+// See issue #37.
+describe.sequential("Bulk link/unlink", () => {
   let bulkMenuId: string;
   let uids: string[];
 
