@@ -13,7 +13,7 @@ services:
     restart: unless-stopped
 
   api:
-    image: langgenius/dify-api:0.15
+    image: langgenius/dify-api:1.13.3
     environment:
       - MODE=api
       - SECRET_KEY=${SECRET_KEY:-sk-dify-secret-key-change-me}
@@ -37,7 +37,7 @@ services:
     restart: unless-stopped
 
   worker:
-    image: langgenius/dify-api:0.15
+    image: langgenius/dify-api:1.13.3
     environment:
       - MODE=worker
       - SECRET_KEY=${SECRET_KEY:-sk-dify-secret-key-change-me}
@@ -61,7 +61,7 @@ services:
     restart: unless-stopped
 
   web:
-    image: langgenius/dify-web:0.15
+    image: langgenius/dify-web:1.13.3
     environment:
       - CONSOLE_API_URL=
       - APP_API_URL=
