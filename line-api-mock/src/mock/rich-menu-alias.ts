@@ -61,10 +61,8 @@ richMenuAliasRouter.post(
       // PG unique_violation on (channelId, aliasId) composite PK. Real LINE
       // API returns 400 for duplicate aliases; without this catch the race
       // between two concurrent creates would surface as a 500.
-      const code =
-        (err as { code?: string; cause?: { code?: string } } | null)?.code ??
-        (err as { cause?: { code?: string } } | null)?.cause?.code;
-      if (code === "23505") {
+      const e = err as { code?: string; cause?: { code?: string } } | null;
+      if (e?.code === "23505" || e?.cause?.code === "23505") {
         return errors.badRequest(c, "richMenuAliasId already exists");
       }
       throw err;

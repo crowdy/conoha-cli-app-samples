@@ -94,9 +94,11 @@ describe("rich menu alias", () => {
     const { richMenuAliases, richMenus } = await import(
       "../../src/db/schema.js"
     );
+    const { eq } = await import("drizzle-orm");
     const [rm] = await db
       .select({ id: richMenus.id })
       .from(richMenus)
+      .where(eq(richMenus.channelId, channelDbId))
       .limit(1);
     await db.insert(richMenuAliases).values({
       channelId: channelDbId,
@@ -104,15 +106,23 @@ describe("rich menu alias", () => {
       richMenuId: rm.id,
     });
 
-    const res = await app.request("/v2/bot/richmenu/alias", {
-      method: "POST",
-      headers: authHeaders(),
-      body: JSON.stringify({
-        richMenuAliasId: "richmenu-alias-race",
-        richMenuId: richMenuIdA,
-      }),
-    });
-    expect(res.status).toBe(400);
+    try {
+      const res = await app.request("/v2/bot/richmenu/alias", {
+        method: "POST",
+        headers: authHeaders(),
+        body: JSON.stringify({
+          richMenuAliasId: "richmenu-alias-race",
+          richMenuId: richMenuIdA,
+        }),
+      });
+      expect(res.status).toBe(400);
+    } finally {
+      // Avoid leaking the seeded row into later tests that may assert
+      // alias counts or list contents.
+      await db
+        .delete(richMenuAliases)
+        .where(eq(richMenuAliases.aliasId, "richmenu-alias-race"));
+    }
   });
 
   it("rejects unknown richMenuId with 400", async () => {
