@@ -1,0 +1,90 @@
+# NOTE: GitHub Actions only reads `.github/workflows/` at the REPOSITORY ROOT.
+# This file lives inside a sample subdirectory so it is NOT activated when the
+# monorepo itself merges to main — copy the `.github/` directory into your own
+# application repository for the workflow to take effect.
+
+name: Deploy to ConoHa VPS
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  APP_NAME: gitops-pipeline
+
+jobs:
+  test:
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install dependencies
+        run: npm ci || npm install
+      - name: Type-check + build
+        run: |
+          npm run test
+          npm run build
+
+  deploy:
+    needs: test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: self-hosted
+    concurrency:
+      group: gitops-pipeline-deploy
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Ensure conoha-cli is installed
+        # Assumes the self-hosted runner has conoha-cli on PATH.
+        # If not, install once on the runner host or add a setup step here.
+        run: conoha version
+
+      - name: Write SSH deploy key
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.CONOHA_SSH_PRIVATE_KEY }}
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/conoha_deploy
+          chmod 600 ~/.ssh/conoha_deploy
+          # Trust the target host's SSH fingerprint. Replace with a pinned
+          # known_hosts entry if you want stricter verification.
+          ssh-keyscan -p 22 -H "${{ vars.CONOHA_SERVER_HOST }}" \
+            >> ~/.ssh/known_hosts 2>/dev/null
+
+      - name: Authenticate conoha-cli
+        env:
+          CONOHA_TENANT_ID: ${{ secrets.CONOHA_TENANT_ID }}
+          CONOHA_USERNAME: ${{ secrets.CONOHA_USERNAME }}
+          CONOHA_PASSWORD: ${{ secrets.CONOHA_PASSWORD }}
+          CONOHA_NO_INPUT: "1"
+          CONOHA_CONFIG_DIR: ${{ runner.temp }}/conoha
+        run: |
+          mkdir -p "$CONOHA_CONFIG_DIR"
+          conoha auth login
+
+      - name: Set per-deploy env vars on the server
+        env:
+          CONOHA_NO_INPUT: "1"
+          CONOHA_YES: "1"
+          CONOHA_CONFIG_DIR: ${{ runner.temp }}/conoha
+        run: |
+          conoha app env set "${{ vars.CONOHA_SERVER_NAME }}" \
+            --app-name "$APP_NAME" \
+            --identity ~/.ssh/conoha_deploy \
+            DEPLOY_SHA="${{ github.sha }}" \
+            DEPLOY_TIMESTAMP="${{ github.event.head_commit.timestamp }}"
+
+      - name: Deploy
+        env:
+          CONOHA_NO_INPUT: "1"
+          CONOHA_YES: "1"
+          CONOHA_CONFIG_DIR: ${{ runner.temp }}/conoha
+        run: |
+          conoha app deploy "${{ vars.CONOHA_SERVER_NAME }}" \
+            --app-name "$APP_NAME" \
+            --identity ~/.ssh/conoha_deploy
