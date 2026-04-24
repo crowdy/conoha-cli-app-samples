@@ -320,6 +320,13 @@ describe("rich menu batch", () => {
     expect(typeof json.completedTime).toBe("string");
   });
 
+  it("GET /progress/batch without requestId returns 400", async () => {
+    const res = await app.request("/v2/bot/richmenu/progress/batch", {
+      headers: authHeaders(),
+    });
+    expect(res.status).toBe(400);
+  });
+
   it("POST /validate/batch rejects link operation missing `to`", async () => {
     const res = await app.request("/v2/bot/richmenu/validate/batch", {
       method: "POST",
