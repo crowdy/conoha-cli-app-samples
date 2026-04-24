@@ -12,9 +12,12 @@ services:
       - hermes_data:/opt/data
       - ./config/config.yaml:/opt/data/config.yaml
       - ./config/SOUL.md:/opt/data/SOUL.md:ro
-    env_file:
-      - .env.server
     environment:
+      # ANTHROPIC_API_KEY and API_SERVER_KEY come from `conoha app env
+      # set` on the VPS. Defaults left empty so misconfiguration
+      # surfaces as an API error instead of silently using a fake key.
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - API_SERVER_KEY=${API_SERVER_KEY:-}
       - API_SERVER_ENABLED=true
       - API_SERVER_HOST=0.0.0.0
       - GATEWAY_ALLOW_ALL_USERS=true

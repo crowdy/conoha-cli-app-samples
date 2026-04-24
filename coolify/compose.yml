@@ -19,7 +19,11 @@ services:
     environment:
       - APP_ID=${APP_ID:-coolify}
       - APP_KEY=${APP_KEY:-}
-      - APP_URL=${APP_URL:-http://localhost:8000}
+      # APP_URL must be the public HTTPS FQDN so Coolify generates
+      # correct invite / OAuth redirect links. No default — an empty
+      # value surfaces as a startup error instead of silently
+      # generating broken `http://localhost:8000` links.
+      - APP_URL=${APP_URL:?APP_URL must be set to https://your-fqdn via `conoha app env set`}
       - DB_PASSWORD=${DB_PASSWORD:-coolify}
       - REDIS_PASSWORD=${REDIS_PASSWORD:-coolify}
     volumes:
