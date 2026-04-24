@@ -51,25 +51,22 @@ richMenuAliasRouter.post(
       return errors.badRequest(c, "Unknown richMenuId for this channel");
     }
 
-    const [existing] = await db
-      .select({ aliasId: richMenuAliases.aliasId })
-      .from(richMenuAliases)
-      .where(
-        and(
-          eq(richMenuAliases.channelId, channelDbId),
-          eq(richMenuAliases.aliasId, body.richMenuAliasId)
-        )
-      )
-      .limit(1);
-    if (existing) {
-      return errors.badRequest(c, "richMenuAliasId already exists");
+    try {
+      await db.insert(richMenuAliases).values({
+        channelId: channelDbId,
+        aliasId: body.richMenuAliasId,
+        richMenuId: rmInternalId,
+      });
+    } catch (err: unknown) {
+      // PG unique_violation on (channelId, aliasId) composite PK. Real LINE
+      // API returns 400 for duplicate aliases; without this catch the race
+      // between two concurrent creates would surface as a 500.
+      const e = err as { code?: string; cause?: { code?: string } } | null;
+      if (e?.code === "23505" || e?.cause?.code === "23505") {
+        return errors.badRequest(c, "richMenuAliasId already exists");
+      }
+      throw err;
     }
-
-    await db.insert(richMenuAliases).values({
-      channelId: channelDbId,
-      aliasId: body.richMenuAliasId,
-      richMenuId: rmInternalId,
-    });
     return c.json({});
   }
 );
