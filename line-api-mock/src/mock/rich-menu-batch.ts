@@ -143,7 +143,7 @@ richMenuBatchRouter.get(
     }
     // Wire format is ISO 8601 string; @line/bot-sdk types declare `Date` but
     // the generated deserializer does not coerce. See issue #34 (M2) and the
-    // SDK-compat pin in test/sdk-compat/rich-menu-batch-progress.test.ts.
+    // SDK-compat pin in test/sdk-compat/progress.test.ts.
     const now = new Date().toISOString();
     return c.json({
       phase: "succeeded",
