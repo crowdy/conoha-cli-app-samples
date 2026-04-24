@@ -74,18 +74,27 @@ conoha server deploy <サーバー名> --script nvidia-utils-setup.sh --identity
 ## デプロイ
 
 ```bash
-# アプリ初期化
-conoha app init <サーバー名> --app-name ollama-webui-gpu \
+# 1. conoha.yml の `hosts:` を自分の FQDN に書き換える
+#    DNS A レコードがサーバー IP を指している必要があります
+
+# 2. proxy を起動（サーバーごとに 1 回だけ）
+conoha proxy boot --acme-email you@example.com <サーバー名> \
+  --identity ~/.ssh/conoha_<キー名>
+
+# 3. アプリ登録
+conoha app init <サーバー名> \
   --identity ~/.ssh/conoha_<キー名> --no-input
 
-# デプロイ（初回は gemma4:31b の pull で数分かかります）
-conoha app deploy <サーバー名> --app-name ollama-webui-gpu \
+# 4. デプロイ（初回は gemma4:31b の pull で数分かかります）
+conoha app deploy <サーバー名> \
   --identity ~/.ssh/conoha_<キー名> --no-input
 ```
 
+`ollama` は accessory として宣言されているため、GPU-resident モデルは blue/green 切替越しに維持されます — webui のコード変更で再デプロイしても 20GB のモデルを pull し直す必要はありません。
+
 ## 動作確認
 
-ブラウザで `http://<サーバーIP>:3000` にアクセスするとチャット画面が表示されます。
+ブラウザで `https://<あなたの FQDN>` にアクセスするとチャット画面が表示されます。初回は Let's Encrypt 証明書発行に数十秒かかる場合があります。
 
 ## カスタマイズ
 

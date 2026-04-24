@@ -1,0 +1,11 @@
+name: ghost-blog
+# Replace with your own FQDN before running `conoha app init`.
+hosts:
+  - ghost-blog.example.com
+web:
+  service: ghost
+  port: 2368
+# `db` is marked as an accessory so it's started once and kept alive
+# across blue/green swaps — only `ghost` is duplicated per slot.
+accessories:
+  - db

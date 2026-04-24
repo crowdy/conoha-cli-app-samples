@@ -1,0 +1,13 @@
+name: nextjs-go-google-ucp
+# Replace with your own FQDN before running `conoha app init`.
+hosts:
+  - nextjs-go-google-ucp.example.com
+web:
+  service: frontend
+  port: 3000
+# `api` and `db` are marked as accessories: they're reached only from
+# `frontend` over the internal compose network, so they stay alive
+# across blue/green swaps — only `frontend` is duplicated per slot.
+accessories:
+  - api
+  - db

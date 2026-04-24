@@ -1,0 +1,12 @@
+name: fastapi-ai-chatbot
+# Replace with your own FQDN before running `conoha app init`.
+hosts:
+  - fastapi-ai-chatbot.example.com
+web:
+  service: app
+  port: 8000
+# `ollama` is marked as an accessory: pulling the model is slow and
+# the model blobs live in a volume, so we never tear it down during
+# blue/green swaps — only `app` is duplicated per slot.
+accessories:
+  - ollama

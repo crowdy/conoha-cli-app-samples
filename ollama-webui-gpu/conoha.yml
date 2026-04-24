@@ -1,0 +1,12 @@
+name: ollama-webui-gpu
+# Replace with your own FQDN before running `conoha app init`.
+hosts:
+  - ollama-webui-gpu.example.com
+web:
+  service: webui
+  port: 8080
+# `ollama` is marked as an accessory: the GPU-resident model takes
+# minutes to reload, so we keep it alive across blue/green swaps —
+# only `webui` is duplicated per slot.
+accessories:
+  - ollama

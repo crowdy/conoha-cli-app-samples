@@ -54,7 +54,20 @@ Each step shows the raw HTTP request and response.
 ## Deploy with conoha-cli
 
 ```bash
+# 1. Create a server (if you don't have one)
 conoha server create --name ucp-demo --flavor g2l-t-2 --image ubuntu-24.04 --key mykey
-conoha app init ucp-demo --app-name ucp-demo
-conoha app deploy ucp-demo --app-name ucp-demo
+
+# 2. Edit conoha.yml and replace the `hosts:` placeholder with your FQDN
+#    The DNS A record for that FQDN must already point at the server IP
+
+# 3. Boot the proxy (once per server)
+conoha proxy boot --acme-email you@example.com ucp-demo
+
+# 4. Register the app
+conoha app init ucp-demo
+
+# 5. Deploy
+conoha app deploy ucp-demo
 ```
+
+`api` and `db` are declared as accessories, so they stay alive across blue/green swaps — only `frontend` is duplicated per slot. Access the site at `https://<your FQDN>` (the first request may take ~30s while Let's Encrypt issues a certificate).
