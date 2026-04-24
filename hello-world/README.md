@@ -39,4 +39,4 @@ conoha app deploy myserver
 
 ## カスタマイズ
 
-`index.html` を編集して再度 `conoha app deploy` するだけで更新できます。blue/green 切替で無停止デプロイされ、直近のスロットはドレイン期間内 (`conoha.yml` の `deploy.drain_ms` で調整可) であれば `conoha app rollback` で即座に戻せます。
+`index.html` を編集して再度 `conoha app deploy` するだけで更新できます。blue/green 切替で無停止デプロイされ、直前のスロットがまだ落ちきっていなければ `conoha app rollback` で即座に戻せます。

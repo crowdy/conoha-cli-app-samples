@@ -29,6 +29,9 @@ conoha proxy boot --acme-email you@example.com myserver
 conoha app init myserver
 
 # 5. 環境変数を設定（master key は自分で生成）
+#    このステップは必須です。スキップすると compose.yml のデフォルト値
+#    (change-me-to-a-secure-master-key) のままデプロイされ、外部から
+#    全 API が叩ける状態になります。
 conoha app env set myserver MEILI_MASTER_KEY=$(openssl rand -base64 32)
 
 # 6. デプロイ
@@ -52,6 +55,8 @@ curl -X POST "https://<あなたの FQDN>/indexes/movies/documents" \
 curl "https://<あなたの FQDN>/indexes/movies/search?q=千と千尋" \
   -H "Authorization: Bearer <MEILI_MASTER_KEY>"
 ```
+
+`<MEILI_MASTER_KEY>` は step 5 で `conoha app env set` に渡した値に置き換えてください。
 
 ブラウザで `https://<あなたの FQDN>` にアクセスするとミニダッシュボードも利用可能です。初回は Let's Encrypt 証明書発行に数十秒かかる場合があります。
 
