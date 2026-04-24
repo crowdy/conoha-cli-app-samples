@@ -1,0 +1,7 @@
+name: vite-react
+# Replace with your own FQDN before running `conoha app init`.
+hosts:
+  - vite-react.example.com
+web:
+  service: web
+  port: 80

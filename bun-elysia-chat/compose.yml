@@ -1,8 +1,11 @@
 services:
   web:
     build: .
-    ports:
-      - "3000:3000"
+    # No host-side port: conoha-proxy injects a randomly-bound
+    # 127.0.0.1:0:3000 mapping at deploy time so two slots (blue/green)
+    # can coexist. Publishing explicitly here would conflict.
+    expose:
+      - "3000"
     volumes:
       - chat_data:/data
     restart: unless-stopped

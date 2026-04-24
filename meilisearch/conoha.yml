@@ -1,0 +1,7 @@
+name: meilisearch
+# Replace with your own FQDN before running `conoha app init`.
+hosts:
+  - meilisearch.example.com
+web:
+  service: meilisearch
+  port: 7700

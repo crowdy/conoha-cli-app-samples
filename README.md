@@ -12,22 +12,30 @@
 
 ## 使い方
 
+サンプルディレクトリに `conoha.yml` があるものは blue/green プロキシ経由でデプロイします（新しい推奨フロー）。
+
 ```bash
 # 1. このリポジトリをクローン
 git clone https://github.com/crowdy/conoha-cli-app-samples.git
-cd conoha-cli-app-samples
+cd conoha-cli-app-samples/hello-world
 
 # 2. サーバーを作成（まだない場合）
 conoha server create --name myserver --flavor g2l-t-2 --image ubuntu-24.04 --key mykey
 
-# 3. サンプルを選んでデプロイ
-cd hello-world
-conoha app init myserver --app-name hello-world
-conoha app deploy myserver --app-name hello-world
+# 3. conoha.yml の `hosts:` を自分の FQDN に書き換える
+#    例: hello-world.example.com -> あなたのドメイン（DNS A レコードが VPS を指していること）
 
-# 4. 動作確認
-conoha app logs myserver --app-name hello-world
+# 4. proxy を起動（サーバーごとに 1 回だけ）
+conoha proxy boot --acme-email you@example.com myserver
+
+# 5. アプリ登録・デプロイ
+conoha app init myserver
+conoha app deploy myserver
+
+# 6. ブラウザで https://<あなたの FQDN> にアクセス
 ```
+
+`conoha.yml` がまだないサンプル（移行中）は、各サンプルの README に従って従来の `--app-name` 指定フローを使用してください。移行状況は crowdy/conoha-cli#97 を参照。
 
 ## サンプル一覧
 
@@ -79,15 +87,28 @@ conoha app logs myserver --app-name hello-world
 
 ## 自分のアプリをデプロイするには
 
-`compose.yml`（または `docker-compose.yml`）があるディレクトリであれば、同じ手順でデプロイできます。
+1. アプリディレクトリに `compose.yml`（または `docker-compose.yml`）と `conoha.yml` を用意します。公開したいサービスは `ports:` ではなく `expose:` でコンテナ側ポートだけを宣言してください（proxy が blue/green スロットごとに `127.0.0.1:0:PORT` を割り当てます）。
 
-```bash
-cd your-app
-conoha app init myserver --app-name your-app
-conoha app deploy myserver --app-name your-app
-```
+   ```yaml
+   # conoha.yml の最小構成
+   name: your-app
+   hosts:
+     - your-app.example.com
+   web:
+     service: web    # compose.yml のサービス名
+     port: 3000      # 上記サービスの expose ポート
+   ```
 
-`Dockerfile` でビルドする場合は `compose.yml` の `build: .` を使ってください。
+2. 以下を実行:
+
+   ```bash
+   cd your-app
+   conoha proxy boot --acme-email you@example.com myserver   # 初回のみ
+   conoha app init myserver
+   conoha app deploy myserver
+   ```
+
+`Dockerfile` でビルドする場合は `compose.yml` の `build: .` を使ってください。DB や Redis などの付帯サービスは `conoha.yml` の `accessories:` に列挙すると blue/green 切替時も起動したままになります（`express-mongodb` 参照）。
 
 ## 関連リンク
 

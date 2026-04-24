@@ -1,0 +1,7 @@
+name: nextjs
+# Replace with your own FQDN before running `conoha app init`.
+hosts:
+  - nextjs.example.com
+web:
+  service: web
+  port: 3000

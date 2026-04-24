@@ -1,0 +1,7 @@
+name: uptime-kuma
+# Replace with your own FQDN before running `conoha app init`.
+hosts:
+  - uptime-kuma.example.com
+web:
+  service: uptime-kuma
+  port: 3001

@@ -1,17 +1,29 @@
 services:
   web:
     build: .
-    ports:
-      - "3000:3000"
+    # No host-side port: conoha-proxy injects a randomly-bound
+    # 127.0.0.1:0:3000 mapping at deploy time so two slots (blue/green)
+    # can coexist. Publishing explicitly here would conflict.
+    expose:
+      - "3000"
     environment:
       - MONGO_URL=mongodb://db:27017/app
     depends_on:
-      - db
+      db:
+        condition: service_healthy
+    restart: unless-stopped
 
   db:
     image: mongo:8
     volumes:
       - db_data:/data/db
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
 
 volumes:
   db_data:

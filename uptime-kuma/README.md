@@ -12,24 +12,32 @@
 - conoha-cli がインストール済み
 - ConoHa VPS3 アカウント
 - SSH キーペアが設定済み
+- 公開したい FQDN の DNS A レコードがサーバー IP を指している
 
 ## デプロイ
 
 ```bash
-# サーバー作成
+# 1. サーバー作成
 conoha server create --name myserver --flavor g2l-t-1 --image ubuntu-24.04 --key mykey
 
-# アプリ初期化・デプロイ
-conoha app init myserver --app-name uptime-kuma
-conoha app deploy myserver --app-name uptime-kuma
+# 2. conoha.yml の `hosts:` を自分の FQDN に書き換える
+
+# 3. proxy を起動（サーバーごとに 1 回だけ）
+conoha proxy boot --acme-email you@example.com myserver
+
+# 4. アプリ登録
+conoha app init myserver
+
+# 5. デプロイ
+conoha app deploy myserver
 ```
 
 ## 動作確認
 
-ブラウザで `http://<サーバーIP>:3001` にアクセスし、初期管理者アカウントを作成します。
+ブラウザで `https://<あなたの FQDN>` にアクセスし、初期管理者アカウントを作成します。初回は Let's Encrypt 証明書発行に数十秒かかる場合があります。
 
 ## カスタマイズ
 
 - ダッシュボードから監視対象（HTTP、TCP、DNS、Ping など）を追加
 - 通知チャネル（Slack、Discord、LINE、メールなど）を設定可能
-- 本番環境では nginx リバースプロキシを前段に追加し HTTPS 化を推奨
+- proxy が HTTPS 終端を担うため、nginx の前段はもう不要です

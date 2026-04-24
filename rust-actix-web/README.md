@@ -37,58 +37,52 @@ Rust と Actix-web で構築した高速 REST API サーバーです。インメ
 - [conoha-cli](https://github.com/crowdy/conoha-cli) がインストール済み
 - ConoHa VPS3 アカウント
 - SSH キーペア設定済み
+- 公開したい FQDN の DNS A レコードがサーバー IP を指している
 
 **ローカルに Rust toolchain は不要です。** ビルドはすべてサーバー上の Docker マルチステージビルドで完結します。
 
-## デプロイ手順
-
-### 1. サーバー作成（まだない場合）
+## デプロイ
 
 ```bash
+# 1. サーバー作成（まだない場合）
 conoha server create --name myserver --flavor g2l-t-2 --image ubuntu-24.04 --key mykey
-```
 
-### 2. アプリ初期化
+# 2. conoha.yml の `hosts:` を自分の FQDN に書き換える
 
-サーバー上に Docker 環境と Git リポジトリをセットアップします。
+# 3. proxy を起動（サーバーごとに 1 回だけ）
+conoha proxy boot --acme-email you@example.com myserver
 
-```bash
-conoha app init myserver --app-name rust-actix-web
-```
+# 4. アプリ登録
+conoha app init myserver
 
-### 3. デプロイ
-
-`rust-actix-web` ディレクトリ内で実行します。
-
-```bash
-cd rust-actix-web
-conoha app deploy myserver --app-name rust-actix-web
+# 5. デプロイ
+conoha app deploy myserver
 ```
 
 初回ビルドは Rust コンパイルに数分かかります。Docker レイヤーキャッシュにより、2回目以降は依存関係の変更がなければ数秒で完了します。
 
-### 4. 動作確認
+## 動作確認
 
 ```bash
 # ステータス確認
-conoha app status myserver --app-name rust-actix-web
+conoha app status myserver
 
 # ヘルスチェック
-curl http://<サーバーIP>:3000/health
+curl https://<あなたの FQDN>/health
 # => {"status":"ok"}
 
 # メッセージ作成
-curl -X POST http://<サーバーIP>:3000/api/messages \
+curl -X POST https://<あなたの FQDN>/api/messages \
   -H 'Content-Type: application/json' \
   -d '{"text": "Hello from conoha-cli!"}'
 # => {"id":1,"text":"Hello from conoha-cli!"}
 
 # メッセージ一覧
-curl http://<サーバーIP>:3000/api/messages
+curl https://<あなたの FQDN>/api/messages
 # => [{"id":1,"text":"Hello from conoha-cli!"}]
 ```
 
-ブラウザで `http://<サーバーIP>:3000` にアクセスすると、メッセージの投稿・削除ができる Web UI が表示されます。
+ブラウザで `https://<あなたの FQDN>` にアクセスすると、メッセージの投稿・削除ができる Web UI が表示されます。初回は Let's Encrypt 証明書発行に数十秒かかる場合があります。
 
 ## API リファレンス
 
