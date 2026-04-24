@@ -143,6 +143,12 @@ Swagger UI には表示されますが、実装は v2 以降の予定です。
 - **Webhook URL 制限**: デフォルトでプライベート IP・ループバック・リンクローカルアドレスへの送信を拒否します（SSRF 対策）。`MOCK_ALLOW_PRIVATE_WEBHOOKS=1` で解除できます（ローカル開発用途のみ）。
 - **既知の制限**: CSRF 保護なし、レート制限なし。インターネット公開環境での使用は想定していません。
 
+## SDK 型との既知の不整合
+
+`@line/bot-sdk` の型定義では `NarrowcastProgressResponse.acceptedTime` と `RichMenuBatchProgressResponse.acceptedTime`/`completedTime` が `Date` として宣言されていますが、SDK の deserializer (`text ? JSON.parse(text) : null`) は文字列を `Date` に coerce しません。
+
+実 LINE API と本モックは ISO 8601 文字列を返すため、`progress.acceptedTime.getTime()` のように SDK 型を信じて呼ぶと実行時に失敗します。型バグは SDK 側なので本モックは wire 形式 (string) を維持し、`test/sdk-compat/progress.test.ts` で現在の runtime 挙動 (string) を pin しています。
+
 ## このサンプルが *含まない* もの
 
 - 実 LINE Platform との完全互換(形式のみ準拠、内部挙動は簡略化)

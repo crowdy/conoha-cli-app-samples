@@ -97,4 +97,11 @@ describe("bulk send", () => {
     expect(prog.status).toBe(200);
     expect((await prog.json()).phase).toBe("succeeded");
   });
+
+  it("narrowcast progress without requestId returns 400", async () => {
+    const res = await app.request("/v2/bot/message/progress/narrowcast", {
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(res.status).toBe(400);
+  });
 });

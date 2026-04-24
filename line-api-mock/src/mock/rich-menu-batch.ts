@@ -138,6 +138,12 @@ richMenuBatchRouter.get(
     responseSchema: "#/components/schemas/RichMenuBatchProgressResponse",
   }),
   async (c) => {
+    if (!c.req.query("requestId")) {
+      return errors.badRequest(c, "requestId is required");
+    }
+    // Wire format is ISO 8601 string; @line/bot-sdk types declare `Date` but
+    // the generated deserializer does not coerce. See issue #34 (M2) and the
+    // SDK-compat pin in test/sdk-compat/progress.test.ts.
     const now = new Date().toISOString();
     return c.json({
       phase: "succeeded",
