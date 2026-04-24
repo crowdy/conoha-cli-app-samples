@@ -35,10 +35,10 @@ conoha app init myserver
 conoha app env set myserver \
   DB_PASSWORD=$(openssl rand -base64 32) \
   APP_KEYS=$(openssl rand -base64 32),$(openssl rand -base64 32),$(openssl rand -base64 32),$(openssl rand -base64 32) \
-  API_TOKEN_SALT=$(openssl rand -base64 16) \
-  ADMIN_JWT_SECRET=$(openssl rand -base64 16) \
-  JWT_SECRET=$(openssl rand -base64 16) \
-  TRANSFER_TOKEN_SALT=$(openssl rand -base64 16)
+  API_TOKEN_SALT=$(openssl rand -base64 32) \
+  ADMIN_JWT_SECRET=$(openssl rand -base64 32) \
+  JWT_SECRET=$(openssl rand -base64 32) \
+  TRANSFER_TOKEN_SALT=$(openssl rand -base64 32)
 
 # 6. デプロイ
 conoha app deploy myserver

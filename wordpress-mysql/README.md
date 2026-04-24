@@ -29,8 +29,8 @@ conoha proxy boot --acme-email you@example.com myserver
 # 4. アプリ登録
 conoha app init myserver
 
-# 5. 環境変数を設定（このステップは必須 — スキップすると compose.yml の
-#    デフォルト値 "wordpress" のままデプロイされ、誰でも DB にアクセス可能)
+# 5. 環境変数を設定（このステップは必須 — compose.yml のデフォルト値は
+#    公開リポジトリに記載されているため本番では必ず変更してください）
 conoha app env set myserver \
   MYSQL_ROOT_PASSWORD=$(openssl rand -base64 32) \
   MYSQL_PASSWORD=$(openssl rand -base64 32)
