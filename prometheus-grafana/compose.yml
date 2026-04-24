@@ -1,8 +1,11 @@
 services:
   prometheus:
     image: prom/prometheus:v3.3.0
-    ports:
-      - "9090:9090"
+    # No host-side port: Grafana queries prometheus internally via the
+    # `prometheus:9090` data source, so the UI is kept off the public
+    # proxy (only `grafana` is proxy-facing).
+    expose:
+      - "9090"
     volumes:
       - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - prometheus_data:/prometheus
@@ -18,8 +21,11 @@ services:
 
   grafana:
     image: grafana/grafana:11.6.0
-    ports:
-      - "3000:3000"
+    # No host-side port: conoha-proxy injects a randomly-bound
+    # 127.0.0.1:0:3000 mapping at deploy time so two slots (blue/green)
+    # can coexist. Publishing explicitly here would conflict.
+    expose:
+      - "3000"
     environment:
       - GF_SECURITY_ADMIN_USER=${GF_ADMIN_USER:-admin}
       - GF_SECURITY_ADMIN_PASSWORD=${GF_ADMIN_PASSWORD:-admin}

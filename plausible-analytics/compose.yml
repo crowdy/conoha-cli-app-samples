@@ -1,8 +1,11 @@
 services:
   plausible:
     image: ghcr.io/plausible/community-edition:v2.1.6
-    ports:
-      - "8000:8000"
+    # No host-side port: conoha-proxy injects a randomly-bound
+    # 127.0.0.1:0:8000 mapping at deploy time so two slots (blue/green)
+    # can coexist. Publishing explicitly here would conflict.
+    expose:
+      - "8000"
     environment:
       - BASE_URL=${BASE_URL:-http://localhost:8000}
       - SECRET_KEY_BASE=${SECRET_KEY_BASE:-please-change-me-to-a-random-64-char-string-use-openssl-rand-base64-48}

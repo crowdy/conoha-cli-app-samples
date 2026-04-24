@@ -14,34 +14,43 @@
 - conoha-cli がインストール済み
 - ConoHa VPS3 アカウント
 - SSH キーペアが設定済み
+- 公開したい FQDN の DNS A レコードがサーバー IP を指している
 
 ## デプロイ
 
 ```bash
-# サーバー作成
+# 1. サーバー作成
 conoha server create --name myserver --flavor g2l-t-2 --image ubuntu-24.04 --key mykey
 
-# アプリ初期化
-conoha app init myserver --app-name plausible-analytics
+# 2. conoha.yml の `hosts:` を自分の FQDN に書き換える
 
-# 環境変数を設定
-conoha app env set myserver --app-name plausible-analytics \
-  BASE_URL=http://your-server-ip:8000 \
+# 3. proxy を起動（サーバーごとに 1 回だけ）
+conoha proxy boot --acme-email you@example.com myserver
+
+# 4. アプリ登録
+conoha app init myserver
+
+# 5. 環境変数を設定（BASE_URL は公開 FQDN に揃える — トラッキング
+#    スクリプトのパスや OAuth リダイレクト URL がこの値から生成される）
+conoha app env set myserver \
+  BASE_URL=https://<あなたの FQDN> \
   SECRET_KEY_BASE=$(openssl rand -base64 48) \
-  DB_PASSWORD=your-secure-password
+  DB_PASSWORD=$(openssl rand -base64 32)
 
-# デプロイ
-conoha app deploy myserver --app-name plausible-analytics
+# 6. デプロイ
+conoha app deploy myserver
 ```
+
+`db` と `clickhouse` は accessory として宣言されているため、blue/green 切替時も再起動されません。ClickHouse に溜まったイベントデータが保持されます。
 
 ## 動作確認
 
-1. `http://<サーバーIP>:8000` で管理者アカウントを作成
+1. `https://<あなたの FQDN>` で管理者アカウントを作成（初回は Let's Encrypt 証明書発行に数十秒かかる場合があります）
 2. サイトを追加してトラッキングスクリプトを取得
 3. 対象サイトの `<head>` にスクリプトタグを追加
 
 ```html
-<script defer data-domain="yourdomain.com" src="http://<サーバーIP>:8000/js/script.js"></script>
+<script defer data-domain="yourdomain.com" src="https://<あなたの FQDN>/js/script.js"></script>
 ```
 
 ## カスタマイズ

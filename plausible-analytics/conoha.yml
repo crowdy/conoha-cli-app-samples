@@ -1,0 +1,14 @@
+name: plausible-analytics
+# Replace with your own FQDN before running `conoha app init`.
+hosts:
+  - plausible-analytics.example.com
+web:
+  service: plausible
+  port: 8000
+# `db` (PostgreSQL) and `clickhouse` are marked as accessories so
+# they're started once and kept alive across blue/green swaps — only
+# `plausible` is duplicated per slot. ClickHouse stores event data
+# which must not be wiped on redeploy.
+accessories:
+  - db
+  - clickhouse
