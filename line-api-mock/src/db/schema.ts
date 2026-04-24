@@ -179,7 +179,12 @@ export const userRichMenuLinks = pgTable(
       .notNull()
       .references(() => richMenus.id, { onDelete: "cascade" }),
   },
-  (t) => ({ pk: primaryKey({ columns: [t.channelId, t.userId] }) })
+  (t) => ({
+    pk: primaryKey({ columns: [t.channelId, t.userId] }),
+    richMenuIdx: index("user_rich_menu_links_rich_menu_id_idx").on(
+      t.richMenuId
+    ),
+  })
 );
 
 export const richMenuAliases = pgTable(
