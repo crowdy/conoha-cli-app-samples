@@ -1,0 +1,9 @@
+name: hello-world
+# Replace with your own FQDN before running `conoha app init`.
+# The proxy routes by Host: header, so this must match the domain
+# whose DNS A record points at your VPS.
+hosts:
+  - hello.example.com
+web:
+  service: web
+  port: 80
