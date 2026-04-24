@@ -114,7 +114,15 @@ export function validate(opts: ValidateOpts): MiddlewareHandler {
 
     await next();
 
-    if (process.env.NODE_ENV !== "production" && opts.responseSchema) {
+    // Success-response schemas only describe 2xx bodies. Skip for 4xx/5xx
+    // so guard-produced error responses (badRequest, unauthorized, ...) do
+    // not trigger spurious "SCHEMA DRIFT" logs.
+    if (
+      process.env.NODE_ENV !== "production" &&
+      opts.responseSchema &&
+      c.res.status >= 200 &&
+      c.res.status < 300
+    ) {
       const resCt = c.res.headers.get("content-type") ?? "";
       if (resCt.includes("application/json")) {
         const v = compileOnce(resCache, opts.responseSchema);
