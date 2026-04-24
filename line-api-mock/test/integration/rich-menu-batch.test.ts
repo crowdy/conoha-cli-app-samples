@@ -121,8 +121,9 @@ function authHeaders() {
 }
 
 // Tests here rely on the beforeEach baseline reset to start from a known
-// state. Marked sequential so --sequence.shuffle / .concurrent can't
-// interleave baseline setup with the next test's assertions. See #37.
+// state. Marked sequential so `--sequence.concurrent` can't interleave
+// baseline setup with the next test's assertions. Note: this does NOT
+// guard against `--sequence.shuffle` in Vitest 2.x. See issue #37.
 describe.sequential("rich menu batch", () => {
   it("POST /validate/batch accepts valid shape with 200", async () => {
     const res = await app.request("/v2/bot/richmenu/validate/batch", {
