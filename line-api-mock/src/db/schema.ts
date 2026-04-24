@@ -7,6 +7,7 @@ import {
   timestamp,
   jsonb,
   primaryKey,
+  index,
   customType,
   type AnyPgColumn,
 } from "drizzle-orm/pg-core";
@@ -178,7 +179,12 @@ export const userRichMenuLinks = pgTable(
       .notNull()
       .references(() => richMenus.id, { onDelete: "cascade" }),
   },
-  (t) => ({ pk: primaryKey({ columns: [t.channelId, t.userId] }) })
+  (t) => ({
+    pk: primaryKey({ columns: [t.channelId, t.userId] }),
+    richMenuIdx: index("user_rich_menu_links_rich_menu_id_idx").on(
+      t.richMenuId
+    ),
+  })
 );
 
 export const richMenuAliases = pgTable(
@@ -195,5 +201,8 @@ export const richMenuAliases = pgTable(
       .notNull()
       .defaultNow(),
   },
-  (t) => ({ pk: primaryKey({ columns: [t.channelId, t.aliasId] }) })
+  (t) => ({
+    pk: primaryKey({ columns: [t.channelId, t.aliasId] }),
+    richMenuIdx: index("rich_menu_aliases_rich_menu_id_idx").on(t.richMenuId),
+  })
 );

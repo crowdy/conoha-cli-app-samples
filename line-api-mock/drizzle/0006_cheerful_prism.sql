@@ -1,0 +1,1 @@
+CREATE INDEX "user_rich_menu_links_rich_menu_id_idx" ON "user_rich_menu_links" USING btree ("rich_menu_id");
