@@ -1,0 +1,19 @@
+name: nginx-reverse-proxy
+# Replace with your own FQDN before running `conoha app init`.
+hosts:
+  - nginx-reverse-proxy.example.com
+web:
+  service: proxy
+  port: 80
+# `app1` and `app2` are accessories — they're reached only via the
+# in-container nginx reverse proxy on the compose network.
+#
+# NOTE: This sample's whole point used to be demonstrating manual
+# host-side reverse proxying. conoha-proxy now provides that layer
+# (Host-based routing + TLS termination), so the inner nginx here is
+# redundant for new projects. Kept in the catalogue as a reference for
+# users who want internal path-based routing on top of the proxy
+# (e.g. `/` → app1, `/api/` → app2 from a single FQDN).
+accessories:
+  - app1
+  - app2

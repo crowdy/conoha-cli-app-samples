@@ -69,7 +69,17 @@ GPU が認識されていることを確認してください。
 ## デプロイ
 
 ```bash
-conoha app deploy fish-speech --app fish-speech-tts-gpu
+# 1. conoha.yml の `hosts:` を自分の FQDN に書き換える
+#    (DNS A レコードがサーバー IP を指している必要があります)
+
+# 2. proxy を起動（サーバーごとに 1 回だけ）
+conoha proxy boot --acme-email you@example.com fish-speech
+
+# 3. アプリ登録
+conoha app init fish-speech
+
+# 4. デプロイ
+conoha app deploy fish-speech
 ```
 
 初回起動時は Fish Speech モデル（s2-pro）の自動ダウンロードが行われるため、数分かかります。2 回目以降はモデルがキャッシュされているため即座に起動します。
@@ -78,23 +88,29 @@ conoha app deploy fish-speech --app fish-speech-tts-gpu
 
 ### WebUI
 
-ブラウザで `http://<サーバーIP>:7860` にアクセスしてください。
+ブラウザで `https://<あなたの FQDN>` にアクセスしてください。初回は Let's Encrypt 証明書発行に数十秒かかる場合があります。
 
-### API ヘルスチェック
+### REST API（コンテナ内 / SSH トンネル経由）
 
-```bash
-curl http://<サーバーIP>:8080/v1/health
-# {"status":"ok"}
-```
+API サーバー（ポート 8080）は **conoha-proxy 経由では公開されません**。proxy は HTTP ホスト 1 つにつき 1 ポートしかルーティングできないため、WebUI（7860）のみが外部から到達可能です。API を呼ぶには次のいずれかの方法を使用してください。
 
-### CLI から音声生成
+- **SSH トンネル**（手元のマシンから API を叩く場合）:
 
-```bash
-curl -X POST http://<サーバーIP>:8080/v1/tts \
-  -H "Content-Type: application/json" \
-  -d '{"text":"こんにちは、世界！","format":"wav"}' \
-  -o hello.wav
-```
+  ```bash
+  ssh -L 8080:localhost:8080 root@<サーバー IP>
+  # 別ターミナルから:
+  curl http://localhost:8080/v1/health
+  curl -X POST http://localhost:8080/v1/tts \
+    -H "Content-Type: application/json" \
+    -d '{"text":"こんにちは、世界！","format":"wav"}' \
+    -o hello.wav
+  ```
+
+- **VPS 内で直接実行**（SSH ログイン後）:
+
+  ```bash
+  curl http://localhost:8080/v1/health
+  ```
 
 ## Go CLI クライアント
 
@@ -114,27 +130,29 @@ sudo apt install libasound2-dev
 
 ### 使い方
 
+CLI は `--server` で API ベース URL を受け取ります。proxy 経由では API が公開されないため、SSH トンネル (`ssh -L 8080:localhost:8080 root@<サーバー IP>`) を張ったローカル端末から `--server http://localhost:8080` で接続するか、VPS 内に CLI バイナリを配置してそこから実行してください。
+
 ```bash
 # テキスト → スピーカー再生
-./fish-speech-cli tts -t "こんにちは" --server http://<サーバーIP>:8080
+./fish-speech-cli tts -t "こんにちは" --server http://localhost:8080
 
 # ファイルに保存
-./fish-speech-cli tts -t "Hello, world!" -o hello.wav --server http://<サーバーIP>:8080
+./fish-speech-cli tts -t "Hello, world!" -o hello.wav --server http://localhost:8080
 
 # 音声クローニング（リファレンス音声を使用）
-./fish-speech-cli ref add --name my-voice --file voice.wav --text "音声のテキスト" --server http://<サーバーIP>:8080
-./fish-speech-cli tts -t "クローニングされた声" --ref my-voice --server http://<サーバーIP>:8080
+./fish-speech-cli ref add --name my-voice --file voice.wav --text "音声のテキスト" --server http://localhost:8080
+./fish-speech-cli tts -t "クローニングされた声" --ref my-voice --server http://localhost:8080
 
 # リファレンス音声の管理
-./fish-speech-cli ref list --server http://<サーバーIP>:8080
-./fish-speech-cli ref delete --name my-voice --server http://<サーバーIP>:8080
+./fish-speech-cli ref list --server http://localhost:8080
+./fish-speech-cli ref delete --name my-voice --server http://localhost:8080
 
 # オーディオ → VQ トークン変換
-./fish-speech-cli encode --input audio.wav --output tokens.json --server http://<サーバーIP>:8080
-./fish-speech-cli decode --input tokens.json --output output.wav --server http://<サーバーIP>:8080
+./fish-speech-cli encode --input audio.wav --output tokens.json --server http://localhost:8080
+./fish-speech-cli decode --input tokens.json --output output.wav --server http://localhost:8080
 
 # ヘルスチェック
-./fish-speech-cli health --server http://<サーバーIP>:8080
+./fish-speech-cli health --server http://localhost:8080
 ```
 
 ## カスタマイズ
