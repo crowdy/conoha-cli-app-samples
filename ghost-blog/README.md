@@ -29,16 +29,15 @@ conoha proxy boot --acme-email you@example.com myserver
 # 4. アプリ登録
 conoha app init myserver
 
-# 5. 環境変数を設定（このステップは必須 — compose.yml のデフォルト値は
-#    公開リポジトリに記載されているため本番では必ず変更してください）
+# 5. 環境変数を設定（このステップは必須 —
+#    - パスワードは compose.yml のデフォルト値が公開リポジトリに記載されているため
+#    - GHOST_URL はこの値が Ghost の投稿・画像 URL 生成に使われるため本番 FQDN を指定）
 conoha app env set myserver \
   MYSQL_ROOT_PASSWORD=$(openssl rand -base64 32) \
-  GHOST_DB_PASSWORD=$(openssl rand -base64 32)
+  GHOST_DB_PASSWORD=$(openssl rand -base64 32) \
+  GHOST_URL=https://<あなたの FQDN>
 
-# 6. compose.yml の `url=` を自分の FQDN（https://<FQDN>）に書き換える
-#    Ghost が投稿 URL の生成に使うため
-
-# 7. デプロイ
+# 6. デプロイ
 conoha app deploy myserver
 ```
 
@@ -54,5 +53,5 @@ conoha app deploy myserver
 ## カスタマイズ
 
 - テーマは Ghost 管理画面からアップロード
-- `compose.yml` の `url` を自分の FQDN に書き換え忘れると、記事リンクや画像URLが壊れます
+- `GHOST_URL` を本番 FQDN に設定し忘れると記事リンクや画像 URL が壊れます（step 5 参照）
 - HTTPS は conoha-proxy が Let's Encrypt で自動終端します（別途 nginx 不要）

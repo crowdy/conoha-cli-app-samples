@@ -8,7 +8,7 @@ services:
       - "3000"
     environment:
       - DATABASE_URL=postgres://mock:mock@db:5432/mock
-      - APP_BASE_URL=http://localhost:3000
+      - APP_BASE_URL=${APP_BASE_URL:-http://localhost:3000}
       - PORT=3000
       - MOCK_ALLOW_PRIVATE_WEBHOOKS=${MOCK_ALLOW_PRIVATE_WEBHOOKS:-0}
     extra_hosts:

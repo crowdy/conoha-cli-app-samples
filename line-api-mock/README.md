@@ -82,8 +82,16 @@ conoha server create --name line-mock --flavor g2l-t-2 --image ubuntu-24.04 --ke
 # 3. proxy を起動（サーバーごとに 1 回だけ）
 conoha proxy boot --acme-email you@example.com line-mock
 
+# 4. アプリ登録
 cd line-api-mock
 conoha app init line-mock
+
+# 5. 環境変数を設定（APP_BASE_URL は公開 FQDN を指定 — 本体が生成する
+#    webhook コールバック URL や自己参照 URL に使われるため、未設定だと
+#    モック内部の URL が http://localhost:3000 のままになり外部から届きません）
+conoha app env set line-mock APP_BASE_URL=https://<あなたの FQDN>
+
+# 6. デプロイ
 conoha app deploy line-mock
 
 # シードされた認証情報を確認
