@@ -15,7 +15,7 @@ LINE Messaging API の OpenAPI 仕様に準拠したモックサーバー。LINE
 - Node.js 22 + TypeScript
 - Hono + @hono/node-server
 - Drizzle ORM + PostgreSQL 17
-- ajv (OpenAPI スキーマ検証)
+- ajv で OpenAPI スキーマ検証 (一部の write エンドポイントのみ — 後述)
 - HTMX + Tailwind CSS (管理 UI)
 
 ## 起動
@@ -137,11 +137,24 @@ Swagger UI には表示されますが、実装は v2 以降の予定です。
 
 `specs/messaging-api.yml` は [line/line-openapi](https://github.com/line/line-openapi) から取得した vendored ファイルです。取得元とコミット SHA は `specs/README.md` に記録しています。
 
+### OpenAPI スキーマ検証の適用範囲
+
+`src/mock/middleware/validate.ts` の `validate({...})` ミドルウェアは、明示的に배線されたルートでのみ ajv 検証を行います。**全エンドポイントに自動適用されるわけではありません**:
+
+- リクエスト検証が배線されているもの: push/multicast/narrowcast/broadcast/reply, message validate, coupon CRUD, rich-menu CRUD・alias・batch
+- 検証されていないもの: profile, content, oauth (v2/v3), webhook-endpoint, quota, bot-info, follower IDs, admin/health 系
+
+`@line/bot-sdk` 互換性の最終的な保証は `test/sdk-compat/` (実 SDK でモックを叩く) が担っています — ajv 検証はあくまで「明らかに違う形」の早期検知層です。
+
+スキーマ ref に typo があると **起動時に即クラッシュ** します(`assertSchemaRefExists`)。サイレントに検証スキップされる従来挙動は廃止しました。
+
 ## セキュリティ
 
 - **管理 UI 認証**: 常に Basic Auth が有効です。`ADMIN_USER`/`ADMIN_PASSWORD` が未設定の場合、起動時にランダムパスワードが自動生成され、コンテナログに出力されます。
 - **Webhook URL 制限**: デフォルトでプライベート IP・ループバック・リンクローカルアドレスへの送信を拒否します（SSRF 対策）。`MOCK_ALLOW_PRIVATE_WEBHOOKS=1` で解除できます（ローカル開発用途のみ）。
-- **既知の制限**: CSRF 保護なし、レート制限なし。インターネット公開環境での使用は想定していません。
+- **管理 UI CSRF**: 状態変更系の admin リクエスト (POST/PUT/DELETE) は `Origin` (なければ `Referer`) が `APP_BASE_URL` のオリジンと一致することを要求します。OWASP "Verifying Origin With Standard Headers" レシピ。Basic Auth ヘッダーの自動再送による cross-origin form-submit CSRF を遮断します。`curl` などで直接叩く場合は `-H "Origin: <APP_BASE_URL>"` を付けてください。`APP_BASE_URL` が `http://localhost:3000` (デフォルト) の場合、ブラウザでは `http://127.0.0.1:3000/admin` ではなく `http://localhost:3000/admin` を開く必要があります — host/port/scheme のいずれかが不一致だと 403 になります。
+- **API ログサイズ上限**: `api_logs.request_body` / `response_body` は 1 行あたり UTF-8 換算で 4 KB を超えると `{ _truncated: true, _originalBytes, _previewBytes, _preview }` マーカーに置き換えられます (リッチメニュー画像の base64 や大きな narrowcast ペイロードで `api_logs` が無制限に肥大化するのを防ぐため)。日本語などマルチバイト文字を含むペイロードでも実バイト数で判定するため、コードユニット数だけ見て上限を素通りすることはありません。プルーニング (古い行の DELETE) は実装していないので、長期運用では `DELETE FROM api_logs WHERE created_at < NOW() - INTERVAL '30 days';` 相当を cron で回すなど別途対応してください。
+- **既知の制限**: レート制限なし。インターネット公開環境での使用は想定していません。
 
 ## SDK 型との既知の不整合
 

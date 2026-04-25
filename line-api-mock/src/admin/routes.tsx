@@ -3,6 +3,7 @@ import { sql, eq, inArray, and, desc } from "drizzle-orm";
 import { db } from "../db/client.js";
 import { channels, messages, webhookDeliveries, accessTokens, virtualUsers, channelFriends, apiLogs, coupons, richMenus, richMenuImages, userRichMenuLinks } from "../db/schema.js";
 import { adminAuth } from "./auth.js";
+import { adminCsrf } from "./csrf.js";
 import { Dashboard } from "./pages/Dashboard.js";
 import { Channels } from "./pages/Channels.js";
 import { Users } from "./pages/Users.js";
@@ -36,8 +37,17 @@ const VALID_REWARD_TYPES = new Set([
 ]);
 
 export const adminRouter = new Hono();
+// Hono's `/admin/*` pattern matches sub-paths only — it does NOT match the
+// bare `/admin`. Each guard is therefore registered against both patterns so
+// the dashboard at `/admin` and everything under `/admin/*` share the same
+// auth + CSRF posture.
 adminRouter.use("/admin", adminAuth);
 adminRouter.use("/admin/*", adminAuth);
+// CSRF guard runs after Basic Auth so that unauthenticated cross-origin probes
+// still get the same 401 challenge they would get for any other admin URL.
+const csrf = adminCsrf();
+adminRouter.use("/admin", csrf);
+adminRouter.use("/admin/*", csrf);
 
 adminRouter.get("/admin", async (c) => {
   const chs = await db
