@@ -3,7 +3,10 @@
 Gitea + PostgreSQL を使ったセルフホスティング Git サービスです。Dex を別サブドメインで
 公開し、ブラウザ OIDC ログインも動作するレイアウトに移行しました。
 
-> **要件**: `conoha-cli >= v0.3.0`(`expose:` ブロック対応版)が必要です。
+> **要件**: `conoha-cli >= v0.6.1` が必要です。`expose:` ブロックは v0.3.0 で
+> 入りましたが、`blue_green: false`(本サンプルで dex を accessories 側に
+> 固定するために必要)が正しく proxy にルーティングされるのは v0.6.1 以降です
+> ([conoha-cli#163](https://github.com/crowdy/conoha-cli/issues/163))。
 
 ## 技術スタック
 
@@ -109,7 +112,7 @@ PostgreSQL の初回起動時に実行される初期化スクリプトです。
 
 ## 前提条件
 
-- [conoha-cli](https://github.com/crowdy/conoha-cli) `>= v0.3.0`
+- [conoha-cli](https://github.com/crowdy/conoha-cli) `>= v0.6.1`
 - ConoHa VPS3 アカウント
 - SSH キーペア設定済み
 - 公開する **2 つの FQDN** の DNS A レコードがサーバー IP を指している:
