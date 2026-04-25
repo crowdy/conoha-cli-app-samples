@@ -1,4 +1,8 @@
-issuer: http://YOUR_SERVER_IP:5556/dex
+# Dex OIDC provider configuration.
+# https://dexidp.io/docs/
+# Placeholders (__VAR__) are replaced by sed in compose.yml entrypoint.
+
+issuer: https://__DEX_ISSUER_HOST__/dex
 
 storage:
   type: sqlite3
@@ -12,11 +16,11 @@ oauth2:
   skipApprovalScreen: true
 
 staticClients:
-  - id: outline
+  - id: __OIDC_CLIENT_ID__
     redirectURIs:
-      - http://YOUR_SERVER_IP:3000/auth/oidc.callback
+      - "https://__OUTLINE_HOST__/auth/oidc.callback"
     name: Outline
-    secret: outline-dex-secret
+    secret: __OIDC_CLIENT_SECRET__
 
 enablePasswordDB: true
 
