@@ -152,8 +152,8 @@ Swagger UI には表示されますが、実装は v2 以降の予定です。
 
 - **管理 UI 認証**: 常に Basic Auth が有効です。`ADMIN_USER`/`ADMIN_PASSWORD` が未設定の場合、起動時にランダムパスワードが自動生成され、コンテナログに出力されます。
 - **Webhook URL 制限**: デフォルトでプライベート IP・ループバック・リンクローカルアドレスへの送信を拒否します（SSRF 対策）。`MOCK_ALLOW_PRIVATE_WEBHOOKS=1` で解除できます（ローカル開発用途のみ）。
-- **管理 UI CSRF**: 状態変更系の admin リクエスト (POST/PUT/DELETE) は `Origin` (なければ `Referer`) が `APP_BASE_URL` のオリジンと一致することを要求します。OWASP "Verifying Origin With Standard Headers" レシピ。Basic Auth ヘッダーの自動再送による cross-origin form-submit CSRF を遮断します。`curl` などで直接叩く場合は `-H "Origin: <APP_BASE_URL>"` を付けてください。
-- **API ログサイズ上限**: `api_logs.request_body` / `response_body` は 1 行あたり JSON 直列化サイズ ~4 KB を超えると `{ _truncated: true, _originalBytes, _preview }` マーカーに置き換えられます (リッチメニュー画像の base64 や大きな narrowcast ペイロードで `api_logs` が無制限に肥大化するのを防ぐため)。プルーニング (古い行の DELETE) は実装していないので、長期運用では `DELETE FROM api_logs WHERE created_at < NOW() - INTERVAL '30 days';` 相当を cron で回すなど別途対応してください。
+- **管理 UI CSRF**: 状態変更系の admin リクエスト (POST/PUT/DELETE) は `Origin` (なければ `Referer`) が `APP_BASE_URL` のオリジンと一致することを要求します。OWASP "Verifying Origin With Standard Headers" レシピ。Basic Auth ヘッダーの自動再送による cross-origin form-submit CSRF を遮断します。`curl` などで直接叩く場合は `-H "Origin: <APP_BASE_URL>"` を付けてください。`APP_BASE_URL` が `http://localhost:3000` (デフォルト) の場合、ブラウザでは `http://127.0.0.1:3000/admin` ではなく `http://localhost:3000/admin` を開く必要があります — host/port/scheme のいずれかが不一致だと 403 になります。
+- **API ログサイズ上限**: `api_logs.request_body` / `response_body` は 1 行あたり UTF-8 換算で 4 KB を超えると `{ _truncated: true, _originalBytes, _previewBytes, _preview }` マーカーに置き換えられます (リッチメニュー画像の base64 や大きな narrowcast ペイロードで `api_logs` が無制限に肥大化するのを防ぐため)。日本語などマルチバイト文字を含むペイロードでも実バイト数で判定するため、コードユニット数だけ見て上限を素通りすることはありません。プルーニング (古い行の DELETE) は実装していないので、長期運用では `DELETE FROM api_logs WHERE created_at < NOW() - INTERVAL '30 days';` 相当を cron で回すなど別途対応してください。
 - **既知の制限**: レート制限なし。インターネット公開環境での使用は想定していません。
 
 ## SDK 型との既知の不整合

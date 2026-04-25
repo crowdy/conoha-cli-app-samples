@@ -37,6 +37,10 @@ const VALID_REWARD_TYPES = new Set([
 ]);
 
 export const adminRouter = new Hono();
+// Hono's `/admin/*` pattern matches sub-paths only — it does NOT match the
+// bare `/admin`. Each guard is therefore registered against both patterns so
+// the dashboard at `/admin` and everything under `/admin/*` share the same
+// auth + CSRF posture.
 adminRouter.use("/admin", adminAuth);
 adminRouter.use("/admin/*", adminAuth);
 // CSRF guard runs after Basic Auth so that unauthenticated cross-origin probes
