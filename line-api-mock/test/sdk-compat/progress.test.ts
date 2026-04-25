@@ -1,7 +1,9 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { serve, type ServerType } from "@hono/node-server";
 import { messagingApi } from "@line/bot-sdk";
-import { startDb, type DbHandle } from "../helpers/testcontainer.js";
+import {
+  startSdkCompatServer,
+  type SdkCompatHarness,
+} from "./helpers/harness.js";
 
 // Pins the SDK Date/string mismatch documented in issue #34 (M2).
 //
@@ -12,59 +14,33 @@ import { startDb, type DbHandle } from "../helpers/testcontainer.js";
 // strings on the wire. If SDK codegen ever starts coercing, these
 // assertions will flip to Date and the pin can be revisited.
 
-let container: DbHandle;
-let server: ServerType;
-let port: number;
-let token: string;
+let harness: SdkCompatHarness;
 
 beforeAll(async () => {
-  container = await startDb();
-  const { Hono } = await import("hono");
-  const { oauthRouter } = await import("../../src/mock/oauth.js");
-  const { messageRouter } = await import("../../src/mock/message.js");
-  const { richMenuBatchRouter } = await import(
-    "../../src/mock/rich-menu-batch.js"
-  );
-  const { db } = await import("../../src/db/client.js");
-  const { channels, accessTokens } = await import("../../src/db/schema.js");
-  const { randomHex, accessTokenStr } = await import("../../src/lib/id.js");
-
-  const [ch] = await db
-    .insert(channels)
-    .values({
-      channelId: "9900000099",
-      channelSecret: randomHex(16),
-      name: "SDK Progress Test",
-    })
-    .returning();
-  token = accessTokenStr();
-  await db.insert(accessTokens).values({
-    channelId: ch.id,
-    token,
-    expiresAt: new Date(Date.now() + 24 * 3600 * 1000),
-  });
-
-  const app = new Hono();
-  app.route("/", oauthRouter);
-  app.route("/", messageRouter);
-  app.route("/", richMenuBatchRouter);
-  await new Promise<void>((resolve) => {
-    server = serve({ fetch: app.fetch, port: 0 }, (info) => {
-      port = info.port;
-      resolve();
-    });
+  harness = await startSdkCompatServer({
+    channelId: "9900000099",
+    channelName: "SDK Progress Test",
+    mountRouters: async (app) => {
+      const { oauthRouter } = await import("../../src/mock/oauth.js");
+      const { messageRouter } = await import("../../src/mock/message.js");
+      const { richMenuBatchRouter } = await import(
+        "../../src/mock/rich-menu-batch.js"
+      );
+      app.route("/", oauthRouter);
+      app.route("/", messageRouter);
+      app.route("/", richMenuBatchRouter);
+    },
   });
 }, 90_000);
 
 afterAll(async () => {
-  server?.close();
-  await container.stop();
+  await harness.stop();
 });
 
 function sdkClient() {
   return new messagingApi.MessagingApiClient({
-    channelAccessToken: token,
-    baseURL: `http://127.0.0.1:${port}`,
+    channelAccessToken: harness.token,
+    baseURL: `http://127.0.0.1:${harness.port}`,
   });
 }
 

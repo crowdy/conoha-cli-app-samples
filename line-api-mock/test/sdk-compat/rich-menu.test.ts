@@ -1,91 +1,59 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { serve, type ServerType } from "@hono/node-server";
 import { messagingApi } from "@line/bot-sdk";
-import { startDb, type DbHandle } from "../helpers/testcontainer.js";
+import {
+  startSdkCompatServer,
+  type SdkCompatHarness,
+} from "./helpers/harness.js";
 
 const PNG_1x1 = Buffer.from(
   "89504E470D0A1A0A0000000D49484452000000010000000108060000001F15C4890000000D4944415408996360000000000500010D0A2DB40000000049454E44AE426082",
   "hex"
 );
 
-let container: DbHandle;
-let server: ServerType;
-let port: number;
-let token: string;
-let botUserId: string;
+let harness: SdkCompatHarness;
 
 beforeAll(async () => {
-  container = await startDb();
-  const { Hono } = await import("hono");
-  const { oauthRouter } = await import("../../src/mock/oauth.js");
-  const { richMenuRouter } = await import("../../src/mock/rich-menu.js");
-  const { richMenuLinkRouter } = await import(
-    "../../src/mock/rich-menu-link.js"
-  );
-  const { richMenuAliasRouter } = await import(
-    "../../src/mock/rich-menu-alias.js"
-  );
-  const { richMenuBatchRouter } = await import(
-    "../../src/mock/rich-menu-batch.js"
-  );
-  const { db } = await import("../../src/db/client.js");
-  const { channels, accessTokens, virtualUsers, channelFriends } =
-    await import("../../src/db/schema.js");
-  const { randomHex, accessTokenStr } = await import("../../src/lib/id.js");
-
-  const [ch] = await db
-    .insert(channels)
-    .values({
-      channelId: "9600000001",
-      channelSecret: randomHex(16),
-      name: "RichMenu SDK Test",
-    })
-    .returning();
-  token = accessTokenStr();
-  await db.insert(accessTokens).values({
-    channelId: ch.id,
-    token,
-    expiresAt: new Date(Date.now() + 24 * 3600 * 1000),
-  });
-  botUserId = "U" + randomHex(16);
-  const [u] = await db
-    .insert(virtualUsers)
-    .values({ userId: botUserId, displayName: "SDK RM Tester" })
-    .returning();
-  await db
-    .insert(channelFriends)
-    .values({ channelId: ch.id, userId: u.id });
-
-  const app = new Hono();
-  app.route("/", oauthRouter);
-  app.route("/", richMenuRouter);
-  app.route("/", richMenuLinkRouter);
-  app.route("/", richMenuAliasRouter);
-  app.route("/", richMenuBatchRouter);
-  await new Promise<void>((resolve) => {
-    server = serve({ fetch: app.fetch, port: 0 }, (info) => {
-      port = info.port;
-      resolve();
-    });
+  harness = await startSdkCompatServer({
+    channelId: "9600000001",
+    channelName: "RichMenu SDK Test",
+    seedFriend: true,
+    friendDisplayName: "SDK RM Tester",
+    mountRouters: async (app) => {
+      const { oauthRouter } = await import("../../src/mock/oauth.js");
+      const { richMenuRouter } = await import("../../src/mock/rich-menu.js");
+      const { richMenuLinkRouter } = await import(
+        "../../src/mock/rich-menu-link.js"
+      );
+      const { richMenuAliasRouter } = await import(
+        "../../src/mock/rich-menu-alias.js"
+      );
+      const { richMenuBatchRouter } = await import(
+        "../../src/mock/rich-menu-batch.js"
+      );
+      app.route("/", oauthRouter);
+      app.route("/", richMenuRouter);
+      app.route("/", richMenuLinkRouter);
+      app.route("/", richMenuAliasRouter);
+      app.route("/", richMenuBatchRouter);
+    },
   });
 }, 90_000);
 
 afterAll(async () => {
-  server?.close();
-  await container.stop();
+  await harness.stop();
 });
 
 function apiClient() {
   return new messagingApi.MessagingApiClient({
-    channelAccessToken: token,
-    baseURL: `http://127.0.0.1:${port}`,
+    channelAccessToken: harness.token,
+    baseURL: `http://127.0.0.1:${harness.port}`,
   });
 }
 
 function blobClient() {
   return new messagingApi.MessagingApiBlobClient({
-    channelAccessToken: token,
-    baseURL: `http://127.0.0.1:${port}`,
+    channelAccessToken: harness.token,
+    baseURL: `http://127.0.0.1:${harness.port}`,
   });
 }
 
@@ -112,9 +80,9 @@ describe("@line/bot-sdk rich menu against mock", () => {
       new Blob([PNG_1x1], { type: "image/png" })
     );
 
-    await client.linkRichMenuIdToUser(botUserId, created.richMenuId);
+    await client.linkRichMenuIdToUser(harness.botUserId!, created.richMenuId);
 
-    const got = await client.getRichMenuIdOfUser(botUserId);
+    const got = await client.getRichMenuIdOfUser(harness.botUserId!);
     expect(got.richMenuId).toBe(created.richMenuId);
   });
 
