@@ -1,21 +1,49 @@
 name: dify-https
-# Replace with your own FQDN before running `conoha app init`.
+# Replace with your own FQDNs before running `conoha app init`.
+# This sample fronts THREE FQDNs:
+#   - root: nginx (web UI fan-out)
+#   - api.: Dify api directly (slot-aware)
+#   - web.: Dify web (Next.js) directly (slot-aware)
 hosts:
   - dify-https.example.com
 web:
   service: nginx
   port: 80
-# Inner services (`api`, `worker`, `web`, `db`, `redis`) are all
-# accessories. Only `nginx` is duplicated per blue/green slot.
-#
-# ⚠ KNOWN LIMITATION: **Only nginx blue/green-swaps**. Updates to the
-# Dify `api`, `worker`, or `web` containers don't get a fresh slot on
-# `app deploy`. For independent blue/green on those services, split
-# them into their own `conoha.yml` projects under subdomains
-# (`api.dify.example.com` etc.).
+  # nginx itself stays slot-aware so we keep the root FQDN swap behaviour.
+  health:
+    # nginx default config returns 200 on `/` once api/web are up; the
+    # proxy default `/up` 404s.
+    path: /
+expose:
+  # Dify api exposed on its own subdomain so the slot rotation actually
+  # reaches the api container (pre-#54 layout had api as accessory and
+  # only nginx slot-rotated).
+  - label: api
+    host: api.example.com
+    service: api
+    port: 5001
+    blue_green: true
+    health:
+      # Dify api Flask app registers `/health` (returns {"pong":"pong"}).
+      path: /health
+      # First-start runs DB migrations; give it room.
+      unhealthy_threshold: 24
+  # Dify web (Next.js) on its own subdomain. Stateless, blue_green:true.
+  - label: web
+    host: web.example.com
+    service: web
+    port: 3000
+    blue_green: true
+    health:
+      # Dify web is Next.js; root `/` returns 200 once compiled.
+      # No dedicated `/api/health` route ships, so we fall back to `/`.
+      path: /
+      unhealthy_threshold: 24
+# `worker` stays accessory: it's an internal-only service (no inbound
+# HTTP), and per spec §1.3 "internal-only blue/green is deferred". This
+# means worker code updates do NOT slot-rotate — see README's "既知の
+# 制限" section for the residual.
 accessories:
-  - api
   - worker
-  - web
   - db
   - redis

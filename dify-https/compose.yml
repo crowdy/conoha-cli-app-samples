@@ -16,17 +16,19 @@ services:
     image: langgenius/dify-api:0.15.8
     environment:
       - MODE=api
-      - SECRET_KEY=${SECRET_KEY:-sk-dify-secret-key-change-me}
       - DB_USERNAME=dify
-      - DB_PASSWORD=${DB_PASSWORD:-difyai}
       - DB_HOST=db
       - DB_PORT=5432
       - DB_DATABASE=dify
       - REDIS_HOST=redis
       - REDIS_PORT=6379
-      - REDIS_PASSWORD=${REDIS_PASSWORD:-difyai}
       - STORAGE_TYPE=local
       - STORAGE_LOCAL_PATH=/app/api/storage
+      # NOTE: SECRET_KEY / DB_PASSWORD / REDIS_PASSWORD / CONSOLE_API_URL
+      # / APP_API_URL / SERVICE_API_URL / APP_WEB_URL come from env_file
+      # (`.env.server`) so `conoha app env set` actually takes effect.
+      # Leaving them in `environment:` with `${VAR:-default}` would let
+      # compose's interpolation win (see conoha-cli#166).
     volumes:
       - dify_storage:/app/api/storage
     depends_on:
@@ -40,17 +42,15 @@ services:
     image: langgenius/dify-api:0.15.8
     environment:
       - MODE=worker
-      - SECRET_KEY=${SECRET_KEY:-sk-dify-secret-key-change-me}
       - DB_USERNAME=dify
-      - DB_PASSWORD=${DB_PASSWORD:-difyai}
       - DB_HOST=db
       - DB_PORT=5432
       - DB_DATABASE=dify
       - REDIS_HOST=redis
       - REDIS_PORT=6379
-      - REDIS_PASSWORD=${REDIS_PASSWORD:-difyai}
       - STORAGE_TYPE=local
       - STORAGE_LOCAL_PATH=/app/api/storage
+      # See `api.environment` note re: env_file precedence.
     volumes:
       - dify_storage:/app/api/storage
     depends_on:
@@ -62,9 +62,9 @@ services:
 
   web:
     image: langgenius/dify-web:0.15.8
-    environment:
-      - CONSOLE_API_URL=
-      - APP_API_URL=
+    # CONSOLE_API_URL / APP_API_URL come from env_file (`.env.server`).
+    # They're baked into the browser-side bundle and must point at the
+    # api subdomain (https://api.example.com) — see README.
     restart: unless-stopped
 
   db:
