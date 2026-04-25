@@ -9,9 +9,9 @@ import { errors } from "../lib/errors.js";
 
 export const botInfoRouter = new Hono<{ Variables: AuthVars }>();
 botInfoRouter.use("/v2/bot/info", requestLog);
-botInfoRouter.use("/v2/bot/info", bearerAuth);
+botInfoRouter.use("/v2/bot/info", bearerAuth());
 botInfoRouter.use("/v2/bot/followers/*", requestLog);
-botInfoRouter.use("/v2/bot/followers/*", bearerAuth);
+botInfoRouter.use("/v2/bot/followers/*", bearerAuth());
 
 function deriveBotUserId(channelId: string): string {
   return "U" + createHash("sha256").update(channelId).digest("hex").slice(0, 32);

@@ -11,9 +11,9 @@ import { errors } from "../lib/errors.js";
 export const richMenuRouter = new Hono<{ Variables: AuthVars }>();
 
 richMenuRouter.use("/v2/bot/richmenu", requestLog);
-richMenuRouter.use("/v2/bot/richmenu", bearerAuth);
+richMenuRouter.use("/v2/bot/richmenu", bearerAuth());
 richMenuRouter.use("/v2/bot/richmenu/*", requestLog);
-richMenuRouter.use("/v2/bot/richmenu/*", bearerAuth);
+richMenuRouter.use("/v2/bot/richmenu/*", bearerAuth());
 
 const RICH_MENU_REQUIRED = ["size", "selected", "name", "chatBarText", "areas"] as const;
 

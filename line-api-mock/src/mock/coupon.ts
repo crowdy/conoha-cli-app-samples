@@ -11,9 +11,9 @@ import { errors } from "../lib/errors.js";
 export const couponRouter = new Hono<{ Variables: AuthVars }>();
 
 couponRouter.use("/v2/bot/coupon", requestLog);
-couponRouter.use("/v2/bot/coupon", bearerAuth);
+couponRouter.use("/v2/bot/coupon", bearerAuth());
 couponRouter.use("/v2/bot/coupon/*", requestLog);
-couponRouter.use("/v2/bot/coupon/*", bearerAuth);
+couponRouter.use("/v2/bot/coupon/*", bearerAuth());
 
 couponRouter.post(
   "/v2/bot/coupon",

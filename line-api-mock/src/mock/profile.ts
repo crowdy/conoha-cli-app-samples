@@ -8,7 +8,7 @@ import { errors } from "../lib/errors.js";
 
 export const profileRouter = new Hono<{ Variables: AuthVars }>();
 profileRouter.use("/v2/*", requestLog);
-profileRouter.use("/v2/*", bearerAuth);
+profileRouter.use("/v2/*", bearerAuth());
 
 profileRouter.get("/v2/bot/profile/:userId", async (c) => {
   const userId = c.req.param("userId");

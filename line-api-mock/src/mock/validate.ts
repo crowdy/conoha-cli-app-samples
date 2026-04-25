@@ -6,7 +6,7 @@ import { validate } from "./middleware/validate.js";
 export const validateRouter = new Hono<{ Variables: AuthVars }>();
 
 validateRouter.use("/v2/bot/message/validate/*", requestLog);
-validateRouter.use("/v2/bot/message/validate/*", bearerAuth);
+validateRouter.use("/v2/bot/message/validate/*", bearerAuth());
 
 const PATHS = [
   "/v2/bot/message/validate/reply",

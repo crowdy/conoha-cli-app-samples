@@ -11,11 +11,11 @@ import { findRichMenuInternalId } from "../lib/rich-menu.js";
 export const richMenuBatchRouter = new Hono<{ Variables: AuthVars }>();
 
 richMenuBatchRouter.use("/v2/bot/richmenu/batch", requestLog);
-richMenuBatchRouter.use("/v2/bot/richmenu/batch", bearerAuth);
+richMenuBatchRouter.use("/v2/bot/richmenu/batch", bearerAuth());
 richMenuBatchRouter.use("/v2/bot/richmenu/validate/batch", requestLog);
-richMenuBatchRouter.use("/v2/bot/richmenu/validate/batch", bearerAuth);
+richMenuBatchRouter.use("/v2/bot/richmenu/validate/batch", bearerAuth());
 richMenuBatchRouter.use("/v2/bot/richmenu/progress/batch", requestLog);
-richMenuBatchRouter.use("/v2/bot/richmenu/progress/batch", bearerAuth);
+richMenuBatchRouter.use("/v2/bot/richmenu/progress/batch", bearerAuth());
 
 function genRequestId(): string {
   return (

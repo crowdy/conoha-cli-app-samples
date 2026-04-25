@@ -8,7 +8,7 @@ import { errors } from "../lib/errors.js";
 
 export const contentRouter = new Hono<{ Variables: AuthVars }>();
 contentRouter.use("/v2/*", requestLog);
-contentRouter.use("/v2/*", bearerAuth);
+contentRouter.use("/v2/*", bearerAuth());
 
 contentRouter.get("/v2/bot/message/:messageId/content", async (c) => {
   const mid = c.req.param("messageId");

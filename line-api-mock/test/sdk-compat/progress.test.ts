@@ -20,6 +20,10 @@ beforeAll(async () => {
   harness = await startSdkCompatServer({
     channelId: "9900000099",
     channelName: "SDK Progress Test",
+    // Endpoints under test return canned responses (see issue #34 / #74) and
+    // never read DB rows; bearerAuth is the only thing that needs the token,
+    // and the in-memory lookup satisfies that without provisioning Postgres.
+    authMode: "in-memory",
     mountRouters: async (app) => {
       const { oauthRouter } = await import("../../src/mock/oauth.js");
       const { messageRouter } = await import("../../src/mock/message.js");
