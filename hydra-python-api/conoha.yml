@@ -1,23 +1,46 @@
 name: hydra-python-api
 # Replace with your own FQDN before running `conoha app init`.
+# Only the root web host goes here. Subdomains (e.g. auth.example.com)
+# are declared per-block under `expose:` below — listing them here too
+# fails validation ("host duplicates an entry in hosts[]"). The proxy
+# ACMEs both the root and each expose host independently as long as
+# DNS A records exist for them.
 hosts:
   - hydra-python-api.example.com
 web:
   service: app
   port: 9010
-# `hydra` (OAuth2/OIDC server), `hydra-migrate` (one-shot DB migration),
-# and `db` are accessories.
+# Python app's `/health` returns 200 once FastAPI is up. First start
+# pulls Python deps and waits for Hydra to be reachable, so allow a
+# wider unhealthy window than the default 15s.
+health:
+  path: /health
+  unhealthy_threshold: 24    # 24 × 5s = 120s
+# Ory Hydra's Public OAuth2 endpoint, exposed on its own subdomain so
+# the browser-driven authorization code flow can complete under HTTPS
+# (`/oauth2/auth`, `/oauth2/token`, `/.well-known/openid-configuration`,
+# JWKS). blue_green: false because Hydra's auth/consent state lives in
+# Postgres and isn't slot-aware — running two slots would split flight
+# challenges between them.
 #
-# ⚠ KNOWN LIMITATION: Hydra's public OAuth2 endpoints (:4444) and admin
-# API (:4445) are only reachable on the compose network. This means a
-# real browser-driven OAuth2 flow (where a client app redirects the
-# user to `hydra:4444/oauth2/auth`) cannot land. The bundled Python
-# `app` (login/consent provider + protected API) works standalone for
-# UI inspection, and hydra-to-app server-to-server calls still work,
-# but the full end-to-end authorization code flow requires splitting
-# Hydra onto its own subdomain (`auth.example.com`). Planned for a
-# future PR.
+# IMPORTANT: this only exposes Hydra's Public API on :4444. The Admin
+# API on :4445 (client registration, introspection, etc.) deliberately
+# stays internal-only — it's reachable only from the compose network
+# (e.g. `app` calls `http://hydra:4445/admin` for token introspection
+# and `setup.sh` calls it via `docker compose exec` for client CRUD).
+# Exposing :4445 would let any internet caller register clients.
+expose:
+  - label: auth
+    host: auth.example.com
+    service: hydra
+    port: 4444
+    blue_green: false
+    # Ory Hydra exposes `/health/ready` on the Public listener (:4444)
+    # and returns 200 once migrations are done and the server is ready.
+    health:
+      path: /health/ready
+# `hydra-migrate` is a one-shot SQL migration job; `db` is internal
+# Postgres. Neither should run per blue/green slot.
 accessories:
-  - hydra
   - hydra-migrate
   - db

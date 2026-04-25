@@ -1,20 +1,28 @@
 services:
-  # Ory Hydra — OAuth2 / OpenID Connect server
+  # Ory Hydra — OAuth2 / OpenID Connect server.
+  # Public API (:4444) is exposed via conoha.yml `expose:` block as
+  # auth.example.com so the browser OAuth2 flow completes under HTTPS.
+  # Admin API (:4445) stays internal — only `app` (token introspection)
+  # and `setup.sh` (client CRUD via `docker compose exec`) use it.
   hydra:
     image: oryd/hydra:v2.2
-    # ⚠ Internal only. Public OAuth2 API (4444) and Admin API (4445)
-    # are on the compose network. Browser-driven OAuth2 flows that
-    # redirect users to hydra:4444 don't work in this layout — see
-    # README for workarounds.
     expose:
       - "4444"
       - "4445"
+    # NOTE: do NOT add `URLS_SELF_ISSUER`, `URLS_LOGIN`, `URLS_CONSENT`,
+    # or `SECRETS_SYSTEM` here. Compose's `environment:` interpolates
+    # `${VAR:-default}` at parse time and overrides values supplied via
+    # `env_file`. CLI's slot override injects `.env.server` as
+    # `env_file`, so leaving these out lets the runtime values flow
+    # through.
+    #
+    # `DSN` keeps its `${POSTGRES_PASSWORD:-hydra}` interpolation
+    # because the db service shares the same default (so the connection
+    # still works) — caveat documented in README. conoha-cli#166 will
+    # let user-set values reach both services without sample-side
+    # gymnastics.
     environment:
       - DSN=postgres://hydra:${POSTGRES_PASSWORD:-hydra}@db:5432/hydra?sslmode=disable
-      - URLS_SELF_ISSUER=http://${SERVER_HOST:-localhost}:4444
-      - URLS_LOGIN=http://${SERVER_HOST:-localhost}:9010/login
-      - URLS_CONSENT=http://${SERVER_HOST:-localhost}:9010/consent
-      - SECRETS_SYSTEM=${SECRETS_SYSTEM:-a-very-secret-key-that-must-be-changed}
       - LOG_LEVEL=info
     command: serve all --dev
     depends_on:
