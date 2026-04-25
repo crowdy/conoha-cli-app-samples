@@ -1,10 +1,15 @@
 services:
   studio:
     image: supabase/studio:latest
-    # ⚠ Internal only — Studio admin UI is reachable via `docker exec`
-    # on the VPS. See README for subdomain-split workaround.
     expose:
       - "3000"
+    # Studio is now reachable at https://admin.example.com via the
+    # `expose:` block in conoha.yml. It speaks to Kong / postgres-meta
+    # over the compose network using the internal DNS names below.
+    # `SUPABASE_PUBLIC_URL` (the FQDN Studio renders in connection-
+    # string snippets) is set per-deploy via `app env set` and arrives
+    # via env_file — not duplicated here so compose's `${VAR:-default}`
+    # interpolation can't shadow the env_file value (see conoha-cli#166).
     environment:
       - STUDIO_PG_META_URL=http://meta:8080
       - SUPABASE_URL=http://kong:8000
@@ -35,13 +40,16 @@ services:
 
   auth:
     image: supabase/gotrue:v2.170.0
+    # `API_EXTERNAL_URL` and `GOTRUE_SITE_URL` are FQDN-pointing knobs
+    # the user must set per-deploy. They flow through env_file from
+    # `conoha app env set` and are intentionally NOT listed under
+    # `environment:` so compose interpolation can't shadow them
+    # (see conoha-cli#166).
     environment:
       - GOTRUE_API_HOST=0.0.0.0
       - GOTRUE_API_PORT=9999
-      - API_EXTERNAL_URL=${API_EXTERNAL_URL:-http://localhost:8000}
       - GOTRUE_DB_DRIVER=postgres
       - GOTRUE_DB_DATABASE_URL=postgres://supabase_auth_admin:${POSTGRES_PASSWORD:-postgres}@db:5432/postgres
-      - GOTRUE_SITE_URL=${SITE_URL:-http://localhost:3000}
       - GOTRUE_JWT_SECRET=${JWT_SECRET:-super-secret-jwt-token-with-at-least-32-characters}
       - GOTRUE_JWT_EXP=3600
       - GOTRUE_DISABLE_SIGNUP=false

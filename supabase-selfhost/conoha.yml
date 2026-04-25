@@ -1,26 +1,47 @@
 name: supabase-selfhost
-# Replace with your own FQDN before running `conoha app init`.
+# Replace with your own FQDNs before running `conoha app init`.
+# Only the root web host goes here. Subdomains (e.g. admin.example.com)
+# are declared per-block under `expose:` below — listing them here too
+# fails validation ("host duplicates an entry in hosts[]"). The proxy
+# ACMEs both the root and each expose host independently as long as
+# DNS A records exist for them.
 hosts:
   - supabase-selfhost.example.com
 web:
   service: kong
   port: 8000
-# Kong is the API gateway — supabase client SDKs call `<FQDN>/rest/*`,
-# `<FQDN>/auth/*`, etc., all routed through Kong. Studio (the admin UI)
-# is a separate container that the proxy can't front in this layout.
-#
-# ⚠ KNOWN LIMITATION: Supabase Studio (admin UI on :3000) is an
-# accessory — reachable only via `docker exec` / SSH on the VPS:
-#
-#     ssh root@<vps>
-#     docker exec $(docker ps -q -f name=studio) wget -qO- http://localhost:3000
-#
-# For browser access to Studio, either split Studio into its own
-# `conoha.yml` project under a separate subdomain
-# (`admin.supabase.example.com`), or use the hosted Supabase Studio
-# against this self-hosted API. Planned for a future PR.
+# Kong is the API gateway — Supabase client SDKs call `<FQDN>/rest/*`,
+# `<FQDN>/auth/*`, etc., all routed through Kong on the root FQDN.
+# Kong's `/rest/v1/` route requires the `apikey` header, so a plain
+# probe against `/` returns 404 from Kong (no matching route). Probe
+# the auth service health endpoint, which Kong proxies through and
+# returns 200 without auth.
+health:
+  path: /auth/v1/health
+  unhealthy_threshold: 24    # 24 × 5s = 120s; Supabase first-boot is slow
+# Supabase Studio (admin UI) lives on its own subdomain so the
+# browser can reach Table Editor / SQL Editor over HTTPS. Studio is
+# a single-instance Next.js app with no slot-aware state, but its
+# in-memory connection pool to postgres-meta isn't designed for
+# parallel slots either, so blue_green:false matches spec §4.5.1.
+expose:
+  - label: admin
+    host: admin.example.com
+    service: studio
+    port: 3000
+    blue_green: false
+    # Studio is a Next.js app; `/` returns 200 once the server is
+    # accepting requests. (No `/up` or `/healthz` route ships with
+    # supabase/studio — smoke would refine this if Studio gains a
+    # cheaper probe endpoint upstream.)
+    health:
+      path: /
+# `db` (PostgreSQL), `auth` (GoTrue), `rest` (PostgREST), and `meta`
+# (postgres-meta) stay accessory-only. They're reached via Kong on
+# the root FQDN (auth/rest) or by Studio internally (meta), and must
+# never be exposed publicly — `db:5432` in particular has no auth in
+# front of it beyond Postgres roles.
 accessories:
-  - studio
   - auth
   - rest
   - meta
