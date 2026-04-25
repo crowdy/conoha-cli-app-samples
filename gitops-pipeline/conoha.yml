@@ -1,0 +1,7 @@
+name: gitops-pipeline
+# Replace with your own FQDN before running `conoha app init`.
+hosts:
+  - gitops.example.com
+web:
+  service: web
+  port: 3000
