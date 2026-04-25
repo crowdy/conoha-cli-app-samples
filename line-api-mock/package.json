@@ -9,7 +9,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:unit": "vitest run test/unit",
-    "test:integration": "vitest run test/integration",
+    "test:integration": "vitest run --config vitest.integration.config.ts test/integration",
     "test:sdk": "vitest run test/sdk-compat",
     "test:e2e": "playwright test",
     "db:generate": "drizzle-kit generate",

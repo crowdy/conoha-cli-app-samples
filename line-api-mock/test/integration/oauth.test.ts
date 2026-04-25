@@ -1,8 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import type { StartedPostgreSqlContainer } from "@testcontainers/postgresql";
-import { startDb } from "../helpers/testcontainer.js";
+import { startDb, type DbHandle } from "../helpers/testcontainer.js";
 
-let container: StartedPostgreSqlContainer;
+let container: DbHandle;
 let app: any;
 let seededChannelId: string;
 let seededChannelSecret: string;

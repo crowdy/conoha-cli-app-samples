@@ -1,8 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import type { StartedPostgreSqlContainer } from "@testcontainers/postgresql";
 import { serve, type ServerType } from "@hono/node-server";
 import { messagingApi } from "@line/bot-sdk";
-import { startDb } from "../helpers/testcontainer.js";
+import { startDb, type DbHandle } from "../helpers/testcontainer.js";
 
 // Pins the SDK Date/string mismatch documented in issue #34 (M2).
 //
@@ -13,7 +12,7 @@ import { startDb } from "../helpers/testcontainer.js";
 // strings on the wire. If SDK codegen ever starts coercing, these
 // assertions will flip to Date and the pin can be revisited.
 
-let container: StartedPostgreSqlContainer;
+let container: DbHandle;
 let server: ServerType;
 let port: number;
 let token: string;

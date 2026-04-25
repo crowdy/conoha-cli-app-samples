@@ -1,15 +1,14 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import type { StartedPostgreSqlContainer } from "@testcontainers/postgresql";
 import { serve, type ServerType } from "@hono/node-server";
 import { messagingApi } from "@line/bot-sdk";
-import { startDb } from "../helpers/testcontainer.js";
+import { startDb, type DbHandle } from "../helpers/testcontainer.js";
 
 const PNG_1x1 = Buffer.from(
   "89504E470D0A1A0A0000000D49484452000000010000000108060000001F15C4890000000D4944415408996360000000000500010D0A2DB40000000049454E44AE426082",
   "hex"
 );
 
-let container: StartedPostgreSqlContainer;
+let container: DbHandle;
 let server: ServerType;
 let port: number;
 let token: string;

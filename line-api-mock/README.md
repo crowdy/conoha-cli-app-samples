@@ -112,6 +112,8 @@ npm run test:sdk           # @line/bot-sdk との互換性
 npm run test:e2e           # Playwright + Docker Compose
 ```
 
+`test:integration` は `vitest.integration.config.ts` 経由で Postgres コンテナを **1 つだけ** 起動し、各スイートは `TRUNCATE ... RESTART IDENTITY CASCADE` で初期化したうえで singleFork で順次実行します (cf. `test/helpers/postgres-global.ts`)。これにより 14 スイート分のコンテナ起動 + drizzle-kit push の重複オーバーヘッド (~50 秒) が一度きりに圧縮されます。`npx vitest run test/integration/<file>.test.ts` のようにアドホック実行した場合は globalSetup を経由しないため、自動的に従来どおりスイート単位でコンテナを立てる fallback パスに切り替わります。
+
 ## 対応エンドポイント
 
 ### 実装済み
