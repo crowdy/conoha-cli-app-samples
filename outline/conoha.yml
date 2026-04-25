@@ -1,19 +1,37 @@
 name: outline
 # Replace with your own FQDN before running `conoha app init`.
+# Only the root web host goes here. Subdomains (e.g. dex.example.com)
+# are declared per-block under `expose:` below — listing them here too
+# fails validation ("host duplicates an entry in hosts[]"). The proxy
+# ACMEs both the root and each expose host independently as long as
+# DNS A records exist for them.
 hosts:
   - outline.example.com
 web:
   service: outline
   port: 3000
-# `db` (PostgreSQL), `redis`, and `dex` are accessories.
-#
-# ⚠ KNOWN LIMITATION: Dex (`:5556`) is kept on the compose network
-# only, which means the browser-side OIDC flow breaks (Outline
-# redirects the browser to `http://dex:5556/...` which isn't reachable
-# from outside). See README "既知の制限" for workarounds. For now,
-# use local account signup or email-based magic-link auth instead of
-# OIDC.
+# Outline has no `/up` (proxy default), but `/_health` returns 200
+# once the server is reachable — use it for the probe. First start
+# runs DB migrations and can take ~30s, so allow a wider unhealthy
+# window than the default 15s.
+health:
+  path: /_health
+  unhealthy_threshold: 24    # 24 × 5s = 120s
+# Dex OIDC provider, exposed on its own subdomain so the browser
+# discovery + redirect flow can reach it under HTTPS. blue_green: false
+# because Dex isn't slot-aware (sqlite-backed sessions / approval state
+# would diverge across slots otherwise).
+expose:
+  - label: dex
+    host: dex.example.com
+    service: dex
+    port: 5556
+    blue_green: false
+    # Dex's default `/up` 404s; `/dex/healthz` returns 200 once OIDC is up.
+    health:
+      path: /dex/healthz
+# `db` (PostgreSQL) and `redis` only serve compose-internal traffic
+# and shouldn't be duplicated per blue/green slot.
 accessories:
   - db
   - redis
-  - dex

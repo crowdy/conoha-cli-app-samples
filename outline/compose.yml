@@ -5,19 +5,32 @@ services:
     # deploy time so two slots (blue/green) can coexist.
     expose:
       - "3000"
+    # NOTE: do NOT add `URL`, `OIDC_AUTH_URI`, or `OIDC_CLIENT_SECRET`
+    # here. Compose's `environment:` interpolates `${VAR:-default}` at
+    # parse time and overrides values supplied via `env_file`. CLI's
+    # slot override injects `.env.server` as `env_file`, so leaving
+    # these three out lets the runtime values flow through.
+    #
+    # `DATABASE_URL` / `SECRET_KEY` / `UTILS_SECRET` keep their
+    # `${VAR:-default}` interpolation because the db service shares
+    # the same default (so the connection still works), and Outline
+    # tolerates regenerated dev secrets — the security caveat is
+    # documented in README. conoha-cli#166 will let user-set values
+    # for these reach both services without sample-side gymnastics.
+    #
+    # `OIDC_TOKEN_URI` / `OIDC_USERINFO_URI` stay because they're
+    # internal compose-network calls (server-to-server, not browser
+    # redirects).
     environment:
       - DATABASE_URL=postgres://outline:${DB_PASSWORD:-outline}@db:5432/outline
       - REDIS_URL=redis://redis:6379
       - SECRET_KEY=${SECRET_KEY:-please-change-me-use-openssl-rand-hex-32}
       - UTILS_SECRET=${UTILS_SECRET:-please-change-me-use-openssl-rand-hex-32}
-      - URL=${URL:-http://localhost:3000}
       - FILE_STORAGE=local
       - FILE_STORAGE_LOCAL_ROOT_DIR=/var/lib/outline/data
       - PGSSLMODE=${PGSSLMODE:-disable}
       - FORCE_HTTPS=false
       - OIDC_CLIENT_ID=outline
-      - OIDC_CLIENT_SECRET=outline-dex-secret
-      - OIDC_AUTH_URI=${OIDC_AUTH_URI:-http://localhost:5556/dex/auth}
       - OIDC_TOKEN_URI=http://dex:5556/dex/token
       - OIDC_USERINFO_URI=http://dex:5556/dex/userinfo
       - OIDC_DISPLAY_NAME=Dex Login
@@ -27,8 +40,6 @@ services:
       db:
         condition: service_healthy
       redis:
-        condition: service_started
-      dex:
         condition: service_started
     restart: unless-stopped
 
@@ -51,16 +62,30 @@ services:
     volumes:
       - outline_redis:/data
 
-  # ⚠ Browser OIDC flow doesn't work in this layout — see README.
-  # Dex is retained for future subdomain-split restructuring.
+  # Dex OIDC provider. Exposed via conoha.yml `expose:` block as
+  # dex.example.com so browser OIDC flow completes under HTTPS.
   dex:
     image: dexidp/dex:v2.39.1
+    entrypoint: ["sh", "-c"]
+    command:
+      - |
+        sed \
+          -e "s|__DEX_ISSUER_HOST__|$$DEX_ISSUER_HOST|g" \
+          -e "s|__OUTLINE_HOST__|$$OUTLINE_HOST|g" \
+          -e "s|__OIDC_CLIENT_ID__|$$OIDC_CLIENT_ID|g" \
+          -e "s|__OIDC_CLIENT_SECRET__|$$OIDC_CLIENT_SECRET|g" \
+          /etc/dex/config.template.yaml > /tmp/dex.yml &&
+        exec dex serve /tmp/dex.yml
     expose:
       - "5556"
+    # NOTE: do NOT add `DEX_ISSUER_HOST` / `OUTLINE_HOST` / `OIDC_*`
+    # to `environment:` here — compose's `${VAR:-default}` resolves at
+    # parse time and overrides values from env_file. CLI attaches
+    # `.env.server` via env_file (slot + accessory overrides), so all
+    # sed-substituted variables flow through cleanly when omitted.
     volumes:
-      - ./dex-config.yml:/etc/dex/config.docker.yaml
+      - ./dex-config.yml:/etc/dex/config.template.yaml:ro
       - dex_data:/var/dex
-    command: ["dex", "serve", "/etc/dex/config.docker.yaml"]
 
 volumes:
   outline_data:
