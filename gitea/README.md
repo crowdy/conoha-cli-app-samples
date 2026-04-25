@@ -122,8 +122,10 @@ PostgreSQL の初回起動時に実行される初期化スクリプトです。
 # 1. サーバー作成(まだない場合)
 conoha server create --name myserver --flavor g2l-t-2 --image ubuntu-24.04 --key mykey
 
-# 2. conoha.yml の `hosts:` を自分の FQDN に書き換える
-#    (gitea.example.com / dex.example.com の 2 つ)
+# 2. conoha.yml の root FQDN を自分の値に書き換える
+#    - `hosts:` (root web) → 例: gitea.example.com
+#    - `expose[].host` (dex サブドメイン) → 例: dex.example.com
+#    ※ subdomain を `hosts:` にも書くと validation で reject されます
 
 # 3. proxy を起動(サーバーごとに 1 回だけ)
 conoha proxy boot --acme-email you@example.com myserver
@@ -163,7 +165,10 @@ conoha app logs myserver
 1. Gitea 管理者でログイン → **サイト管理 > 認証ソース > 新規追加**
 2. 認証種別: **OAuth2**
 3. 各フィールド:
-   - **名前**: `dex`(URL に使われる ID。後述の sign-in ボタン URL に使う)
+   - **名前**: **必ず `dex`(小文字、完全一致)**。`dex.yml` の `redirectURIs` が
+     `https://<gitea FQDN>/user/oauth2/dex/callback` と path segment `dex` で
+     ハードコードされているため、ここで `Dex` / `dex-oidc` 等の別名を入れると
+     callback mismatch でログインに失敗します
    - **OAuth2 プロバイダー**: `OpenID Connect`
    - **クライアント ID**: `${GITEA_OAUTH2_CLIENT_ID}` の値(デフォルト `gitea`)
    - **クライアント Secret**: `${GITEA_OAUTH2_CLIENT_SECRET}` の値(step 5 で設定したもの)

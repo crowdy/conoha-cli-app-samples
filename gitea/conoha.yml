@@ -1,10 +1,12 @@
 name: gitea
 # Replace with your own FQDN before running `conoha app init`.
-# Both the root host (gitea) and the dex subdomain need DNS A records
-# pointing at this VPS — the proxy ACMEs each separately.
+# Only the root web host goes here. Subdomains (e.g. dex.example.com)
+# are declared per-block under `expose:` below — listing them here too
+# fails validation ("host duplicates an entry in hosts[]"). The proxy
+# ACMEs both the root and each expose host independently as long as
+# DNS A records exist for them.
 hosts:
   - gitea.example.com
-  - dex.example.com
 web:
   service: gitea
   # Gitea HTTP UI. Container also listens on 22 for git+ssh, but
