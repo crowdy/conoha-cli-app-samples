@@ -1,7 +1,7 @@
 # Dex OIDC Provider Configuration
 # Placeholders (__VAR__) are replaced by sed in compose.yml entrypoint.
 
-issuer: http://__DEX_ISSUER_HOST__/dex
+issuer: https://__DEX_ISSUER_HOST__/dex
 
 storage:
   type: postgres
@@ -26,7 +26,7 @@ oauth2:
 staticClients:
   - id: __RAILS_OIDC_CLIENT_ID__
     redirectURIs:
-      - "http://__RAILS_HOST__/auth/dex/callback"
+      - "https://__RAILS_HOST__/auth/dex/callback"
     name: "Mercari App"
     secret: __RAILS_OIDC_CLIENT_SECRET__
 
