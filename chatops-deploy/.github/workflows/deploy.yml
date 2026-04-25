@@ -17,26 +17,19 @@ permissions:
 
 jobs:
   parse:
-    # Only consider comments on PRs, not on plain issues.
-    if: github.event.issue.pull_request && startsWith(github.event.comment.body, '/deploy')
+    # Match `/deploy` exactly or `/deploy <subcommand>` — not `/deployment`.
+    # `issue.pull_request` filters out plain Issue comments.
+    if: >
+      github.event.issue.pull_request &&
+      (github.event.comment.body == '/deploy' ||
+       startsWith(github.event.comment.body, '/deploy '))
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     outputs:
       env: ${{ steps.parse.outputs.env }}
       pr_head_sha: ${{ steps.pr.outputs.head_sha }}
-      pr_head_ref: ${{ steps.pr.outputs.head_ref }}
       pr_number: ${{ github.event.issue.number }}
     steps:
-      - name: React 👀 to acknowledge
-        uses: actions/github-script@v7
-        with:
-          script: |
-            await github.rest.reactions.createForIssueComment({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              comment_id: context.payload.comment.id,
-              content: 'eyes',
-            });
-
       - name: Permission check
         uses: actions/github-script@v7
         with:
@@ -49,14 +42,29 @@ jobs:
             // 'admin' | 'maintain' | 'write' | 'triage' | 'read' | 'none'
             if (!['admin', 'maintain', 'write'].includes(perm.permission)) {
               core.setFailed(`User ${context.payload.comment.user.login} has '${perm.permission}' — needs write or higher.`);
+              return;
             }
+
+      - name: React 👀 to acknowledge
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.reactions.createForIssueComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              comment_id: context.payload.comment.id,
+              content: 'eyes',
+            });
 
       - name: Parse subcommand
         id: parse
+        # Comment body goes through an env var, NOT direct ${{ }} interpolation,
+        # so a malicious body cannot break out of the shell context.
+        # See: https://docs.github.com/en/actions/security-guides/security-hardening-for-github-actions#using-an-intermediate-environment-variable
+        env:
+          COMMENT_BODY: ${{ github.event.comment.body }}
         run: |
-          BODY="${{ github.event.comment.body }}"
-          # Trim and split: "/deploy", "/deploy staging", "/deploy production"
-          ARG=$(echo "$BODY" | awk '{print $2}' | tr -d '[:space:]')
+          ARG=$(printf '%s' "$COMMENT_BODY" | awk '{print $2}' | tr -d '[:space:]')
           case "$ARG" in
             production) echo "env=production" >> "$GITHUB_OUTPUT" ;;
             staging|"") echo "env=staging" >> "$GITHUB_OUTPUT" ;;
@@ -77,30 +85,36 @@ jobs:
               pull_number: context.issue.number,
             });
             core.setOutput('head_sha', pr.head.sha);
-            core.setOutput('head_ref', pr.head.ref);
-            core.setOutput('head_repo_full_name', pr.head.repo.full_name);
             // Refuse fork PRs — secrets must not be exposed to fork code.
             if (pr.head.repo.full_name !== context.payload.repository.full_name) {
               core.setFailed('Refusing to deploy a fork PR. Push the branch to the main repo first.');
+              return;
             }
 
   deploy:
     needs: parse
     runs-on: self-hosted
+    timeout-minutes: 30
     environment: ${{ needs.parse.outputs.env }}
     concurrency:
       group: chatops-deploy-${{ needs.parse.outputs.env }}
       cancel-in-progress: false
+    env:
+      DEPLOY_ENV: ${{ needs.parse.outputs.env }}
+      DEPLOY_SHA: ${{ needs.parse.outputs.pr_head_sha }}
+      DEPLOY_PR_NUMBER: ${{ needs.parse.outputs.pr_number }}
     steps:
       - name: Comment 🚀 starting
         uses: actions/github-script@v7
+        env:
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         with:
           script: |
             await github.rest.issues.createComment({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              issue_number: ${{ needs.parse.outputs.pr_number }},
-              body: `🚀 Deploying \`${{ needs.parse.outputs.pr_head_sha }}\` to **${{ needs.parse.outputs.env }}**… ([run](${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}))`,
+              issue_number: Number(process.env.DEPLOY_PR_NUMBER),
+              body: `🚀 Deploying \`${process.env.DEPLOY_SHA}\` to **${process.env.DEPLOY_ENV}**… ([run](${process.env.RUN_URL}))`,
             });
 
       - uses: actions/checkout@v4
@@ -114,13 +128,13 @@ jobs:
         id: ssh
         env:
           SSH_PRIVATE_KEY: ${{ secrets.CONOHA_SSH_PRIVATE_KEY }}
+          CONOHA_SERVER_HOST: ${{ vars.CONOHA_SERVER_HOST }}
         run: |
           KEY_PATH="${RUNNER_TEMP}/conoha_deploy"
           printf '%s\n' "$SSH_PRIVATE_KEY" > "$KEY_PATH"
           chmod 600 "$KEY_PATH"
           mkdir -p ~/.ssh
-          ssh-keyscan -p 22 -H "${{ vars.CONOHA_SERVER_HOST }}" \
-            >> ~/.ssh/known_hosts 2>/dev/null
+          ssh-keyscan -p 22 -H "$CONOHA_SERVER_HOST" >> ~/.ssh/known_hosts
           echo "key_path=$KEY_PATH" >> "$GITHUB_OUTPUT"
 
       - name: Authenticate conoha-cli
@@ -135,44 +149,52 @@ jobs:
           conoha auth login
 
       - name: Write per-deploy .env
+        env:
+          DEPLOY_ACTOR: ${{ github.event.comment.user.login }}
         run: |
-          cat > .env <<EOF
-          DEPLOY_ENV=${{ needs.parse.outputs.env }}
-          DEPLOY_SHA=${{ needs.parse.outputs.pr_head_sha }}
-          DEPLOY_PR=#${{ needs.parse.outputs.pr_number }}
-          DEPLOY_ACTOR=${{ github.event.comment.user.login }}
-          EOF
+          {
+            printf 'DEPLOY_ENV=%s\n'    "$DEPLOY_ENV"
+            printf 'DEPLOY_SHA=%s\n'    "$DEPLOY_SHA"
+            printf 'DEPLOY_PR=#%s\n'    "$DEPLOY_PR_NUMBER"
+            printf 'DEPLOY_ACTOR=%s\n'  "$DEPLOY_ACTOR"
+          } > .env
 
       - name: Deploy
         env:
           CONOHA_NO_INPUT: "1"
           CONOHA_YES: "1"
           CONOHA_CONFIG_DIR: ${{ runner.temp }}/conoha
+          CONOHA_SERVER_NAME: ${{ vars.CONOHA_SERVER_NAME }}
+          KEY_PATH: ${{ steps.ssh.outputs.key_path }}
         run: |
-          conoha app deploy "${{ vars.CONOHA_SERVER_NAME }}" \
+          conoha app deploy "$CONOHA_SERVER_NAME" \
             --app-name chatops-deploy \
-            --identity "${{ steps.ssh.outputs.key_path }}"
+            --identity "$KEY_PATH"
 
       - name: Comment ✅ success
         if: success()
         uses: actions/github-script@v7
+        env:
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         with:
           script: |
             await github.rest.issues.createComment({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              issue_number: ${{ needs.parse.outputs.pr_number }},
-              body: `✅ Deployed \`${{ needs.parse.outputs.pr_head_sha }}\` to **${{ needs.parse.outputs.env }}**.`,
+              issue_number: Number(process.env.DEPLOY_PR_NUMBER),
+              body: `✅ Deployed \`${process.env.DEPLOY_SHA}\` to **${process.env.DEPLOY_ENV}**. ([run](${process.env.RUN_URL}))`,
             });
 
       - name: Comment ❌ failure
         if: failure()
         uses: actions/github-script@v7
+        env:
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         with:
           script: |
             await github.rest.issues.createComment({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              issue_number: ${{ needs.parse.outputs.pr_number }},
-              body: `❌ Deploy of \`${{ needs.parse.outputs.pr_head_sha }}\` to **${{ needs.parse.outputs.env }}** failed. ([logs](${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}))`,
+              issue_number: Number(process.env.DEPLOY_PR_NUMBER),
+              body: `❌ Deploy of \`${process.env.DEPLOY_SHA}\` to **${process.env.DEPLOY_ENV}** failed. ([logs](${process.env.RUN_URL}))`,
             });

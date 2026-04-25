@@ -74,11 +74,12 @@ cp -r chatops-deploy/. /path/to/your-repo/
 
 ## セキュリティの仕組み
 
-ChatOps デプロイは **本番資格情報を任意のコメントトリガーに晒す** ので、ガードを 3 重にしています:
+ChatOps デプロイは **本番資格情報を任意のコメントトリガーに晒す** ので、ガードを 4 重にしています:
 
-1. **`if: github.event.issue.pull_request`** — PR コメントのみ受け付け、Issue コメントは無視。
+1. **`/deploy` のサブコマンド形を厳格に判定** — `==` または `startsWith('/deploy ')`。`/deployment` 等は弾く。`issue.pull_request` 条件で plain Issue コメントも無視。
 2. **権限チェック** (`getCollaboratorPermissionLevel`) — コメント投稿者が `admin` / `maintain` / `write` のいずれかでなければ `core.setFailed`。
 3. **fork PR 拒否** — `pr.head.repo.full_name != owner/repo` なら refuse。fork からの PR にコメントしてもデプロイは走りません。fork のコードを ship したい場合は base リポジトリにブランチを push し直してから `/deploy`。
+4. **コメント本文は env 変数経由でしか参照しない** — `${{ github.event.comment.body }}` を直接シェルや `github-script` テンプレートに展開すると script injection が発生するので、必ず `env: COMMENT_BODY: ...` 経由で受け、シェル変数として扱う。([GitHub Security hardening](https://docs.github.com/en/actions/security-guides/security-hardening-for-github-actions#using-an-intermediate-environment-variable))
 
 加えて、`issue_comment` イベントは **デフォルトブランチのワークフローファイル** を使うため、悪意ある PR が `.github/workflows/deploy.yml` を改ざんしても効きません。
 
