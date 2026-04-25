@@ -2,9 +2,7 @@ import {
   PostgreSqlContainer,
   type StartedPostgreSqlContainer,
 } from "@testcontainers/postgresql";
-import { execSync } from "node:child_process";
-import { fileURLToPath } from "node:url";
-import { dirname, resolve } from "node:path";
+import { POSTGRES_IMAGE, runDrizzlePush } from "./testcontainer.js";
 
 // Vitest globalSetup: spin up ONE Postgres container for the entire
 // integration-test run. Each suite's `beforeAll` (via startDb()) re-uses this
@@ -15,15 +13,10 @@ import { dirname, resolve } from "node:path";
 // memory pressure from 8+ simultaneous Postgres containers competing for
 // shared memory (which is what made bot-info.test.ts flaky on PR #21).
 
-const projectRoot = resolve(
-  dirname(fileURLToPath(import.meta.url)),
-  "../.."
-);
-
 let container: StartedPostgreSqlContainer | undefined;
 
 export async function setup(): Promise<void> {
-  container = await new PostgreSqlContainer("postgres:17-alpine")
+  container = await new PostgreSqlContainer(POSTGRES_IMAGE)
     .withDatabase("mock")
     .withUsername("mock")
     .withPassword("mock")
@@ -37,11 +30,7 @@ export async function setup(): Promise<void> {
   // shared one.
   process.env.INTEGRATION_DB_SHARED = "1";
 
-  execSync("npx drizzle-kit push --force", {
-    stdio: "inherit",
-    env: { ...process.env, DATABASE_URL: url },
-    cwd: projectRoot,
-  });
+  runDrizzlePush(url);
 }
 
 export async function teardown(): Promise<void> {
