@@ -4,7 +4,7 @@ LINE Messaging API の OpenAPI 仕様に準拠したモックサーバー。LINE
 
 ## 特徴
 
-- OpenAPI に準拠した `/v2/bot/*`, `/v2/oauth/*`, `/v3/token/*` エンドポイント
+- OpenAPI に準拠した `/v2/bot/*`, `/v2/oauth/*`, `/oauth2/v2.1/*` エンドポイント
 - **Webhook エミュレーション**: 管理 UI から仮想ユーザーが Bot に話しかけると、Bot の webhook に署名付きで POST
 - 管理 UI (HTMX) でチャンネル・仮想ユーザー・会話・配信ログを管理
 - Swagger UI (`/docs`) で API を試せる

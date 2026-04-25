@@ -73,19 +73,32 @@ export async function dispatchWebhook(
   }
 
   const duration = Date.now() - start;
-  const [row] = await db
-    .insert(webhookDeliveries)
-    .values({
-      channelId: channelDbId,
-      eventPayload: event,
-      signature,
-      targetUrl: ch.webhookUrl,
-      statusCode,
-      responseBody,
-      error,
-      durationMs: duration,
-    })
-    .returning({ id: webhookDeliveries.id });
+  let row: { id: number } | undefined;
+  try {
+    [row] = await db
+      .insert(webhookDeliveries)
+      .values({
+        channelId: channelDbId,
+        eventPayload: event,
+        signature,
+        targetUrl: ch.webhookUrl,
+        statusCode,
+        responseBody,
+        error,
+        durationMs: duration,
+      })
+      .returning({ id: webhookDeliveries.id });
+  } catch (dbErr) {
+    // The webhook fetch already happened (success or fail). Without this log
+    // a DB outage would silently lose the delivery record — operators would
+    // see no row in webhook_deliveries and no event in the bus.
+    console.error(
+      `[dispatcher] webhook_deliveries insert failed (channelId=${channelDbId}, statusCode=${statusCode}, fetchError=${error ?? "none"}):`,
+      dbErr,
+      JSON.stringify(event)
+    );
+    return;
+  }
   bus.emitEvent({
     type: "webhook.delivered",
     channelId: channelDbId,

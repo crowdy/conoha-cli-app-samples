@@ -106,8 +106,9 @@ export function validate(opts: ValidateOpts): MiddlewareHandler {
               }))
             );
           }
-          // Stash parsed body for handler; Hono's c.req.json() is not re-readable.
-          c.set("validatedBody" as never, body as never);
+          // Hono caches parsed JSON internally, so handlers can call
+          // `c.req.json()` again without re-reading the stream. We do not
+          // need to stash the body via `c.set`.
         }
       }
     }
