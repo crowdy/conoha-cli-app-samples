@@ -1,0 +1,10 @@
+services:
+  web:
+    build: .
+    expose:
+      - "3000"
+    environment:
+      - DEPLOY_ENV=${DEPLOY_ENV:-dev}
+      - DEPLOY_SHA=${DEPLOY_SHA:-dev}
+      - DEPLOY_PR=${DEPLOY_PR:-}
+      - DEPLOY_ACTOR=${DEPLOY_ACTOR:-}
