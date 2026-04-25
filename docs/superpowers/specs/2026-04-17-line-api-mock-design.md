@@ -265,6 +265,18 @@ api_logs {
 - 技術: Hono JSX + HTMX 2.x + Tailwind CSS CDN (ビルド不要)
 - 認証: HTTP Basic Auth。環境変数 `ADMIN_USER` / `ADMIN_PASSWORD` が両方セットされている時のみ有効化(両方空なら認証なしで、README で本番展開時は必須と記載)。ブラウザが自動で `Authorization` ヘッダーを付けるため HTMX リクエストもそのまま通る
 
+#### SSE と Basic Auth の結合 (注意)
+
+`/admin/events` (SSE) は `EventSource` で同一オリジンに張られ、ブラウザが Basic Auth ヘッダーを自動再送するため認証が暗黙的に通る。今後の進化で **クッキーセッション (例: 署名付き session id + CSRF トークン、issue #21 I4)** に移行する場合、この経路は破綻する:
+
+- `EventSource` は cross-origin で `withCredentials` 指定なしにはクレデンシャルを送らない
+- 同一オリジンでもクッキーは自動送信されるが、カスタム auth ヘッダーは付かない
+
+クッキーセッション化と同時に **SSE の認証経路を再設計** する必要がある。妥当な選択肢:
+1. ページロード時に短命の署名付きクエリトークンを発行し、`new EventSource("/admin/events?t=...")` で受け渡す
+2. SSE を fetch + ReadableStream で再実装し `credentials: "include"` を明示
+3. WebSocket に切り替え (双方向不要なら過剰)
+
 ### Pages
 
 | Path                                        | 役割                                            |

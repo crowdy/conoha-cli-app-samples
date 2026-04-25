@@ -30,7 +30,7 @@ export const Channels: FC<{ channels: Row[] }> = ({ channels }) => (
 
     <div class="space-y-4">
       {channels.map((ch) => (
-        <div class="bg-white rounded shadow p-4">
+        <div class="bg-white rounded shadow p-4" data-pk={ch.id}>
           <div class="flex justify-between">
             <div>
               <div class="font-semibold">{ch.name}</div>

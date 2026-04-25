@@ -25,6 +25,17 @@ export function buildMessageHtml(m: MessageRow): string {
   )}</div></div>`;
 }
 
+// AUTH NOTE — coupling to Basic Auth.
+// This handler is mounted under `/admin/*` which `adminAuth` (Basic Auth)
+// gates. Browsers automatically resend the Basic Auth header on every
+// EventSource request to a same-origin URL, so the SSE stream gets
+// authenticated implicitly. If the admin UI is ever migrated to a cookie
+// session (e.g. signed session id + CSRF token, see issue #21 I4), this
+// path will break: EventSource does not send credentials cross-origin
+// without `withCredentials`, and even same-origin it sends cookies but
+// not custom auth headers. At that point the SSE auth path must be
+// redesigned — likely a one-shot signed query token issued by the page
+// load, validated here before subscribing to `bus`.
 export async function sseHandler(c: Context) {
   const scope = c.req.query("scope") ?? "all";
   const channel = Number(c.req.query("channel") ?? 0);

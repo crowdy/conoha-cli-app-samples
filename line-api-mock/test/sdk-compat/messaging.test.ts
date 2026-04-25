@@ -9,6 +9,7 @@ let server: ServerType;
 let port: number;
 let token: string;
 let botUserId: string;
+let channelDbId: number;
 
 beforeAll(async () => {
   container = await startDb();
@@ -29,6 +30,7 @@ beforeAll(async () => {
       name: "SDK Test",
     })
     .returning();
+  channelDbId = ch.id;
   token = accessTokenStr();
   await db.insert(accessTokens).values({
     channelId: ch.id,
@@ -86,11 +88,45 @@ describe("@line/bot-sdk MessagingApiClient against mock", () => {
     expect(res).toBeDefined();
   });
 
-  it("broadcast succeeds", async () => {
+  it("broadcast succeeds and reaches the seeded friend user", async () => {
     const client = sdkClient();
-    await client.broadcast({
+    const res = await client.broadcast({
       messages: [{ type: "text", text: "broadcast" }],
     });
+    // LINE's broadcast returns an empty `{}` body; the SDK surfaces it as an
+    // empty object. Pin the shape so a future regression (e.g. returning the
+    // message array by mistake) fails here.
+    expect(res).toEqual({});
+
+    // Verify the broadcast actually fanned out to the seeded friend by
+    // checking that a `bot_to_user` "broadcast" text row landed in `messages`
+    // for the channel/user pair.
+    const { db } = await import("../../src/db/client.js");
+    const { messages: messagesTable, virtualUsers: vu } = await import(
+      "../../src/db/schema.js"
+    );
+    const { eq, and } = await import("drizzle-orm");
+    const [user] = await db
+      .select({ id: vu.id })
+      .from(vu)
+      .where(eq(vu.userId, botUserId))
+      .limit(1);
+    const rows = await db
+      .select()
+      .from(messagesTable)
+      .where(
+        and(
+          eq(messagesTable.channelId, channelDbId),
+          eq(messagesTable.virtualUserId, user.id),
+          eq(messagesTable.direction, "bot_to_user")
+        )
+      );
+    const broadcastRow = rows.find(
+      (r) =>
+        r.type === "text" &&
+        (r.payload as { text?: string })?.text === "broadcast"
+    );
+    expect(broadcastRow).toBeDefined();
   });
 
   it("getProfile returns a known user", async () => {
