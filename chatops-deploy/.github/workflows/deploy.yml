@@ -1,0 +1,178 @@
+# NOTE: GitHub Actions only reads `.github/workflows/` at the REPOSITORY ROOT.
+# Copy this directory into your own application repository to activate it.
+
+name: ChatOps Deploy
+
+# `issue_comment` always runs against the workflow file on the default
+# branch — that's a feature, not a bug. We must explicitly check out the
+# PR head ref ourselves below.
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+jobs:
+  parse:
+    # Only consider comments on PRs, not on plain issues.
+    if: github.event.issue.pull_request && startsWith(github.event.comment.body, '/deploy')
+    runs-on: ubuntu-latest
+    outputs:
+      env: ${{ steps.parse.outputs.env }}
+      pr_head_sha: ${{ steps.pr.outputs.head_sha }}
+      pr_head_ref: ${{ steps.pr.outputs.head_ref }}
+      pr_number: ${{ github.event.issue.number }}
+    steps:
+      - name: React 👀 to acknowledge
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.reactions.createForIssueComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              comment_id: context.payload.comment.id,
+              content: 'eyes',
+            });
+
+      - name: Permission check
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { data: perm } = await github.rest.repos.getCollaboratorPermissionLevel({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              username: context.payload.comment.user.login,
+            });
+            // 'admin' | 'maintain' | 'write' | 'triage' | 'read' | 'none'
+            if (!['admin', 'maintain', 'write'].includes(perm.permission)) {
+              core.setFailed(`User ${context.payload.comment.user.login} has '${perm.permission}' — needs write or higher.`);
+            }
+
+      - name: Parse subcommand
+        id: parse
+        run: |
+          BODY="${{ github.event.comment.body }}"
+          # Trim and split: "/deploy", "/deploy staging", "/deploy production"
+          ARG=$(echo "$BODY" | awk '{print $2}' | tr -d '[:space:]')
+          case "$ARG" in
+            production) echo "env=production" >> "$GITHUB_OUTPUT" ;;
+            staging|"") echo "env=staging" >> "$GITHUB_OUTPUT" ;;
+            *)
+              echo "unknown subcommand: $ARG" >&2
+              exit 1
+              ;;
+          esac
+
+      - name: Resolve PR head
+        id: pr
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { data: pr } = await github.rest.pulls.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.issue.number,
+            });
+            core.setOutput('head_sha', pr.head.sha);
+            core.setOutput('head_ref', pr.head.ref);
+            core.setOutput('head_repo_full_name', pr.head.repo.full_name);
+            // Refuse fork PRs — secrets must not be exposed to fork code.
+            if (pr.head.repo.full_name !== context.payload.repository.full_name) {
+              core.setFailed('Refusing to deploy a fork PR. Push the branch to the main repo first.');
+            }
+
+  deploy:
+    needs: parse
+    runs-on: self-hosted
+    environment: ${{ needs.parse.outputs.env }}
+    concurrency:
+      group: chatops-deploy-${{ needs.parse.outputs.env }}
+      cancel-in-progress: false
+    steps:
+      - name: Comment 🚀 starting
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: ${{ needs.parse.outputs.pr_number }},
+              body: `🚀 Deploying \`${{ needs.parse.outputs.pr_head_sha }}\` to **${{ needs.parse.outputs.env }}**… ([run](${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}))`,
+            });
+
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.parse.outputs.pr_head_sha }}
+
+      - name: Ensure conoha-cli is installed
+        run: conoha version
+
+      - name: Write SSH deploy key
+        id: ssh
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.CONOHA_SSH_PRIVATE_KEY }}
+        run: |
+          KEY_PATH="${RUNNER_TEMP}/conoha_deploy"
+          printf '%s\n' "$SSH_PRIVATE_KEY" > "$KEY_PATH"
+          chmod 600 "$KEY_PATH"
+          mkdir -p ~/.ssh
+          ssh-keyscan -p 22 -H "${{ vars.CONOHA_SERVER_HOST }}" \
+            >> ~/.ssh/known_hosts 2>/dev/null
+          echo "key_path=$KEY_PATH" >> "$GITHUB_OUTPUT"
+
+      - name: Authenticate conoha-cli
+        env:
+          CONOHA_TENANT_ID: ${{ secrets.CONOHA_TENANT_ID }}
+          CONOHA_USERNAME: ${{ secrets.CONOHA_USERNAME }}
+          CONOHA_PASSWORD: ${{ secrets.CONOHA_PASSWORD }}
+          CONOHA_NO_INPUT: "1"
+          CONOHA_CONFIG_DIR: ${{ runner.temp }}/conoha
+        run: |
+          mkdir -p "$CONOHA_CONFIG_DIR"
+          conoha auth login
+
+      - name: Write per-deploy .env
+        run: |
+          cat > .env <<EOF
+          DEPLOY_ENV=${{ needs.parse.outputs.env }}
+          DEPLOY_SHA=${{ needs.parse.outputs.pr_head_sha }}
+          DEPLOY_PR=#${{ needs.parse.outputs.pr_number }}
+          DEPLOY_ACTOR=${{ github.event.comment.user.login }}
+          EOF
+
+      - name: Deploy
+        env:
+          CONOHA_NO_INPUT: "1"
+          CONOHA_YES: "1"
+          CONOHA_CONFIG_DIR: ${{ runner.temp }}/conoha
+        run: |
+          conoha app deploy "${{ vars.CONOHA_SERVER_NAME }}" \
+            --app-name chatops-deploy \
+            --identity "${{ steps.ssh.outputs.key_path }}"
+
+      - name: Comment ✅ success
+        if: success()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: ${{ needs.parse.outputs.pr_number }},
+              body: `✅ Deployed \`${{ needs.parse.outputs.pr_head_sha }}\` to **${{ needs.parse.outputs.env }}**.`,
+            });
+
+      - name: Comment ❌ failure
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: ${{ needs.parse.outputs.pr_number }},
+              body: `❌ Deploy of \`${{ needs.parse.outputs.pr_head_sha }}\` to **${{ needs.parse.outputs.env }}** failed. ([logs](${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}))`,
+            });

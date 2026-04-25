@@ -1,0 +1,6 @@
+name: chatops-deploy
+hosts:
+  - chatops.example.com
+web:
+  service: web
+  port: 3000
