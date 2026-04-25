@@ -1,0 +1,11 @@
+name: multi-env-deploy
+# Replace with your own FQDNs before running `conoha app init`.
+# `hosts` here is just a default — the actual hostname per environment
+# typically differs (e.g. staging.example.com vs example.com). Override
+# this file in each target VPS if needed, or rely on the workflow's
+# `--app-name` and per-environment FQDN configuration.
+hosts:
+  - example.com
+web:
+  service: web
+  port: 3000
