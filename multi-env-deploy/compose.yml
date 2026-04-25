@@ -1,0 +1,12 @@
+services:
+  web:
+    build: .
+    # No host-side port: conoha-proxy injects a randomly-bound
+    # 127.0.0.1:0:3000 mapping at deploy time so two slots (blue/green)
+    # can coexist.
+    expose:
+      - "3000"
+    environment:
+      - DEPLOY_ENV=${DEPLOY_ENV:-dev}
+      - DEPLOY_SHA=${DEPLOY_SHA:-dev}
+      - DEPLOY_TIMESTAMP=${DEPLOY_TIMESTAMP:-local}

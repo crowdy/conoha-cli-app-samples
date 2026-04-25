@@ -1,0 +1,92 @@
+# NOTE: GitHub Actions only reads `.github/workflows/` at the REPOSITORY ROOT.
+# Copy this directory into your own application repository to activate it.
+
+name: Deploy (multi-env)
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+env:
+  APP_NAME: multi-env-deploy
+
+jobs:
+  test:
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: npm ci || npm install
+      - run: npm run test
+      - run: npm run build
+
+  deploy:
+    needs: test
+    if: github.event_name == 'push'
+    runs-on: self-hosted
+    # Branch → environment mapping. GitHub Environments hold per-env secrets
+    # and (for production) approval rules.
+    environment: ${{ github.ref == 'refs/heads/main' && 'production' || 'staging' }}
+    concurrency:
+      group: multi-env-deploy-${{ github.ref }}
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Resolve env name
+        id: env
+        run: |
+          if [ "${GITHUB_REF}" = "refs/heads/main" ]; then
+            echo "name=production" >> "$GITHUB_OUTPUT"
+          else
+            echo "name=staging" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Ensure conoha-cli is installed
+        run: conoha version
+
+      - name: Write SSH deploy key
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.CONOHA_SSH_PRIVATE_KEY }}
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/conoha_deploy
+          chmod 600 ~/.ssh/conoha_deploy
+          ssh-keyscan -p 22 -H "${{ vars.CONOHA_SERVER_HOST }}" \
+            >> ~/.ssh/known_hosts 2>/dev/null
+
+      - name: Authenticate conoha-cli
+        env:
+          CONOHA_TENANT_ID: ${{ secrets.CONOHA_TENANT_ID }}
+          CONOHA_USERNAME: ${{ secrets.CONOHA_USERNAME }}
+          CONOHA_PASSWORD: ${{ secrets.CONOHA_PASSWORD }}
+          CONOHA_NO_INPUT: "1"
+          CONOHA_CONFIG_DIR: ${{ runner.temp }}/conoha
+        run: |
+          mkdir -p "$CONOHA_CONFIG_DIR"
+          conoha auth login
+
+      - name: Write per-deploy .env
+        # `.env` is auto-loaded by docker compose on the target via the
+        # tar that `conoha app deploy` ships. See gitops-pipeline sample
+        # for the rationale (proxy-mode `app env set` limitation).
+        run: |
+          cat > .env <<EOF
+          DEPLOY_ENV=${{ steps.env.outputs.name }}
+          DEPLOY_SHA=${{ github.sha }}
+          DEPLOY_TIMESTAMP=${{ github.event.head_commit.timestamp }}
+          EOF
+
+      - name: Deploy
+        env:
+          CONOHA_NO_INPUT: "1"
+          CONOHA_YES: "1"
+          CONOHA_CONFIG_DIR: ${{ runner.temp }}/conoha
+        run: |
+          conoha app deploy "${{ vars.CONOHA_SERVER_NAME }}" \
+            --app-name "$APP_NAME" \
+            --identity ~/.ssh/conoha_deploy
