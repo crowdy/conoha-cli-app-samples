@@ -12,7 +12,7 @@ import { errors } from "../lib/errors.js";
 export const messageRouter = new Hono<{ Variables: AuthVars }>();
 
 messageRouter.use("/v2/*", requestLog);
-messageRouter.use("/v2/*", bearerAuth);
+messageRouter.use("/v2/*", bearerAuth());
 
 interface PushBody {
   to: string;

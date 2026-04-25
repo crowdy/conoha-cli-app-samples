@@ -9,7 +9,7 @@ import { checkWebhookUrl } from "../webhook/url-policy.js";
 
 export const webhookEndpointRouter = new Hono<{ Variables: AuthVars }>();
 webhookEndpointRouter.use("/v2/*", requestLog);
-webhookEndpointRouter.use("/v2/*", bearerAuth);
+webhookEndpointRouter.use("/v2/*", bearerAuth());
 
 webhookEndpointRouter.get(
   "/v2/bot/channel/webhook/endpoint",

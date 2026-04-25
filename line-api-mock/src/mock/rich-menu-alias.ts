@@ -11,9 +11,9 @@ import { findRichMenuInternalId } from "../lib/rich-menu.js";
 export const richMenuAliasRouter = new Hono<{ Variables: AuthVars }>();
 
 richMenuAliasRouter.use("/v2/bot/richmenu/alias", requestLog);
-richMenuAliasRouter.use("/v2/bot/richmenu/alias", bearerAuth);
+richMenuAliasRouter.use("/v2/bot/richmenu/alias", bearerAuth());
 richMenuAliasRouter.use("/v2/bot/richmenu/alias/*", requestLog);
-richMenuAliasRouter.use("/v2/bot/richmenu/alias/*", bearerAuth);
+richMenuAliasRouter.use("/v2/bot/richmenu/alias/*", bearerAuth());
 
 richMenuAliasRouter.post(
   "/v2/bot/richmenu/alias",
