@@ -21,10 +21,11 @@ services:
 
   otel-collector:
     image: otel/opentelemetry-collector-contrib:latest
-    # ⚠ OTLP gRPC (4317) and HTTP (4318) are internal-only in this
-    # layout. External telemetry agents can't reach this endpoint.
-    # Agents running on the same VPS push to `otel-collector:4317`
-    # over the compose network.
+    # OTLP HTTP (:4318) is exposed via conoha.yml `expose:` block as
+    # otel.example.com so external agents can push telemetry over
+    # HTTPS. OTLP gRPC (:4317) stays compose-internal-only — gRPC
+    # over conoha-proxy needs HTTP/2 + ALPN end-to-end and is tracked
+    # separately as a future "proxy gRPC support" RFC.
     expose:
       - "4317"
       - "4318"
@@ -40,13 +41,21 @@ services:
     # deploy time so two slots (blue/green) can coexist.
     expose:
       - "3000"
+    # NOTE: do NOT add `GF_SECURITY_ADMIN_PASSWORD` here. Compose's
+    # `environment:` interpolates `${VAR:-default}` at parse time and
+    # overrides values supplied via `env_file`. CLI's slot override
+    # injects `.env.server` as `env_file`, so leaving the password
+    # out lets the runtime value flow through. The other GF_* vars
+    # (anonymous toggle, admin user) keep their `${VAR:-default}`
+    # interpolation because the safe defaults are sample-correct
+    # and rarely need rotating — conoha-cli#166 will let user-set
+    # values for these reach the container without sample-side
+    # gymnastics.
     environment:
-      # Default: admin-only, no anonymous access. `GF_SECURITY_ADMIN_PASSWORD`
-      # MUST be set via `conoha app env set` before deploy — README step 5.
+      # Default: admin-only, no anonymous access.
       - GF_AUTH_ANONYMOUS_ENABLED=${GF_AUTH_ANONYMOUS_ENABLED:-false}
       - GF_AUTH_ANONYMOUS_ORG_ROLE=${GF_AUTH_ANONYMOUS_ORG_ROLE:-Viewer}
       - GF_SECURITY_ADMIN_USER=${GF_SECURITY_ADMIN_USER:-admin}
-      - GF_SECURITY_ADMIN_PASSWORD=${GF_SECURITY_ADMIN_PASSWORD:-please-set-via-conoha-app-env-set}
     volumes:
       - grafana_data:/var/lib/grafana
     depends_on:
