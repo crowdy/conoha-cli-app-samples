@@ -1,19 +1,50 @@
 name: quickwit-otel
 # Replace with your own FQDN before running `conoha app init`.
+# Only the root web host goes here. Subdomains (e.g. otel.example.com)
+# are declared per-block under `expose:` below — listing them here too
+# fails validation ("host duplicates an entry in hosts[]"). The proxy
+# ACMEs both the root and each expose host independently as long as
+# DNS A records exist for them.
 hosts:
   - quickwit-otel.example.com
 web:
   service: grafana
   port: 3000
-# `quickwit` (log search backend) and `otel-collector` are accessories.
+# Grafana's `/api/health` returns 200 once the server is up. First
+# start unpacks plugins and seeds the sqlite DB, so allow a wider
+# unhealthy window than the default 15s.
+health:
+  path: /api/health
+  unhealthy_threshold: 24    # 24 × 5s = 120s
+# OpenTelemetry Collector OTLP HTTP receiver, exposed on its own
+# subdomain so external agents can push traces/logs/metrics over
+# HTTPS. blue_green: false because the collector is stateless but
+# pipeline reconfiguration / port rebind across slots would drop
+# in-flight batches; running a single instance avoids that.
 #
-# ⚠ KNOWN LIMITATION: the OTLP gRPC endpoint on otel-collector:4317
-# and the Quickwit UI on quickwit:7280 are **only reachable internally**
-# via the compose network. External agents that push OTLP over gRPC
-# from outside the VPS won't work. The OTLP HTTP endpoint on :4318
-# has the same problem. Use Grafana's data source (queries Quickwit
-# over the internal network) for viewing, and deploy telemetry agents
-# on the same VPS that push to `otel-collector:4317` locally.
+# OTLP gRPC (:4317) is intentionally NOT exposed here. conoha-proxy
+# fronts HTTP/1.1, and OTLP gRPC requires HTTP/2 + ALPN end-to-end
+# (and ideally H2C upstream). Adding gRPC support is tracked
+# separately as a future "proxy gRPC support" RFC. Until then,
+# external agents must use OTLP HTTP at https://otel.example.com/v1/*.
+expose:
+  - label: otel
+    host: otel.example.com
+    # Target is the `otel-edge` caddy sidecar, not otel-collector
+    # itself. The collector's OTLP HTTP receiver only handles POST
+    # /v1/{traces,logs,metrics} — GET / 404s, which would fail
+    # conoha-proxy's deploy-time probe. Caddy answers GET / with 200
+    # and reverse-proxies OTLP traffic to otel-collector:4318
+    # untouched. See compose.yml + Caddyfile.
+    service: otel-edge
+    port: 4318
+    blue_green: false
+    health:
+      path: /
+# `quickwit` (log / trace search backend) and `otel-collector` only
+# serve compose-internal traffic (Grafana / otel-edge talk to them
+# over the docker network) and shouldn't be duplicated per blue/green
+# slot.
 accessories:
   - quickwit
   - otel-collector
