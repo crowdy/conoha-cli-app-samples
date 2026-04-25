@@ -1,7 +1,10 @@
 name: gitea
 # Replace with your own FQDN before running `conoha app init`.
+# Both the root host (gitea) and the dex subdomain need DNS A records
+# pointing at this VPS — the proxy ACMEs each separately.
 hosts:
   - gitea.example.com
+  - dex.example.com
 web:
   service: gitea
   # Gitea HTTP UI. Container also listens on 22 for git+ssh, but
@@ -9,9 +12,17 @@ web:
   # via SSH-into-VPS + `docker exec` (the container's port 22 is on
   # the compose network, not the host).
   port: 3000
-# `db` (PostgreSQL) and `dex` (OIDC provider) are accessories — they
-# only serve other compose services internally and shouldn't be
-# duplicated per blue/green slot.
+# Dex OIDC provider, exposed on its own subdomain so the browser
+# discovery + redirect flow can reach it under HTTPS. blue_green: false
+# because Dex isn't slot-aware (Postgres-backed sessions / approval
+# state would be split across slots otherwise).
+expose:
+  - label: dex
+    host: dex.example.com
+    service: dex
+    port: 5556
+    blue_green: false
+# `db` (PostgreSQL) only serves other compose services internally
+# and shouldn't be duplicated per blue/green slot.
 accessories:
   - db
-  - dex
