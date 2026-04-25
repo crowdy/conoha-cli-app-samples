@@ -138,6 +138,7 @@ conoha app init myserver
 conoha app env set myserver \
   GITEA_DB_PASSWORD=$(openssl rand -base64 32) \
   DEX_DB_PASSWORD=$(openssl rand -base64 32) \
+  GITEA_OAUTH2_CLIENT_ID=gitea \
   GITEA_OAUTH2_CLIENT_SECRET=$(openssl rand -base64 32) \
   DEX_ISSUER_HOST=dex.example.com \
   GITEA_HOST=gitea.example.com

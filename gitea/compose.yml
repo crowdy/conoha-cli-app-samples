@@ -46,14 +46,17 @@ services:
         exec dex serve /tmp/dex.yml
     expose:
       - "5556"
+    # NOTE: do NOT add `DEX_ISSUER_HOST` / `GITEA_HOST` /
+    # `GITEA_OAUTH2_CLIENT_*` here. Compose's `environment:` interpolates
+    # `${VAR:-default}` at parse time and overrides values supplied via
+    # `env_file`. CLI's slot override injects `.env.server` as `env_file`,
+    # so leaving these out lets the runtime values flow through. DB
+    # variables stay because init-db.sh (db container) reads them and
+    # the db service has no env_file override.
     environment:
-      - DEX_ISSUER_HOST=${DEX_ISSUER_HOST:-localhost}
       - DEX_DB_NAME=${DEX_DB_NAME:-dex}
       - DEX_DB_USER=${DEX_DB_USER:-dex}
       - DEX_DB_PASSWORD=${DEX_DB_PASSWORD:-dex}
-      - GITEA_HOST=${GITEA_HOST:-localhost}
-      - GITEA_OAUTH2_CLIENT_ID=${GITEA_OAUTH2_CLIENT_ID:-gitea}
-      - GITEA_OAUTH2_CLIENT_SECRET=${GITEA_OAUTH2_CLIENT_SECRET:-gitea-dex-secret}
     volumes:
       - ./dex.yml:/etc/dex/dex.yml:ro
     depends_on:
