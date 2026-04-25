@@ -5,7 +5,7 @@ import { messages, virtualUsers, channelFriends, coupons } from "../db/schema.js
 import { bearerAuth, type AuthVars } from "./middleware/auth.js";
 import { requestLog } from "./middleware/request-log.js";
 import { validate } from "./middleware/validate.js";
-import { messageId, replyToken } from "../lib/id.js";
+import { messageId, replyToken, randomHex } from "../lib/id.js";
 import { bus } from "../lib/events.js";
 import { errors } from "../lib/errors.js";
 
@@ -237,10 +237,7 @@ messageRouter.post("/v2/bot/message/narrowcast", async (c) => {
   if (!body || !Array.isArray(body.messages)) {
     return errors.badRequest(c, "messages[] is required");
   }
-  const reqId = (
-    Math.random().toString(16).slice(2) + Math.random().toString(16).slice(2)
-  ).slice(0, 32);
-  c.header("X-Line-Request-Id", reqId);
+  c.header("X-Line-Request-Id", randomHex(16));
   return c.json({}, 202);
 });
 

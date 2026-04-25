@@ -27,7 +27,7 @@ line-api-mock/
 │   │   ├── schema.ts              # 全テーブルスキーマ
 │   │   └── seed.ts                # 初回起動時の default channel/user 投入
 │   ├── mock/                      # LINE API mock 実装
-│   │   ├── oauth.ts               # /v2/oauth/*, /v3/token/*
+│   │   ├── oauth.ts               # /v2/oauth/*, /oauth2/v2.1/*
 │   │   ├── message.ts             # /v2/bot/message/*
 │   │   ├── profile.ts             # /v2/bot/profile/*
 │   │   ├── webhook-endpoint.ts    # /v2/bot/channel/webhook/*
@@ -99,7 +99,7 @@ line-api-mock/
 - `POST /v2/oauth/accessToken` — channel_id/secret から短期トークン発行
 - `POST /v2/oauth/verify` — トークン検証
 - `POST /v2/oauth/revoke` — トークン無効化
-- `POST /v3/token/*` — JWT assertion flow(署名検証は省略、形式のみ準拠)
+- `POST /oauth2/v2.1/*` — JWT assertion flow(署名検証は省略、形式のみ準拠)
 
 ### Message Send
 - `POST /v2/bot/message/push` — 指定ユーザーへ送信
@@ -235,7 +235,7 @@ api_logs {
   ```json
   { "message": "Authentication failed due to the expired access token" }
   ```
-- `/v2/oauth/*`, `/v3/token/*` は認証不要
+- `/v2/oauth/*`, `/oauth2/v2.1/*` は認証不要
 
 ## Webhook Emulation Flow
 

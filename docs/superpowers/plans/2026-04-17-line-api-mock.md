@@ -49,7 +49,7 @@ line-api-mock/
 │   │   │   ├── request-log.ts        # api_logs writer
 │   │   │   └── validate.ts           # ajv request/response validator
 │   │   ├── oauth.ts                  # /v2/oauth/*
-│   │   ├── oauth-v3.ts               # /v3/token/*
+│   │   ├── oauth-v3.ts               # /oauth2/v2.1/*
 │   │   ├── message.ts                # /v2/bot/message/* (push, reply, bulk)
 │   │   ├── quota.ts                  # /v2/bot/message/quota*
 │   │   ├── profile.ts                # /v2/bot/profile/{userId}
@@ -4386,7 +4386,7 @@ LINE Messaging API の OpenAPI 仕様に準拠したモックサーバー。LINE
 
 ## 特徴
 
-- OpenAPI に準拠した `/v2/bot/*`, `/v2/oauth/*`, `/v3/token/*` エンドポイント
+- OpenAPI に準拠した `/v2/bot/*`, `/v2/oauth/*`, `/oauth2/v2.1/*` エンドポイント
 - **Webhook エミュレーション**: 管理 UI から仮想ユーザーが Bot に話しかけると、Bot の webhook に署名付きで POST
 - 管理 UI (HTMX) でチャンネル・仮想ユーザー・会話・配信ログを管理
 - Swagger UI (`/docs`) で API を試せる
