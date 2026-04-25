@@ -27,22 +27,21 @@ health:
 expose:
   - label: otel
     host: otel.example.com
-    service: otel-collector
+    # Target is the `otel-edge` caddy sidecar, not otel-collector
+    # itself. The collector's OTLP HTTP receiver only handles POST
+    # /v1/{traces,logs,metrics} — GET / 404s, which would fail
+    # conoha-proxy's deploy-time probe. Caddy answers GET / with 200
+    # and reverse-proxies OTLP traffic to otel-collector:4318
+    # untouched. See compose.yml + Caddyfile.
+    service: otel-edge
     port: 4318
     blue_green: false
-    # The OTLP HTTP receiver does not expose a GET-200 health path on
-    # :4318 (only POST /v1/{traces,logs,metrics}). The collector's
-    # health_check extension lives on a different port (:13133) and
-    # the proxy probes the upstream port directly. We point the probe
-    # at `/` and accept that the receiver responds 404 — `blue_green:
-    # false` means there is no slot-swap gated on probe success, so
-    # routing still works. A stricter probe (sidecar /healthz) is
-    # left to the future "proxy gRPC support" RFC alongside the gRPC
-    # transport work.
     health:
       path: /
-# `quickwit` (log / trace search backend) only serves compose-internal
-# traffic (Grafana queries it directly over the docker network) and
-# shouldn't be duplicated per blue/green slot.
+# `quickwit` (log / trace search backend) and `otel-collector` only
+# serve compose-internal traffic (Grafana / otel-edge talk to them
+# over the docker network) and shouldn't be duplicated per blue/green
+# slot.
 accessories:
   - quickwit
+  - otel-collector

@@ -1,0 +1,19 @@
+# Tiny edge in front of otel-collector's OTLP HTTP receiver.
+#
+# Why a sidecar at all: conoha-proxy probes its upstream with GET /,
+# but the collector's OTLP HTTP receiver only handles POST /v1/{traces,
+# logs,metrics} (everything else 404s) and the `health_check` extension
+# binds its own port (:13133), which the proxy can't reach without a
+# second expose block. Caddy here turns GET / into a 200 so the proxy
+# probe passes, while transparently reverse-proxying the OTLP paths to
+# the collector.
+:4318 {
+	# Probe endpoint for conoha-proxy.
+	@probe path /
+	handle @probe {
+		respond "ok" 200
+	}
+	# Everything else (POST /v1/traces, /v1/logs, /v1/metrics, ...)
+	# goes through to the collector untouched.
+	reverse_proxy otel-collector:4318
+}

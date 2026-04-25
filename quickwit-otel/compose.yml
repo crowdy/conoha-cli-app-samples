@@ -21,10 +21,11 @@ services:
 
   otel-collector:
     image: otel/opentelemetry-collector-contrib:latest
-    # OTLP HTTP (:4318) is exposed via conoha.yml `expose:` block as
-    # otel.example.com so external agents can push telemetry over
-    # HTTPS. OTLP gRPC (:4317) stays compose-internal-only — gRPC
-    # over conoha-proxy needs HTTP/2 + ALPN end-to-end and is tracked
+    # Internal-only. OTLP HTTP traffic from outside reaches the
+    # collector via the `otel-edge` caddy sidecar (see below) which
+    # is what conoha.yml's `expose:` block actually targets. OTLP gRPC
+    # (:4317) stays compose-internal regardless — gRPC over
+    # conoha-proxy needs HTTP/2 + ALPN end-to-end and is tracked
     # separately as a future "proxy gRPC support" RFC.
     expose:
       - "4317"
@@ -34,6 +35,20 @@ services:
     depends_on:
       quickwit:
         condition: service_healthy
+
+  otel-edge:
+    image: caddy:2-alpine
+    # Tiny reverse proxy that fronts otel-collector's OTLP HTTP
+    # receiver. Exists solely so conoha-proxy's GET / probe passes —
+    # the collector's OTLP receiver returns 404 on GET, and its
+    # `health_check` extension lives on a different port that the
+    # proxy can't reach without a second expose block. See Caddyfile.
+    expose:
+      - "4318"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+    depends_on:
+      - otel-collector
 
   grafana:
     image: grafana/grafana:latest
