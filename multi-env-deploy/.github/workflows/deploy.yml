@@ -39,25 +39,25 @@ jobs:
 
       - name: Resolve env name
         id: env
-        run: |
-          if [ "${GITHUB_REF}" = "refs/heads/main" ]; then
-            echo "name=production" >> "$GITHUB_OUTPUT"
-          else
-            echo "name=staging" >> "$GITHUB_OUTPUT"
-          fi
+        run: echo "name=${{ github.ref == 'refs/heads/main' && 'production' || 'staging' }}" >> "$GITHUB_OUTPUT"
 
       - name: Ensure conoha-cli is installed
         run: conoha version
 
+      # Per-job paths under $RUNNER_TEMP so concurrent staging/production runs
+      # on the same self-hosted runner can't clobber each other's key.
       - name: Write SSH deploy key
+        id: ssh
         env:
           SSH_PRIVATE_KEY: ${{ secrets.CONOHA_SSH_PRIVATE_KEY }}
         run: |
+          KEY_PATH="${RUNNER_TEMP}/conoha_deploy"
+          printf '%s\n' "$SSH_PRIVATE_KEY" > "$KEY_PATH"
+          chmod 600 "$KEY_PATH"
           mkdir -p ~/.ssh
-          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/conoha_deploy
-          chmod 600 ~/.ssh/conoha_deploy
           ssh-keyscan -p 22 -H "${{ vars.CONOHA_SERVER_HOST }}" \
             >> ~/.ssh/known_hosts 2>/dev/null
+          echo "key_path=$KEY_PATH" >> "$GITHUB_OUTPUT"
 
       - name: Authenticate conoha-cli
         env:
@@ -89,4 +89,4 @@ jobs:
         run: |
           conoha app deploy "${{ vars.CONOHA_SERVER_NAME }}" \
             --app-name "$APP_NAME" \
-            --identity ~/.ssh/conoha_deploy
+            --identity "${{ steps.ssh.outputs.key_path }}"

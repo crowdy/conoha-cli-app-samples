@@ -5,5 +5,3 @@ node_modules/
 *.log
 tsconfig.tsbuildinfo
 next-env.d.ts
-tsconfig.tsbuildinfo
-next-env.d.ts
