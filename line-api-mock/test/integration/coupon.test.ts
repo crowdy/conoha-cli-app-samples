@@ -522,6 +522,9 @@ describe("admin POST /admin/coupons validation", () => {
   function post(body: string, auth = true) {
     const headers: Record<string, string> = {
       "content-type": "application/x-www-form-urlencoded",
+      // Same-origin Origin header so the adminCsrf middleware accepts the
+      // request. APP_BASE_URL defaults to http://localhost:3000 in config.ts.
+      origin: "http://localhost:3000",
     };
     if (auth) {
       headers.authorization =
