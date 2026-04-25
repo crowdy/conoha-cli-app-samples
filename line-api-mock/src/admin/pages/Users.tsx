@@ -35,7 +35,7 @@ export const Users: FC<{ users: UserRow[] }> = ({ users }) => (
       </thead>
       <tbody>
         {users.map((u) => (
-          <tr class="border-t">
+          <tr class="border-t" data-pk={u.id}>
             <td class="p-2 font-mono text-xs">{u.userId}</td>
             <td class="p-2">{u.displayName}</td>
             <td class="p-2">{u.language}</td>

@@ -19,3 +19,10 @@ npm run gen:types
 ```
 
 Keep the commit SHA in this file up to date.
+
+## Drift detection
+
+`.github/workflows/line-api-mock-openapi-drift.yml` runs weekly (Mon 09:00 UTC,
+also `workflow_dispatch`) and opens/updates a tracking issue if the vendored
+file no longer matches `line/line-openapi@main`. If the issue appears, refresh
+the spec using the steps above and update `Commit:` in this file.

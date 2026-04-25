@@ -36,8 +36,12 @@ test("user→bot→reply round trip is visible in admin UI", async ({ page, requ
 
   // 2. Discover the seeded channel via /admin/channels.
   await page.goto("/admin/channels");
-  const channelIdText = await page
-    .locator("xpath=(//div[contains(@class, \"text-xs\") and contains(@class, \"font-mono\") and contains(@class, \"text-slate-500\")])[1]")
+  const firstChannelCard = page.locator("[data-pk]").first();
+  const channelPk = await firstChannelCard.getAttribute("data-pk");
+  expect(channelPk).toMatch(/^\d+$/);
+  const channelIdText = await firstChannelCard
+    .locator("div.text-xs.font-mono.text-slate-500")
+    .first()
     .innerText();
   expect(channelIdText).toMatch(/^\d{10}$/);
 
@@ -57,13 +61,19 @@ test("user→bot→reply round trip is visible in admin UI", async ({ page, requ
   channelAccessToken = tokens.find((t) => t.length > 40) ?? null;
   expect(channelAccessToken).toBeTruthy();
 
-  // 5. Send a message from user to bot.
-  // Shortcut: seed uses PK=1 for the default channel and default user.
-  await page.goto("/admin/conversations/1/1");
+  // 5. Discover the seeded user PK from /admin/users instead of hardcoding,
+  // so the test survives any seed-order change. The seed creates exactly one
+  // default user friended to the default channel.
+  await page.goto("/admin/users");
+  const userPk = await page.locator("tbody tr[data-pk]").first().getAttribute("data-pk");
+  expect(userPk).toMatch(/^\d+$/);
+
+  // 6. Send a message from user to bot.
+  await page.goto(`/admin/conversations/${channelPk}/${userPk}`);
   await page.locator('input[name="text"]').fill("hello mock");
   await page.getByRole("button", { name: /Send as user/ }).click();
 
-  // 6. Wait for echo reply to appear via SSE.
+  // 7. Wait for echo reply to appear via SSE.
   await expect(page.locator("#messages")).toContainText(/echo: hello mock/, {
     timeout: 15_000,
   });
