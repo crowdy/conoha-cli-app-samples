@@ -1,69 +1,38 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { serve, type ServerType } from "@hono/node-server";
 import { messagingApi } from "@line/bot-sdk";
-import { startDb, type DbHandle } from "../helpers/testcontainer.js";
+import {
+  startSdkCompatServer,
+  type SdkCompatHarness,
+} from "./helpers/harness.js";
 
-let container: DbHandle;
-let server: ServerType;
-let port: number;
-let token: string;
-let friendUserId: string;
-let channelDbId: number;
+let harness: SdkCompatHarness;
 
 beforeAll(async () => {
-  container = await startDb();
-  const { Hono } = await import("hono");
-  const { oauthRouter } = await import("../../src/mock/oauth.js");
-  const { messageRouter } = await import("../../src/mock/message.js");
-  const { profileRouter } = await import("../../src/mock/profile.js");
-  const { db } = await import("../../src/db/client.js");
-  const { channels, accessTokens, virtualUsers, channelFriends } =
-    await import("../../src/db/schema.js");
-  const { randomHex, accessTokenStr } = await import("../../src/lib/id.js");
-
-  const [ch] = await db
-    .insert(channels)
-    .values({
-      channelId: "9900000001",
-      channelSecret: randomHex(16),
-      name: "SDK Test",
-    })
-    .returning();
-  channelDbId = ch.id;
-  token = accessTokenStr();
-  await db.insert(accessTokens).values({
-    channelId: ch.id,
-    token,
-    expiresAt: new Date(Date.now() + 24 * 3600 * 1000),
-  });
-  friendUserId = "U" + randomHex(16);
-  const [u] = await db
-    .insert(virtualUsers)
-    .values({ userId: friendUserId, displayName: "SDK Tester", language: "ja" })
-    .returning();
-  await db.insert(channelFriends).values({ channelId: ch.id, userId: u.id });
-
-  const app = new Hono();
-  app.route("/", oauthRouter);
-  app.route("/", messageRouter);
-  app.route("/", profileRouter);
-  await new Promise<void>((resolve) => {
-    server = serve({ fetch: app.fetch, port: 0 }, (info) => {
-      port = info.port;
-      resolve();
-    });
+  harness = await startSdkCompatServer({
+    channelId: "9900000001",
+    channelName: "SDK Test",
+    seedFriend: true,
+    friendDisplayName: "SDK Tester",
+    friendLanguage: "ja",
+    mountRouters: async (app) => {
+      const { oauthRouter } = await import("../../src/mock/oauth.js");
+      const { messageRouter } = await import("../../src/mock/message.js");
+      const { profileRouter } = await import("../../src/mock/profile.js");
+      app.route("/", oauthRouter);
+      app.route("/", messageRouter);
+      app.route("/", profileRouter);
+    },
   });
 }, 90_000);
 
 afterAll(async () => {
-  server?.close();
-  await container.stop();
+  await harness.stop();
 });
 
 function sdkClient() {
   return new messagingApi.MessagingApiClient({
-    channelAccessToken: token,
-    baseURL: `http://127.0.0.1:${port}`,
+    channelAccessToken: harness.token,
+    baseURL: `http://127.0.0.1:${harness.port}`,
   });
 }
 
@@ -71,7 +40,7 @@ describe("@line/bot-sdk MessagingApiClient against mock", () => {
   it("pushMessage succeeds", async () => {
     const client = sdkClient();
     const res = await client.pushMessage({
-      to: friendUserId,
+      to: harness.botUserId!,
       messages: [{ type: "text", text: "hi from sdk" }],
     });
     expect(Array.isArray(res.sentMessages)).toBe(true);
@@ -81,7 +50,7 @@ describe("@line/bot-sdk MessagingApiClient against mock", () => {
   it("multicast succeeds", async () => {
     const client = sdkClient();
     const res = await client.multicast({
-      to: [friendUserId],
+      to: [harness.botUserId!],
       messages: [{ type: "text", text: "multi" }],
     });
     expect(res).toBeDefined();
@@ -112,14 +81,14 @@ describe("@line/bot-sdk MessagingApiClient against mock", () => {
     const [user] = await db
       .select({ id: vu.id })
       .from(vu)
-      .where(eq(vu.userId, friendUserId))
+      .where(eq(vu.userId, harness.botUserId!))
       .limit(1);
     const rows = await db
       .select()
       .from(messagesTable)
       .where(
         and(
-          eq(messagesTable.channelId, channelDbId),
+          eq(messagesTable.channelId, harness.channelDbId),
           eq(messagesTable.virtualUserId, user.id),
           eq(messagesTable.direction, "bot_to_user"),
           gt(messagesTable.createdAt, before)
@@ -135,8 +104,8 @@ describe("@line/bot-sdk MessagingApiClient against mock", () => {
 
   it("getProfile returns a known user", async () => {
     const client = sdkClient();
-    const p = await client.getProfile(friendUserId);
-    expect(p.userId).toBe(friendUserId);
+    const p = await client.getProfile(harness.botUserId!);
+    expect(p.userId).toBe(harness.botUserId!);
     expect(p.displayName).toBe("SDK Tester");
   });
 });

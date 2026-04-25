@@ -10,7 +10,7 @@
     "test": "vitest run",
     "test:unit": "vitest run test/unit",
     "test:integration": "vitest run --config vitest.integration.config.ts test/integration",
-    "test:sdk": "vitest run test/sdk-compat",
+    "test:sdk": "vitest run --config vitest.sdk.config.ts test/sdk-compat",
     "test:e2e": "playwright test",
     "db:generate": "drizzle-kit generate",
     "gen:types": "bash scripts/gen-types.sh"
