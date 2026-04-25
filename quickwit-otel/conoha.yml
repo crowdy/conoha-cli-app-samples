@@ -10,9 +10,12 @@ hosts:
 web:
   service: grafana
   port: 3000
-# Grafana's `/api/health` returns 200 once the server is up.
+# Grafana's `/api/health` returns 200 once the server is up. First
+# start unpacks plugins and seeds the sqlite DB, so allow a wider
+# unhealthy window than the default 15s.
 health:
   path: /api/health
+  unhealthy_threshold: 24    # 24 × 5s = 120s
 # OpenTelemetry Collector OTLP HTTP receiver, exposed on its own
 # subdomain so external agents can push traces/logs/metrics over
 # HTTPS. blue_green: false because the collector is stateless but
