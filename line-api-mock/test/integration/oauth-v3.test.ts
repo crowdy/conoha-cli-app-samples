@@ -1,9 +1,10 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { StartedPostgreSqlContainer } from "@testcontainers/postgresql";
+import type { Hono } from "hono";
 import { startDb } from "../helpers/testcontainer.js";
 
 let container: StartedPostgreSqlContainer;
-let app: any;
+let app: Hono;
 let seededChannelId: string;
 let botUserId: string;
 

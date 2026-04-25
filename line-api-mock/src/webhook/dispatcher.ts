@@ -10,6 +10,21 @@ interface WebhookEvent {
   events: Array<Record<string, unknown>>;
 }
 
+// A DB outage on any of the three webhook_deliveries insert sites would
+// silently lose the audit record; log a structured object so the operator
+// has a forensic trail (and `jq`-parseable fields) even when the row is gone.
+function logInsertFailure(
+  stage: "pre-fetch:disabled" | "pre-fetch:url-rejected" | "post-fetch",
+  ctx: Record<string, unknown>,
+  dbErr: unknown
+): void {
+  console.error("[dispatcher] webhook_deliveries insert failed", {
+    stage,
+    ...ctx,
+    dbError: dbErr instanceof Error ? dbErr.message : String(dbErr),
+  });
+}
+
 export async function dispatchWebhook(
   channelDbId: number,
   event: WebhookEvent
@@ -20,31 +35,53 @@ export async function dispatchWebhook(
     .where(eq(channels.id, channelDbId))
     .limit(1);
   if (!ch || !ch.webhookUrl || !ch.webhookEnabled) {
-    await db.insert(webhookDeliveries).values({
-      channelId: channelDbId,
-      eventPayload: event,
-      signature: "",
-      targetUrl: ch?.webhookUrl ?? "",
-      statusCode: null,
-      responseBody: null,
-      error: ch?.webhookUrl ? "webhook disabled" : "webhook_url not set",
-      durationMs: 0,
-    });
+    const reason = ch?.webhookUrl ? "webhook disabled" : "webhook_url not set";
+    try {
+      await db.insert(webhookDeliveries).values({
+        channelId: channelDbId,
+        eventPayload: event,
+        signature: "",
+        targetUrl: ch?.webhookUrl ?? "",
+        statusCode: null,
+        responseBody: null,
+        error: reason,
+        durationMs: 0,
+      });
+    } catch (dbErr) {
+      logInsertFailure(
+        "pre-fetch:disabled",
+        { channelId: channelDbId, reason, event },
+        dbErr
+      );
+    }
     return;
   }
   const urlCheck = checkWebhookUrl(ch.webhookUrl);
   if (!urlCheck.ok) {
     console.error(`[dispatcher] webhook URL rejected: ${urlCheck.reason}`);
-    await db.insert(webhookDeliveries).values({
-      channelId: channelDbId,
-      eventPayload: event,
-      signature: "",
-      targetUrl: ch.webhookUrl,
-      statusCode: null,
-      responseBody: null,
-      error: `url_rejected: ${urlCheck.reason}`,
-      durationMs: 0,
-    });
+    try {
+      await db.insert(webhookDeliveries).values({
+        channelId: channelDbId,
+        eventPayload: event,
+        signature: "",
+        targetUrl: ch.webhookUrl,
+        statusCode: null,
+        responseBody: null,
+        error: `url_rejected: ${urlCheck.reason}`,
+        durationMs: 0,
+      });
+    } catch (dbErr) {
+      logInsertFailure(
+        "pre-fetch:url-rejected",
+        {
+          channelId: channelDbId,
+          targetUrl: ch.webhookUrl,
+          reason: urlCheck.reason,
+          event,
+        },
+        dbErr
+      );
+    }
     return;
   }
 
@@ -89,13 +126,16 @@ export async function dispatchWebhook(
       })
       .returning({ id: webhookDeliveries.id });
   } catch (dbErr) {
-    // The webhook fetch already happened (success or fail). Without this log
-    // a DB outage would silently lose the delivery record — operators would
-    // see no row in webhook_deliveries and no event in the bus.
-    console.error(
-      `[dispatcher] webhook_deliveries insert failed (channelId=${channelDbId}, statusCode=${statusCode}, fetchError=${error ?? "none"}):`,
-      dbErr,
-      JSON.stringify(event)
+    logInsertFailure(
+      "post-fetch",
+      {
+        channelId: channelDbId,
+        statusCode,
+        fetchError: error,
+        durationMs: duration,
+        event,
+      },
+      dbErr
     );
     return;
   }
