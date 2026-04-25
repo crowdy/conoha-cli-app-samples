@@ -1,10 +1,9 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import type { StartedPostgreSqlContainer } from "@testcontainers/postgresql";
-import { startDb } from "../helpers/testcontainer.js";
+import { startDb, type DbHandle } from "../helpers/testcontainer.js";
 import { createServer } from "node:http";
 import type { AddressInfo } from "node:net";
 
-let container: StartedPostgreSqlContainer;
+let container: DbHandle;
 let app: any;
 let token: string;
 let botServer: ReturnType<typeof createServer>;
