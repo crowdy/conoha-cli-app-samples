@@ -22,22 +22,15 @@ health:
   path: /api/healthz
   unhealthy_threshold: 24    # 24 × 5s = 120s
 # Dex OIDC provider, exposed on its own subdomain so the browser
-# discovery + redirect flow can reach it under HTTPS. See the
-# blue_green note inside the block for why we override the spec's
-# `false` recommendation here.
+# discovery + redirect flow can reach it under HTTPS. blue_green: false
+# because Dex isn't slot-aware (Postgres-backed sessions / approval
+# state would be split across slots otherwise).
 expose:
   - label: dex
     host: dex.example.com
     service: dex
     port: 5556
-    # Spec §4.5.1 specifies `blue_green: false` for dex (sessions /
-    # approval state aren't slot-aware). Conoha-cli ≤ v0.6.0 ships a
-    # gap: blue_green:false expose blocks are routed to the accessory
-    # project, which doesn't receive the slot override's host-port
-    # mapping, so the proxy can't reach them. Until the CLI lands the
-    # fix, keep this `true` — costs one extra dex per slot but is the
-    # only setting that actually serves traffic.
-    blue_green: true
+    blue_green: false
     # Dex's default `/up` 404s; `/dex/healthz` returns 200 once OIDC is up.
     health:
       path: /dex/healthz
