@@ -2,7 +2,7 @@
 # https://dexidp.io/docs/
 # Placeholders (__VAR__) are replaced by sed in compose.yml entrypoint.
 
-issuer: http://__DEX_ISSUER_HOST__:5556/dex
+issuer: https://__DEX_ISSUER_HOST__/dex
 
 storage:
   type: postgres
@@ -27,7 +27,7 @@ oauth2:
 staticClients:
   - id: __GITEA_OAUTH2_CLIENT_ID__
     redirectURIs:
-      - "http://__GITEA_HOST__:3000/user/oauth2/dex/callback"
+      - "https://__GITEA_HOST__/user/oauth2/dex/callback"
     name: "Gitea"
     secret: __GITEA_OAUTH2_CLIENT_SECRET__
 
