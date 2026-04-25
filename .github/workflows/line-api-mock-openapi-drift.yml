@@ -25,26 +25,33 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Fetch upstream messaging-api.yml
-        run: |
-          curl -fsSL \
-            -o /tmp/upstream-messaging-api.yml \
-            https://raw.githubusercontent.com/line/line-openapi/main/messaging-api.yml
-
       - name: Resolve upstream commit SHA
         id: upstream
         run: |
           # Latest commit on main of line/line-openapi (full SHA).
           SHA=$(curl -fsSL -H "Accept: application/vnd.github+json" \
             "https://api.github.com/repos/line/line-openapi/commits/main" \
-            | python3 -c "import json,sys;print(json.load(sys.stdin)['sha'])")
+            | jq -r .sha)
           echo "sha=${SHA}" >> "$GITHUB_OUTPUT"
           # Pinned SHA recorded in specs/README.md (line: `Commit: <sha>`).
           PINNED=$(grep -E '^Commit:\s*' line-api-mock/specs/README.md | awk '{print $2}')
           echo "pinned=${PINNED}" >> "$GITHUB_OUTPUT"
 
+      - name: Fast-path — skip diff when SHAs already match
+        id: fastpath
+        if: steps.upstream.outputs.pinned == steps.upstream.outputs.sha
+        run: echo "matched=true" >> "$GITHUB_OUTPUT"
+
+      - name: Fetch upstream messaging-api.yml
+        if: steps.fastpath.outputs.matched != 'true'
+        run: |
+          curl -fsSL \
+            -o /tmp/upstream-messaging-api.yml \
+            https://raw.githubusercontent.com/line/line-openapi/main/messaging-api.yml
+
       - name: Compare
         id: diff
+        if: steps.fastpath.outputs.matched != 'true'
         run: |
           set +e
           diff -u line-api-mock/specs/messaging-api.yml /tmp/upstream-messaging-api.yml > /tmp/spec.diff
@@ -99,14 +106,14 @@ jobs:
               "```",
             ].join("\n");
 
-            // Find an open issue with the same title to avoid duplicates.
-            const existing = await github.rest.issues.listForRepo({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              state: "open",
-              per_page: 100,
+            // Use the search API with the `openapi-drift` label so dedup
+            // works even once the repo accumulates >100 open issues.
+            // listForRepo would silently miss the existing issue past page 1.
+            const search = await github.rest.search.issuesAndPullRequests({
+              q: `repo:${context.repo.owner}/${context.repo.repo} is:issue is:open label:openapi-drift in:title "drifted from upstream"`,
+              per_page: 1,
             });
-            const match = existing.data.find((i) => i.title === title);
+            const match = search.data.items.find((i) => i.title === title);
             if (match) {
               await github.rest.issues.createComment({
                 owner: context.repo.owner,

@@ -17,7 +17,10 @@ services:
       db:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "wget", "-q", "-O", "-", "http://127.0.0.1:3000/health"]
+      # `$$PORT` escapes compose variable interpolation so the shell inside
+      # the container resolves it from the container env (defaults to 3000).
+      # Keeps the probe in sync with whatever PORT the app is actually using.
+      test: ["CMD-SHELL", "wget -q -O - http://127.0.0.1:$${PORT:-3000}/health >/dev/null"]
       interval: 10s
       timeout: 3s
       start_period: 15s

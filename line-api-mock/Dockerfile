@@ -5,9 +5,8 @@
 # scratch files from bleeding into the runtime image.
 FROM node:22-alpine AS deps
 WORKDIR /app
-COPY package.json ./
-COPY package-lock.json* ./
-RUN npm install --omit=dev --no-audit --no-fund
+COPY package.json package-lock.json ./
+RUN npm ci --omit=dev --no-audit --no-fund
 
 # ─── Stage 2: minimal runtime image ───────────────────────────────────────
 FROM node:22-alpine AS runtime
@@ -22,6 +21,10 @@ COPY drizzle ./drizzle
 COPY specs ./specs
 
 ENV NODE_ENV=production
+# `PORT` defaults to 3000 here so EXPOSE / HEALTHCHECK / the app all agree.
+# Override at run time (`docker run -e PORT=8080 -p 8080:8080 ...`) and the
+# HEALTHCHECK below picks it up via shell expansion.
+ENV PORT=3000
 EXPOSE 3000
 
 # Run as the unprivileged `node` user shipped in the official image.
@@ -29,8 +32,8 @@ USER node
 
 # Container-level healthcheck against the app's /health route. compose.yml
 # also declares this so docker can mark the service unhealthy if the app
-# crashes or hangs.
+# crashes or hangs. Shell form so `${PORT}` is resolved at probe time.
 HEALTHCHECK --interval=10s --timeout=3s --start-period=10s --retries=3 \
-  CMD wget -q -O - http://127.0.0.1:3000/health >/dev/null 2>&1 || exit 1
+  CMD wget -q -O - "http://127.0.0.1:${PORT:-3000}/health" >/dev/null 2>&1 || exit 1
 
 CMD ["npx", "tsx", "src/index.ts"]
