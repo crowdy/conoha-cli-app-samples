@@ -6,7 +6,8 @@
 
 ## 前提条件
 
-- [conoha-cli](https://github.com/crowdy/conoha-cli) がインストール済み
+- [conoha-cli](https://github.com/crowdy/conoha-cli) `>= v0.3.0` がインストール済み
+  （複数サブドメインを 1 アプリで束ねる `expose:` ブロックは v0.3.0 以降のサポート）
 - ConoHa VPS3 アカウント
 - SSH キーペアが設定済み（`conoha keypair create` で作成可能）
 
@@ -35,7 +36,7 @@ conoha app deploy myserver
 # 6. ブラウザで https://<あなたの FQDN> にアクセス
 ```
 
-`conoha.yml` がまだないサンプル（移行中）は、各サンプルの README に従って従来の `--app-name` 指定フローを使用してください。移行状況は crowdy/conoha-cli#97 を参照。
+サンプルはすべて `conoha.yml` を備えています（移行は完了済み — 経緯は crowdy/conoha-cli#97、サブドメイン分離は #54 を参照）。
 
 ## サンプル一覧
 
@@ -109,6 +110,35 @@ conoha app deploy myserver
    ```
 
 `Dockerfile` でビルドする場合は `compose.yml` の `build: .` を使ってください。DB や Redis などの付帯サービスは `conoha.yml` の `accessories:` に列挙すると blue/green 切替時も起動したままになります（`express-mongodb` 参照）。
+
+### 複数サブドメインを 1 アプリで束ねる（`expose:` ブロック）
+
+OIDC プロバイダーや管理 UI のように **root とは別のサブドメインで公開したいサービス** がある場合、`expose:` ブロックを追加します（conoha-cli `>= v0.3.0`）。
+
+```yaml
+name: your-app
+# root web のホストだけをここに書く。`expose:` 側のサブドメインは
+# proxy が自動で ACME するので `hosts:` への重複記載は不要
+# （validation エラーになる）。DNS A レコードは両方必要。
+hosts:
+  - your-app.example.com
+web:
+  service: web
+  port: 3000
+expose:
+  - label: admin
+    host: admin.example.com
+    service: admin-ui
+    port: 8080
+    blue_green: false    # セッションが分散しない単一インスタンス用途
+accessories:
+  - db
+```
+
+実例:
+
+- 単一サブドメイン: [`gitea`](gitea/)（Dex を `dex.*` で公開）, [`outline`](outline/), [`hydra-python-api`](hydra-python-api/), [`supabase-selfhost`](supabase-selfhost/), [`quickwit-otel`](quickwit-otel/), [`nextjs-fastapi-clerk-stripe`](nextjs-fastapi-clerk-stripe/)
+- 複数サブドメイン: [`rails-mercari`](rails-mercari/)（auth + app）, [`dify-https`](dify-https/)（api + web）
 
 ## 関連リンク
 
