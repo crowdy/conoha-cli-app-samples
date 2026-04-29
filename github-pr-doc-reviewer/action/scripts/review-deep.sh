@@ -137,12 +137,18 @@ awk -v diff_file="$CTX_DIR/pr_diff.txt" \
     close(path)
     return s
   }
-  function lit_replace(s, marker, value,    p, mlen) {
-    mlen = length(marker)
-    while ((p = index(s, marker)) > 0) {
-      s = substr(s, 1, p - 1) value substr(s, p + mlen)
+  function lit_replace(s, marker, value,    p, mlen, vlen, out, rest) {
+    # Single-pass replacement: walk left-to-right, never re-scan the
+    # just-inserted value. If "value" itself contains "marker" (e.g. a PR
+    # diff that quotes "{{PR_DIFF}}" literally), naive re-scan would loop
+    # forever. We accumulate output in "out" and keep advancing "rest".
+    mlen = length(marker); vlen = length(value)
+    out = ""; rest = s
+    while ((p = index(rest, marker)) > 0) {
+      out = out substr(rest, 1, p - 1) value
+      rest = substr(rest, p + mlen)
     }
-    return s
+    return out rest
   }
   BEGIN {
     diff  = slurp(diff_file)
