@@ -35,3 +35,49 @@ update_sticky_comment() {
     echo "Created sticky comment"
   fi
 }
+
+# post_review PR_NUMBER FINDINGS_JSONL SUMMARY_TEXT
+# Posts a PR review with inline comments where line is known, and a
+# summary body with general findings. Always uses event=COMMENT.
+post_review() {
+  local pr="$1"
+  local findings_file="$2"
+  local summary="$3"
+  local repo="${GITHUB_REPOSITORY:?GITHUB_REPOSITORY not set}"
+
+  # Build inline comments array from findings with line >= 1
+  local comments_json
+  comments_json=$(jq -s '
+    [ .[] | select(.line != null and .line > 0) |
+      { path: .path,
+        line: .line,
+        side: "RIGHT",
+        body: ("**[" + (.severity|ascii_upcase) + " / " + .category + "]** " + .message)
+      }
+    ]
+  ' "$findings_file")
+
+  # General findings (no line) go into the body
+  local general_md
+  general_md=$(jq -r '
+    select(.line == null or .line <= 0) |
+    "- **[" + (.severity|ascii_upcase) + " / " + .category + "]** `" + .path + "`: " + .message
+  ' "$findings_file" | sed '/^$/d')
+
+  local body
+  body=$(printf '## Doc Review (deep mode)\n\n%s\n' "$summary")
+  if [ -n "$general_md" ]; then
+    body=$(printf '%s\n\n### General findings\n\n%s\n' "$body" "$general_md")
+  fi
+
+  # Submit review
+  local payload
+  payload=$(jq -nc \
+    --arg body "$body" \
+    --argjson comments "$comments_json" \
+    '{event: "COMMENT", body: $body, comments: $comments}')
+
+  printf '%s' "$payload" | gh api "repos/$repo/pulls/$pr/reviews" \
+    --method POST --input - >/dev/null
+  echo "Posted review with $(echo "$comments_json" | jq 'length') inline comments"
+}
