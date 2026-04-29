@@ -52,11 +52,16 @@ check_empty_sections() {
 
 # check_internal_links FILE
 # Emits JSON Lines for [label](path) where path is relative and target missing.
+# Absolute paths (starting with "/") are GFM repo-root-relative — resolve them
+# against `git rev-parse --show-toplevel`. If git is unavailable or the file is
+# not in a repo, silently skip absolute links to avoid false positives.
 check_internal_links() {
   local file="$1"
   [ -f "$file" ] || return 0
   local dir
   dir="$(dirname "$file")"
+  local repo_root=""
+  repo_root="$(git -C "$dir" rev-parse --show-toplevel 2>/dev/null)" || repo_root=""
   { grep -noE '\[[^]]+\]\([^)]+\)' "$file" 2>/dev/null || true; } | while IFS=: read -r line match; do
     local url
     url=$(printf '%s' "$match" | sed -E 's/.*\(([^)]+)\)$/\1/')
@@ -68,7 +73,13 @@ check_internal_links() {
     [ -z "$path" ] && continue
     local target
     if [[ "$path" = /* ]]; then
-      target="${path#/}"
+      # Repo-root-relative per GitHub-flavored markdown.
+      if [ -n "$repo_root" ]; then
+        target="$repo_root$path"
+      else
+        # No repo context — skip rather than risk false positive.
+        continue
+      fi
     else
       target="$dir/$path"
     fi
