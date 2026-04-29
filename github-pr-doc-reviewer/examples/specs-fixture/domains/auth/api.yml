@@ -1,0 +1,31 @@
+openapi: 3.1.0
+info:
+  title: Auth API
+  version: '1.0'
+paths:
+  /v1/auth/login:
+    post:
+      summary: Exchange credentials for a session
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password, tenant_slug]
+              properties:
+                email: { type: string, format: email }
+                password: { type: string }
+                tenant_slug: { type: string }
+      responses:
+        '200':
+          description: Session issued
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  session_token: { type: string }
+                  expires_at: { type: string, format: date-time }
+        '401':
+          description: Invalid credentials (E_AUTH_01)
