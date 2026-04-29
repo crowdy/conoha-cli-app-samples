@@ -32,3 +32,16 @@ setup() {
   [ "$status" -eq 0 ]
   [ -z "$output" ]
 }
+
+@test "check_empty_sections detects header followed by another header" {
+  run check_empty_sections "$FIXTURES/sample-with-issues.md"
+  [ "$status" -eq 0 ]
+  echo "$output" | grep -q '"category":"empty-section"'
+  echo "$output" | grep -q 'Empty Section'
+}
+
+@test "check_empty_sections does not flag sections with content" {
+  run check_empty_sections "$FIXTURES/sample-good.md"
+  [ "$status" -eq 0 ]
+  [ -z "$output" ]
+}
