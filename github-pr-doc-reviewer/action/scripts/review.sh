@@ -48,14 +48,6 @@ for file in "${ALL_CHANGED[@]}"; do
     case "$file" in
       $glob) CHANGED_MATCHED+=("$file"); break ;;
     esac
-    # also handle ** glob via bash extglob
-    if [[ "$glob" == *'**'* ]]; then
-      pattern="${glob//\*\*/.*}"
-      pattern="${pattern//\*/[^/]*}"
-      if [[ "$file" =~ ^${pattern}$ ]]; then
-        CHANGED_MATCHED+=("$file"); break
-      fi
-    fi
   done
 done
 
@@ -84,8 +76,14 @@ case "$MODE" in
 esac
 
 # Output counts
-findings_count=$(wc -l < "$WORK_DIR/findings.jsonl" 2>/dev/null || echo 0)
-errors_count=$(grep -c '"severity":"error"' "$WORK_DIR/findings.jsonl" 2>/dev/null || echo 0)
+if [ -s "$WORK_DIR/findings.jsonl" ]; then
+  findings_count=$(wc -l < "$WORK_DIR/findings.jsonl" | tr -d ' ')
+  errors_count=$(grep -c '"severity":"error"' "$WORK_DIR/findings.jsonl" 2>/dev/null || true)
+  errors_count=${errors_count:-0}
+else
+  findings_count=0
+  errors_count=0
+fi
 echo "findings_count=$findings_count" >> "${GITHUB_OUTPUT:-/dev/null}"
 echo "errors_count=$errors_count" >> "${GITHUB_OUTPUT:-/dev/null}"
 
