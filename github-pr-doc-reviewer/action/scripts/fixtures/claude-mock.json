@@ -1,0 +1,19 @@
+{
+  "summary": "Mock review for testing. The PR changes auth flow but the related glossary entry was not updated.",
+  "findings": [
+    {
+      "path": "domains/auth/flows/login.md",
+      "line": 12,
+      "severity": "warning",
+      "category": "glossary-mismatch",
+      "message": "Term 'session' is used here but glossary defines it differently."
+    },
+    {
+      "path": "domains/auth/data-model.md",
+      "line": null,
+      "severity": "error",
+      "category": "adr-violation",
+      "message": "users table missing tenant_id, contradicting ADR-0001."
+    }
+  ]
+}
