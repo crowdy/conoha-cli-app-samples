@@ -1,5 +1,19 @@
+# Doc Review workflow template
+#
 # Copy this file to your spec repository at .github/workflows/doc-review.yml
 # Requires: a self-hosted runner deployed via the github-pr-doc-reviewer sample.
+#
+# SECURITY:
+# - Pin the action to a commit SHA or release tag (NOT @main) before
+#   deploying in production. Using @main means any future commit to
+#   crowdy/conoha-cli-app-samples runs on your VPS with persistent
+#   Anthropic OAuth credentials and the host Docker socket mounted.
+# - This template only runs for PRs from the same repository (no forks).
+#   Fork PRs on a self-hosted runner can exfiltrate credentials before
+#   the action even starts. For fork PR handling, see docs/setup.md
+#   "Security" section.
+# - Also enable "Require approval for first-time contributors" under
+#   the repo's Actions settings to catch contributor-triggered runs.
 
 name: Doc Review
 
@@ -9,6 +23,10 @@ on:
 
 jobs:
   review:
+    # Refuse fork PRs. head.repo.full_name == github.repository is true only
+    # when the PR's source branch lives in the same repo (i.e. not a fork).
+    # See docs/setup.md "Security" for the rationale.
+    if: github.event.pull_request.head.repo.full_name == github.repository
     runs-on: self-hosted
     permissions:
       pull-requests: write
@@ -18,6 +36,8 @@ jobs:
         with:
           fetch-depth: 0
 
+      # Pin to a release tag (or 40-char commit SHA) once available.
+      # NEVER use @main in production — see docs/setup.md "Security".
       - uses: crowdy/conoha-cli-app-samples/github-pr-doc-reviewer/action@main
         with:
           mode: ${{ contains(github.event.pull_request.labels.*.name, 'deep-review') && 'deep' || 'quick' }}
