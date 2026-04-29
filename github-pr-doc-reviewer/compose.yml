@@ -1,0 +1,20 @@
+services:
+  runner:
+    build: .
+    image: github-pr-doc-reviewer:local
+    environment:
+      - REPO_URL=${REPO_URL}
+      - ACCESS_TOKEN=${ACCESS_TOKEN}
+      - RUNNER_NAME=${RUNNER_NAME:-doc-reviewer}
+      - RUNNER_WORKDIR=/tmp/runner/work
+      - LABELS=${RUNNER_LABELS:-self-hosted,linux,x64,doc-reviewer}
+      - DISABLE_AUTO_UPDATE=1
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - claude_home:/home/runner/.claude
+      - runner_work:/tmp/runner/work
+    restart: unless-stopped
+
+volumes:
+  claude_home:
+  runner_work:
