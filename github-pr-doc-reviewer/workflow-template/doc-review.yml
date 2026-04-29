@@ -1,0 +1,26 @@
+# Copy this file to your spec repository at .github/workflows/doc-review.yml
+# Requires: a self-hosted runner deployed via the github-pr-doc-reviewer sample.
+
+name: Doc Review
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, labeled]
+
+jobs:
+  review:
+    runs-on: self-hosted
+    permissions:
+      pull-requests: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: crowdy/conoha-cli-app-samples/github-pr-doc-reviewer/action@main
+        with:
+          mode: ${{ contains(github.event.pull_request.labels.*.name, 'deep-review') && 'deep' || 'quick' }}
+          paths: '**/*.md,**/*.yml,**/*.yaml,**/*.feature'
+          glossary-path: 'glossary.md'
+          adr-path: 'adr'
