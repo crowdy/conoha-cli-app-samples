@@ -173,7 +173,7 @@ elif ! command -v claude >/dev/null 2>&1; then
   echo "claude CLI not found — install in runner image" >&2
   SUMMARY="Doc reviewer not configured: claude CLI missing on runner."
   AI_OK=0
-elif [ ! -f "$HOME/.claude/credentials.json" ] && [ ! -d "$HOME/.config/claude" ]; then
+elif [ ! -f "$HOME/.claude/.credentials.json" ] && [ ! -f "$HOME/.claude/credentials.json" ] && [ ! -d "$HOME/.config/claude" ]; then
   echo "claude not authenticated — run docker exec -it <container> claude" >&2
   SUMMARY="Doc reviewer not configured: Claude OAuth credentials missing."
   AI_OK=0
