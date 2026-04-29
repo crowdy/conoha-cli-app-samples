@@ -1,0 +1,53 @@
+name: 'Doc Review'
+description: 'AI-powered documentation review for spec-as-code repositories'
+author: 'crowdy'
+
+inputs:
+  mode:
+    description: 'Review depth: quick (mechanical only) or deep (mechanical + Claude semantic analysis)'
+    required: false
+    default: 'quick'
+  paths:
+    description: 'Comma-separated globs for review target files'
+    required: false
+    default: '**/*.md,**/*.yml,**/*.yaml'
+  glossary-path:
+    description: 'Path to glossary file (used as context in deep mode for term consistency)'
+    required: false
+    default: 'glossary.md'
+  adr-path:
+    description: 'Directory containing Architecture Decision Records'
+    required: false
+    default: 'adr'
+  fail-on-error:
+    description: 'Exit non-zero if findings with severity=error exist'
+    required: false
+    default: 'false'
+  github-token:
+    description: 'Token for posting comments and reviews'
+    required: false
+    default: ${{ github.token }}
+
+outputs:
+  findings-count:
+    description: 'Total number of findings'
+    value: ${{ steps.review.outputs.findings_count }}
+  errors-count:
+    description: 'Findings with severity=error'
+    value: ${{ steps.review.outputs.errors_count }}
+
+runs:
+  using: 'composite'
+  steps:
+    - id: review
+      shell: bash
+      env:
+        MODE: ${{ inputs.mode }}
+        PATHS: ${{ inputs.paths }}
+        GLOSSARY_PATH: ${{ inputs.glossary-path }}
+        ADR_PATH: ${{ inputs.adr-path }}
+        FAIL_ON_ERROR: ${{ inputs.fail-on-error }}
+        GITHUB_TOKEN: ${{ inputs.github-token }}
+        ACTION_PATH: ${{ github.action_path }}
+      run: |
+        bash "$ACTION_PATH/scripts/review.sh"
