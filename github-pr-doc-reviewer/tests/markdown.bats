@@ -71,3 +71,19 @@ EOF
   [ "$status" -eq 0 ]
   [ -z "$output" ]
 }
+
+@test "check_external_link returns severity=info on connection failure" {
+  source "$SCRIPT_DIR/action/scripts/lib/http-link.sh"
+  run check_external_link "http://localhost:1/nonexistent" "fixture.md" 5
+  [ "$status" -eq 0 ]
+  echo "$output" | grep -q '"severity":"info"'
+  echo "$output" | grep -q '"category":"broken-external-link"'
+}
+
+@test "check_external_link is silent on success" {
+  source "$SCRIPT_DIR/action/scripts/lib/http-link.sh"
+  command -v curl >/dev/null || skip "curl not available"
+  run check_external_link "https://example.com/" "fixture.md" 5
+  [ "$status" -eq 0 ]
+  [ -z "$output" ]
+}
