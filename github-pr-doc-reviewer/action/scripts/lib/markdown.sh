@@ -49,3 +49,35 @@ check_empty_sections() {
       '{path: $path, line: $line, severity: "warning", category: "empty-section", message: $msg}'
   done
 }
+
+# check_internal_links FILE
+# Emits JSON Lines for [label](path) where path is relative and target missing.
+check_internal_links() {
+  local file="$1"
+  [ -f "$file" ] || return 0
+  local dir
+  dir="$(dirname "$file")"
+  { grep -noE '\[[^]]+\]\([^)]+\)' "$file" 2>/dev/null || true; } | while IFS=: read -r line match; do
+    local url
+    url=$(printf '%s' "$match" | sed -E 's/.*\(([^)]+)\)$/\1/')
+    case "$url" in
+      http://*|https://*|mailto:*|\#*|"") continue ;;
+    esac
+    local path="${url%%#*}"
+    path="${path%%\?*}"
+    [ -z "$path" ] && continue
+    local target
+    if [[ "$path" = /* ]]; then
+      target="${path#/}"
+    else
+      target="$dir/$path"
+    fi
+    if [ ! -e "$target" ]; then
+      jq -nc \
+        --arg path "$file" \
+        --argjson line "$line" \
+        --arg msg "Broken link: $url" \
+        '{path: $path, line: $line, severity: "error", category: "broken-internal-link", message: $msg}'
+    fi
+  done
+}

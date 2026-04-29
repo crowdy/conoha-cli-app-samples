@@ -45,3 +45,29 @@ setup() {
   [ "$status" -eq 0 ]
   [ -z "$output" ]
 }
+
+@test "check_internal_links detects missing target file" {
+  run check_internal_links "$FIXTURES/sample-with-issues.md"
+  [ "$status" -eq 0 ]
+  echo "$output" | grep -q '"category":"broken-internal-link"'
+  echo "$output" | grep -q 'does-not-exist.md'
+}
+
+@test "check_internal_links does not flag valid relative links" {
+  run check_internal_links "$FIXTURES/sample-good.md"
+  [ "$status" -eq 0 ]
+  [ -z "$output" ]
+}
+
+@test "check_internal_links ignores http(s) and mailto and anchors" {
+  cat > "$BATS_TMPDIR/external.md" <<'EOF'
+# Header
+
+[github](https://github.com/)
+[email](mailto:a@b.c)
+[anchor](#section)
+EOF
+  run check_internal_links "$BATS_TMPDIR/external.md"
+  [ "$status" -eq 0 ]
+  [ -z "$output" ]
+}
