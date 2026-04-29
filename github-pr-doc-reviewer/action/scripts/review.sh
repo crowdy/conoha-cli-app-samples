@@ -36,8 +36,22 @@ fi
 BASE_REF="${GITHUB_BASE_REF:-main}"
 git fetch --no-tags --depth=50 origin "$BASE_REF" 2>/dev/null || true
 
+# Refuse to silently fall back to HEAD~1..HEAD when the base ref isn't
+# available locally. With actions/checkout's default fetch-depth: 1 this
+# fallback produces wrong results (only the merge commit's diff). Surface
+# the misconfiguration loudly but don't fail the user's CI.
+if ! git rev-parse --verify "origin/$BASE_REF" >/dev/null 2>&1; then
+  echo "ERROR: origin/$BASE_REF not found locally. The doc reviewer needs the" >&2
+  echo "       full history to compute the PR diff. Add" >&2
+  echo "         with:" >&2
+  echo "           fetch-depth: 0" >&2
+  echo "       to your actions/checkout step in .github/workflows/doc-review.yml." >&2
+  echo "       Skipping review for this run." >&2
+  exit 0
+fi
+
 # List changed files matching paths globs
-mapfile -t ALL_CHANGED < <(git diff --name-only "origin/$BASE_REF...HEAD" 2>/dev/null || git diff --name-only HEAD~1..HEAD)
+mapfile -t ALL_CHANGED < <(git diff --name-only "origin/$BASE_REF...HEAD")
 CHANGED_MATCHED=()
 IFS=',' read -ra PATH_GLOBS <<< "$PATHS"
 shopt -s globstar nullglob 2>/dev/null || true
