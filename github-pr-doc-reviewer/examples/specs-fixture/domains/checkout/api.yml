@@ -1,0 +1,21 @@
+openapi: 3.1.0
+info:
+  title: Checkout API
+  version: '1.0'
+paths:
+  /v1/checkout:
+    post:
+      summary: Process payment for cart
+      responses:
+        '200':
+          description: Order created
+        '402':
+          description: Payment failed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error_code:
+                    type: string
+                    enum: [E_PAY_01, E_PAY_02, E_PAY_99]
