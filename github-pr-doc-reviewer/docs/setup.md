@@ -10,21 +10,47 @@
 ## 2. Deploy the runner
 
 ```bash
-# Create a server (g2l-t-2 = 2 GB; sufficient for runner + claude CLI)
-conoha server create --name doc-reviewer --flavor g2l-t-2 --image ubuntu-24.04 --key mykey
+# Create a server. The flavor and image IDs vary per region — list them with
+# `conoha flavor list` / `conoha image list` and substitute as needed. A
+# 2 GB / 2-3 vCPU flavor (e.g. g2l-t-c3m2) is sufficient for runner + claude CLI.
+conoha server create --name doc-reviewer \
+  --flavor <flavor-id> --image <ubuntu-24.04-image-id> \
+  --key-name mykey \
+  --security-group default --security-group IPv4v6-SSH
 
-# Initialize the app
+# Initialize the app on the server (installs Docker + sets up /opt/conoha/<app>).
 conoha app init doc-reviewer --app-name github-pr-doc-reviewer
 
-# Set environment
-conoha app env set doc-reviewer --app-name github-pr-doc-reviewer \
-  REPO_URL=https://github.com/your-org/your-spec-repo \
-  ACCESS_TOKEN=ghp_xxxxxxxxxxxx \
-  RUNNER_LABELS=self-hosted,linux,x64,doc-reviewer
+# Configure the runner's environment via a local .env.server file in this
+# sample directory. `conoha app deploy` materialises that file into the
+# server-side `.env` that docker compose reads at `docker compose up` time.
+cd github-pr-doc-reviewer/
+( umask 077 && cat > .env.server <<'EOF'
+REPO_URL=https://github.com/your-org/your-spec-repo
+ACCESS_TOKEN=ghp_xxxxxxxxxxxx
+RUNNER_NAME=doc-reviewer
+RUNNER_LABELS=self-hosted,linux,x64,doc-reviewer
+EOF
+)
 
-# Deploy
+# Deploy: archives the directory, uploads via SSH, runs `docker compose up`.
 conoha app deploy doc-reviewer --app-name github-pr-doc-reviewer
 ```
+
+> **Note on `conoha app env set`** — `conoha-cli` exposes
+> `conoha app env set/list` for storing per-app environment variables on
+> the server. With current `conoha-cli` (verified at `c3j1` region, mid-2026)
+> those values are **not** read by `docker compose`'s `${VAR}` substitution
+> at `compose up` time, so the runner came up with empty `REPO_URL` /
+> `ACCESS_TOKEN`. The `.env.server` path above is what reliably works for
+> this sample. If you find `conoha app env set` propagating correctly in
+> your environment, please open an issue with details so we can revisit
+> the recommendation.
+
+> The repository root `.gitignore` already excludes `.env.server`, so the
+> file stays local. Do not commit it. The `( umask 077 && cat > … )`
+> subshell creates the file mode `0600` from the start, which avoids the
+> brief world-readable window of a plain `cat` followed by `chmod 600`.
 
 For an organization-level runner, set `REPO_URL=https://github.com/your-org`.
 
@@ -100,6 +126,25 @@ services:
     # volumes:
     #   - /var/run/docker.sock:/var/run/docker.sock   # remove if unused
 ```
+
+> **Compatibility caveat.** Because the container runs as the unprivileged
+> `runner` user (UID 1001) — see `RUN_AS_ROOT=false` and `USER runner` in
+> the Dockerfile/`compose.yml` — UID 1001 inside the container has no
+> membership in the host's `docker` group, so the mounted socket is **not
+> usable by default**. The threat surface is correspondingly smaller, but
+> Docker-in-Docker workflows on this runner will fail with `permission
+> denied` on the socket. If you need DinD, add the host's docker GID via
+> `group_add` in `compose.yml`:
+>
+> ```yaml
+> # compose.yml — only if you need Docker-in-Docker on this runner.
+> services:
+>   runner:
+>     group_add:
+>       - "${DOCKER_GID:-999}"   # host's `getent group docker | cut -d: -f3`
+> ```
+>
+> This restores DinD usability while keeping the runner non-root.
 
 ## 6. Add the workflow to your spec repo
 

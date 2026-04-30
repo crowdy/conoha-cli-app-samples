@@ -14,6 +14,8 @@ set -euo pipefail
 source "$ACTION_PATH/scripts/lib/markdown.sh"
 # shellcheck source=lib/github.sh
 source "$ACTION_PATH/scripts/lib/github.sh"
+# shellcheck source=lib/claude-output.sh
+source "$ACTION_PATH/scripts/lib/claude-output.sh"
 
 MAX_CONTEXT_BYTES="${MAX_CONTEXT_BYTES:-204800}"  # 200 KB cap
 FINDINGS="$WORK_DIR/findings.jsonl"
@@ -217,12 +219,19 @@ else
 fi
 
 # 5. Parse Claude response.
+# Delegate envelope-unwrap and ```fence-stripping to lib/claude-output.sh so
+# the logic is unit-testable; see tests/claude-output.bats.
+INNER="$WORK_DIR/claude-inner.json"
 if [ "$AI_OK" = "1" ] && [ -s "$CLAUDE_OUT" ]; then
-  if jq -e '.findings' "$CLAUDE_OUT" >/dev/null 2>&1; then
-    SUMMARY=$(jq -r '.summary // ""' "$CLAUDE_OUT")
-    jq -c '.findings[]' "$CLAUDE_OUT" >> "$FINDINGS"
+  unwrap_claude_output "$CLAUDE_OUT" > "$INNER"
+  if jq -e '.findings' "$INNER" >/dev/null 2>&1; then
+    SUMMARY=$(jq -r '.summary // ""' "$INNER")
+    jq -c '.findings[]' "$INNER" >> "$FINDINGS"
   else
     SUMMARY="AI response was not valid JSON. Mechanical findings only."
+    echo "AI raw output preview:" >&2
+    head -c 800 "$INNER" >&2 || true
+    echo >&2
   fi
 fi
 
