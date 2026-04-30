@@ -76,7 +76,7 @@ conoha app deploy myserver
 | [uptime-kuma](uptime-kuma/) | Uptime Kuma | セルフホスティング稼働監視 | g2l-t-1 (1GB) |
 | [prometheus-grafana](prometheus-grafana/) | Prometheus + Grafana + Node Exporter | メトリクス監視・可視化 | g2l-t-2 (2GB) |
 | [github-actions-runner](github-actions-runner/) | GitHub Actions Runner | セルフホステッド CI/CD ランナー | g2l-t-2 (2GB) |
-| [github-pr-doc-reviewer](github-pr-doc-reviewer/) | GitHub Actions Runner + Claude CLI | PR の spec / ADR / 화면플로 を AI 가 자동 리뷰하고 코멘트 (Anthropic 구독 auth) | g2l-t-2 (2GB) |
+| [github-pr-doc-reviewer](github-pr-doc-reviewer/) | Self-hosted Runner + Claude CLI | PR の spec / ADR / glossary 整合性を Claude が自動レビュー（quick / deep モード、Anthropic OAuth 構読利用） | g2l-t-2 (2GB) |
 | [coolify](coolify/) | Coolify + PostgreSQL + Redis | セルフホスティング PaaS | g2l-t-4 (4GB) |
 | [dokploy](dokploy/) | Dokploy + Traefik + PostgreSQL + Redis (Docker Swarm) | セルフホスティング PaaS（install.sh ベース） | g2l-t-4 (4GB) |
 | [dify-https](dify-https/) | Dify + PostgreSQL + Redis + nginx | AI ワークフロープラットフォーム | g2l-t-4 (4GB) |
