@@ -67,7 +67,7 @@ nvidia-smi
 conoha app deploy hunyuan3d --app hunyuan3d-gpu
 ```
 
-初回起動は **15〜20 分** かかります (Docker build ~5 分 + モデル DL ~10 分)。`docker compose ps` の healthcheck が `healthy` になるまで待ってください。2 回目以降はモデルがキャッシュされているため即起動します。
+初回起動は **15〜20 分** かかります (Docker build ~10 分 + モデル DL ~10 分)。`docker compose ps` の healthcheck が `healthy` になるまで待ってください。2 回目以降はモデルがキャッシュされているため即起動します。
 
 ## 動作確認
 

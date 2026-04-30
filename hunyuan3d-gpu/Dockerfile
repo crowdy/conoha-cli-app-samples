@@ -26,8 +26,8 @@ RUN pip install --upgrade pip && \
     pip install "huggingface_hub[cli]" hf_transfer
 
 # Pre-build C++ extensions so first boot only downloads weights
-RUN cd hy3dgen/texgen/custom_rasterizer && python3 setup.py install && cd /app
-RUN cd hy3dgen/texgen/differentiable_renderer && python3 setup.py install && cd /app
+RUN cd /app/hy3dgen/texgen/custom_rasterizer && python3 setup.py install \
+ && cd /app/hy3dgen/texgen/differentiable_renderer && python3 setup.py install
 
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh

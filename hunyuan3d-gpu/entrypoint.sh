@@ -7,11 +7,11 @@ MODEL_REPO="${MODEL_REPO:-tencent/Hunyuan3D-2}"
 MODEL_DIR="${HF_HOME:-/root/.cache/huggingface}/hub/models--${MODEL_REPO//\//--}"
 SENTINEL="$MODEL_DIR/.download_complete"
 
-mkdir -p /app/outputs "$(dirname "$MODEL_DIR")"
+mkdir -p /app/outputs "$MODEL_DIR"
 
 if [ ! -f "$SENTINEL" ]; then
     log "Downloading model weights: $MODEL_REPO (~10GB, first boot only)"
-    huggingface-cli download "$MODEL_REPO" --local-dir-use-symlinks False
+    huggingface-cli download "$MODEL_REPO"
     touch "$SENTINEL"
     log "Model download complete"
 else
