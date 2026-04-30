@@ -126,18 +126,19 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /app
 
-ARG HUNYUAN3D_REF=main
+ARG HUNYUAN3D_REF=f8db63096c8282cb27354314d896feba5ba6ff8a
 RUN git clone https://github.com/Tencent-Hunyuan/Hunyuan3D-2.git . \
     && git checkout ${HUNYUAN3D_REF} \
     && git rev-parse HEAD > /app/.commit
 
 RUN pip install --upgrade pip && \
     pip install -r requirements.txt && \
-    pip install hf_transfer
+    pip install -e . && \
+    pip install "huggingface_hub[cli]" hf_transfer
 
 # Pre-build C++ extensions so first boot only downloads weights
-RUN cd hy3dgen/texgen/custom_rasterizer && pip install -e . && cd /app
-RUN cd hy3dgen/texgen/differentiable_renderer && bash compile_mesh_painter.sh && cd /app
+RUN cd hy3dgen/texgen/custom_rasterizer && python3 setup.py install && cd /app
+RUN cd hy3dgen/texgen/differentiable_renderer && python3 setup.py install && cd /app
 
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
@@ -148,9 +149,10 @@ ENTRYPOINT ["/entrypoint.sh"]
 
 設計理由:
 
-- `HUNYUAN3D_REF` を build-arg にし、初回ビルド成功後は具体的な commit SHA に固定して README に記載することで再現性確保
+- `HUNYUAN3D_REF` は build-arg として `main` 最新 SHA (`f8db630...`) を初期値で固定。再現性確保
+- 公式 README の install 手順に従い `pip install -r requirements.txt` → `pip install -e .` → 各 texgen 拡張の `python3 setup.py install` の順で構築
 - C++ 拡張 (`custom_rasterizer`, `differentiable_renderer`) を **イメージビルド時に焼き込む**。初回起動時の処理はモデル DL のみとなり、コンテナ再起動が高速化
-- `hf_transfer` 追加 — HuggingFace から ~10GB ダウンロード時の速度を大幅改善
+- `huggingface_hub[cli]` + `hf_transfer` を追加 — entrypoint で `huggingface-cli download` を使い、~10GB ダウンロード時の速度を大幅改善
 - `libgl1` / `libegl1` / `libgles2` は Hunyuan3D Paint 段階の OpenGL レンダラー要件
 
 ### entrypoint.sh
