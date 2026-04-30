@@ -36,14 +36,48 @@ update_sticky_comment() {
   fi
 }
 
+# GitHub's review-body length cap is 65,536 characters. Stay safely below it
+# in the fallback so the second POST doesn't itself bounce on body size.
+# Exposed as a variable so tests can override it.
+: "${POST_REVIEW_BODY_MAX:=60000}"
+
+# truncate_to_chars STRING MAX
+# Truncate STRING to at most MAX *characters* (not bytes), appending a
+# truncation marker so a maintainer reading the review knows findings were
+# elided. Pure-bash so we don't add a Python dependency.
+truncate_to_chars() {
+  local s="$1" max="$2"
+  if [ "${#s}" -le "$max" ]; then
+    printf '%s' "$s"
+    return
+  fi
+  local marker=$'\n\n_…body truncated; some findings were elided to stay under GitHub\'s review-body limit. See action logs for the full list._'
+  if [ "${#marker}" -ge "$max" ]; then
+    # Marker alone wouldn't fit — emit a hard truncation without it. This is
+    # only reached for absurdly small caps (mostly relevant in tests).
+    printf '%s' "${s:0:$max}"
+    return
+  fi
+  local keep=$(( max - ${#marker} ))
+  printf '%s%s' "${s:0:$keep}" "$marker"
+}
+
 # post_review PR_NUMBER FINDINGS_JSONL SUMMARY_TEXT
 # Posts a PR review with inline comments where line is known, and a
 # summary body with general findings. Always uses event=COMMENT.
+#
+# TODO(#88): pre-filter inline comments against the PR's actual diff hunks
+# (parse `git diff origin/$BASE_REF...HEAD --unified=0` for `@@ +new_start,n`
+# headers) so the first POST succeeds with valid inline anchoring instead of
+# relying on the 422-fallback below.
 post_review() {
   local pr="$1"
   local findings_file="$2"
   local summary="$3"
   local repo="${GITHUB_REPOSITORY:?GITHUB_REPOSITORY not set}"
+  # Library functions shouldn't depend on caller-set globals; default WORK_DIR
+  # to a fresh tmp dir if the caller didn't set one.
+  local work_dir="${WORK_DIR:-$(mktemp -d)}"
 
   # Build inline comments array from findings with line >= 1
   local comments_json
@@ -79,7 +113,7 @@ post_review() {
   # the user still sees all findings.
   local n_inline payload err_log
   n_inline=$(echo "$comments_json" | jq 'length')
-  err_log="$WORK_DIR/post-review-err.log"
+  err_log="$work_dir/post-review-err.log"
 
   payload=$(jq -nc \
     --arg body "$body" \
@@ -105,6 +139,7 @@ post_review() {
 
   local fallback_body
   fallback_body=$(printf '%s\n\n### Findings\n\n%s\n\n_Inline anchoring failed (likely findings outside the PR diff). All findings consolidated above._' "$body" "$fallback_md")
+  fallback_body=$(truncate_to_chars "$fallback_body" "$POST_REVIEW_BODY_MAX")
 
   payload=$(jq -nc \
     --arg body "$fallback_body" \
