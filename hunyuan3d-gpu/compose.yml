@@ -17,8 +17,6 @@ services:
     environment:
       - HF_HOME=/root/.cache/huggingface
       - TORCH_CUDA_ARCH_LIST=8.9
-      - GRADIO_SERVER_NAME=0.0.0.0
-      - GRADIO_SERVER_PORT=7860
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:7860/"]
       interval: 30s

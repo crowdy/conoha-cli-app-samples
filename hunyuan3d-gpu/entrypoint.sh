@@ -22,4 +22,4 @@ log "GPU info:"
 nvidia-smi --query-gpu=name,memory.total,driver_version --format=csv,noheader || true
 
 log "Starting Hunyuan3D-2 Gradio app on 0.0.0.0:7860"
-exec python3 gradio_app.py
+exec python3 gradio_app.py --host 0.0.0.0 --port 7860 --cache-path /app/outputs
