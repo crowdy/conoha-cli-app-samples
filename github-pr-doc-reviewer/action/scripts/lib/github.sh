@@ -70,14 +70,53 @@ post_review() {
     body=$(printf '%s\n\n### General findings\n\n%s\n' "$body" "$general_md")
   fi
 
-  # Submit review
-  local payload
+  # Submit review.
+  # GitHub returns 422 ("Line could not be resolved") if any inline comment
+  # references a line outside the diff hunk window — e.g. a finding the
+  # mechanical scan or AI located in unchanged content of a file that is
+  # touched elsewhere by the PR. One bad comment fails the entire review.
+  # Surface the actual response body and fall back to a body-only review so
+  # the user still sees all findings.
+  local n_inline payload err_log
+  n_inline=$(echo "$comments_json" | jq 'length')
+  err_log="$WORK_DIR/post-review-err.log"
+
   payload=$(jq -nc \
     --arg body "$body" \
     --argjson comments "$comments_json" \
     '{event: "COMMENT", body: $body, comments: $comments}')
 
-  printf '%s' "$payload" | gh api "repos/$repo/pulls/$pr/reviews" \
-    --method POST --input - >/dev/null
-  echo "Posted review with $(echo "$comments_json" | jq 'length') inline comments"
+  if printf '%s' "$payload" | gh api "repos/$repo/pulls/$pr/reviews" \
+       --method POST --input - >"$err_log" 2>&1; then
+    echo "Posted review with $n_inline inline comments"
+    return 0
+  fi
+
+  echo "WARN: review POST with $n_inline inline comments rejected:" >&2
+  cat "$err_log" >&2
+
+  # Consolidate all findings into the body and retry without inline comments.
+  local fallback_md
+  fallback_md=$(jq -r '
+    "- **[" + (.severity|ascii_upcase) + " / " + .category + "]** `" + .path + "`" +
+    (if .line and .line > 0 then ":L" + (.line|tostring) else "" end) +
+    " — " + .message
+  ' "$findings_file" | sed '/^$/d')
+
+  local fallback_body
+  fallback_body=$(printf '%s\n\n### Findings\n\n%s\n\n_Inline anchoring failed (likely findings outside the PR diff). All findings consolidated above._' "$body" "$fallback_md")
+
+  payload=$(jq -nc \
+    --arg body "$fallback_body" \
+    '{event: "COMMENT", body: $body, comments: []}')
+
+  if printf '%s' "$payload" | gh api "repos/$repo/pulls/$pr/reviews" \
+       --method POST --input - >"$err_log" 2>&1; then
+    echo "Posted body-only review (fallback): $n_inline findings consolidated"
+    return 0
+  fi
+
+  echo "ERROR: fallback body-only review also failed:" >&2
+  cat "$err_log" >&2
+  return 1
 }
