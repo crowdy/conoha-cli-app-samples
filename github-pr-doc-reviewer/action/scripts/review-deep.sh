@@ -14,6 +14,8 @@ set -euo pipefail
 source "$ACTION_PATH/scripts/lib/markdown.sh"
 # shellcheck source=lib/github.sh
 source "$ACTION_PATH/scripts/lib/github.sh"
+# shellcheck source=lib/claude-output.sh
+source "$ACTION_PATH/scripts/lib/claude-output.sh"
 
 MAX_CONTEXT_BYTES="${MAX_CONTEXT_BYTES:-204800}"  # 200 KB cap
 FINDINGS="$WORK_DIR/findings.jsonl"
@@ -217,24 +219,11 @@ else
 fi
 
 # 5. Parse Claude response.
-# `claude --output-format json` wraps the model's reply as
-#   {"type":"result","subtype":"success","is_error":false,"result":"<text>"}
-# where `result` is the raw text the model produced. The review JSON we want
-# lives inside `result` as a string. Try the wrapped shape first; if `.result`
-# isn't present, treat the whole file as the review JSON (covers older claude
-# CLIs and the CLAUDE_MOCK fixture path).
+# Delegate envelope-unwrap and ```fence-stripping to lib/claude-output.sh so
+# the logic is unit-testable; see tests/claude-output.bats.
 INNER="$WORK_DIR/claude-inner.json"
 if [ "$AI_OK" = "1" ] && [ -s "$CLAUDE_OUT" ]; then
-  if jq -e '.result | type == "string"' "$CLAUDE_OUT" >/dev/null 2>&1; then
-    jq -r '.result' "$CLAUDE_OUT" > "$INNER"
-  else
-    cp "$CLAUDE_OUT" "$INNER"
-  fi
-  # Strip ```json ... ``` fences that the model occasionally adds despite the
-  # system-prompt rule, so the inner JSON is parseable.
-  if head -1 "$INNER" 2>/dev/null | grep -q '^```'; then
-    sed -i -e '1{/^```/d}' -e '${/^```$/d}' "$INNER"
-  fi
+  unwrap_claude_output "$CLAUDE_OUT" > "$INNER"
   if jq -e '.findings' "$INNER" >/dev/null 2>&1; then
     SUMMARY=$(jq -r '.summary // ""' "$INNER")
     jq -c '.findings[]' "$INNER" >> "$FINDINGS"
