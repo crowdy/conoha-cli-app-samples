@@ -11,7 +11,7 @@ mkdir -p /app/outputs "$MODEL_DIR"
 
 if [ ! -f "$SENTINEL" ]; then
     log "Downloading model weights: $MODEL_REPO (~10GB, first boot only)"
-    huggingface-cli download "$MODEL_REPO"
+    hf download "$MODEL_REPO"
     touch "$SENTINEL"
     log "Model download complete"
 else
