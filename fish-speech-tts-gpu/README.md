@@ -11,60 +11,36 @@ NVIDIA L4 GPU を使用して、Fish Speech の音声合成（TTS）サーバー
 
 ## 前提条件
 
-- [conoha-cli](https://github.com/because-and/conoha-cli) がインストール済み
+- [conoha-cli](https://github.com/crowdy/conoha-cli) **v0.7.0 以上** (`conoha gpu setup` を使用)
 - SSH キーが登録済み
 - **GPU フレーバー**: `g2l-t-c20m128g1-l4`（NVIDIA L4 GPU）
 
 ## GPU セットアップ
 
-サーバー作成後、GPU ドライバのインストールが必要です。
-
 ### Step 1: サーバー作成
 
-```bash
-conoha server add --flavor g2l-t-c20m128g1-l4 --image ubuntu-24.04 --key mykey --name fish-speech
-```
-
-### Step 2: NVIDIA Container Toolkit インストール
+Docker プリインストール済みの `vmi-docker-29.2-ubuntu-24.04-amd64` をベースイメージに使うと、Docker 自体のインストールが省けます。
 
 ```bash
-conoha server ssh fish-speech
+conoha server create \
+  --name fish-speech \
+  --flavor g2l-t-c20m128g1-l4 \
+  --image vmi-docker-29.2-ubuntu-24.04-amd64 \
+  --key-name <あなたのキー名> \
+  --security-group IPv4v6-SSH \
+  --security-group IPv4v6-Web \
+  --yes --wait
 ```
+
+### Step 2: NVIDIA ドライバ + Container Toolkit (1 コマンド)
+
+`conoha gpu setup` が以下を自動で行います: apt lock 待ち → Container Toolkit 導入 → ドライバ導入 (`ubuntu-drivers install --gpgpu`) → 再起動 → `nvidia-smi` 検証。
 
 ```bash
-curl -fsSL https://nvidia.github.io/libnvidia-container/gpgkey | \
-  sudo gpg --dearmor -o /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg
-curl -s -L https://nvidia.github.io/libnvidia-container/stable/deb/nvidia-container-toolkit.list | \
-  sed 's#deb https://#deb [signed-by=/usr/share/keyrings/nvidia-container-toolkit-keyring.gpg] https://#g' | \
-  sudo tee /etc/apt/sources.list.d/nvidia-container-toolkit.list
-sudo apt-get update && sudo apt-get install -y nvidia-container-toolkit
-sudo nvidia-ctk runtime configure --runtime=docker
-sudo systemctl restart docker
+conoha gpu setup fish-speech
 ```
 
-### Step 3: NVIDIA ドライバインストール
-
-```bash
-sudo apt install -y ubuntu-drivers-common
-sudo ubuntu-drivers install --gpgpu
-```
-
-### Step 4: サーバー再起動
-
-```bash
-exit
-conoha server reboot fish-speech
-```
-
-### Step 5: ドライバ確認
-
-```bash
-conoha server ssh fish-speech
-sudo apt install -y nvidia-utils-570-server
-nvidia-smi
-```
-
-GPU が認識されていることを確認してください。
+完了すると L4 GPU が認識されたログが表示されます。
 
 ## デプロイ
 
@@ -151,6 +127,16 @@ CLI は `--server` で API ベース URL を受け取ります。blue/green prox
 # ヘルスチェック
 ./fish-speech-cli health --server http://localhost:8080
 ```
+
+## クリーンアップ
+
+検証後に課金を止めるには、サーバーとブートボリュームをまとめて削除します。
+
+```bash
+conoha server delete fish-speech --delete-boot-volume --yes
+```
+
+`--delete-boot-volume` を付けないとブートボリュームが `available` 状態で残り続け、次回以降の `server create` がボリュームクォータで失敗するため注意してください。
 
 ## カスタマイズ
 
