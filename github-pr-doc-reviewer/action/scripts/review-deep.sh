@@ -217,12 +217,32 @@ else
 fi
 
 # 5. Parse Claude response.
+# `claude --output-format json` wraps the model's reply as
+#   {"type":"result","subtype":"success","is_error":false,"result":"<text>"}
+# where `result` is the raw text the model produced. The review JSON we want
+# lives inside `result` as a string. Try the wrapped shape first; if `.result`
+# isn't present, treat the whole file as the review JSON (covers older claude
+# CLIs and the CLAUDE_MOCK fixture path).
+INNER="$WORK_DIR/claude-inner.json"
 if [ "$AI_OK" = "1" ] && [ -s "$CLAUDE_OUT" ]; then
-  if jq -e '.findings' "$CLAUDE_OUT" >/dev/null 2>&1; then
-    SUMMARY=$(jq -r '.summary // ""' "$CLAUDE_OUT")
-    jq -c '.findings[]' "$CLAUDE_OUT" >> "$FINDINGS"
+  if jq -e '.result | type == "string"' "$CLAUDE_OUT" >/dev/null 2>&1; then
+    jq -r '.result' "$CLAUDE_OUT" > "$INNER"
+  else
+    cp "$CLAUDE_OUT" "$INNER"
+  fi
+  # Strip ```json ... ``` fences that the model occasionally adds despite the
+  # system-prompt rule, so the inner JSON is parseable.
+  if head -1 "$INNER" 2>/dev/null | grep -q '^```'; then
+    sed -i -e '1{/^```/d}' -e '${/^```$/d}' "$INNER"
+  fi
+  if jq -e '.findings' "$INNER" >/dev/null 2>&1; then
+    SUMMARY=$(jq -r '.summary // ""' "$INNER")
+    jq -c '.findings[]' "$INNER" >> "$FINDINGS"
   else
     SUMMARY="AI response was not valid JSON. Mechanical findings only."
+    echo "AI raw output preview:" >&2
+    head -c 800 "$INNER" >&2 || true
+    echo >&2
   fi
 fi
 
