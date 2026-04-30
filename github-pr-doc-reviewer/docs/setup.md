@@ -21,26 +21,36 @@ conoha server create --name doc-reviewer \
 # Initialize the app on the server (installs Docker + sets up /opt/conoha/<app>).
 conoha app init doc-reviewer --app-name github-pr-doc-reviewer
 
-# Configure environment via a local .env.server file in this sample directory.
-# `conoha app deploy` materialises this into the server-side `.env` that
-# docker compose reads. (`conoha app env set` is not used here — its values
-# do not consistently propagate into compose's variable substitution at
-# `docker compose up` time.)
+# Configure the runner's environment via a local .env.server file in this
+# sample directory. `conoha app deploy` materialises that file into the
+# server-side `.env` that docker compose reads at `docker compose up` time.
 cd github-pr-doc-reviewer/
-cat > .env.server <<'EOF'
+( umask 077 && cat > .env.server <<'EOF'
 REPO_URL=https://github.com/your-org/your-spec-repo
 ACCESS_TOKEN=ghp_xxxxxxxxxxxx
 RUNNER_NAME=doc-reviewer
 RUNNER_LABELS=self-hosted,linux,x64,doc-reviewer
 EOF
-chmod 600 .env.server   # contains a GitHub PAT — keep restrictive
+)
 
 # Deploy: archives the directory, uploads via SSH, runs `docker compose up`.
 conoha app deploy doc-reviewer --app-name github-pr-doc-reviewer
 ```
 
+> **Note on `conoha app env set`** — `conoha-cli` exposes
+> `conoha app env set/list` for storing per-app environment variables on
+> the server. With current `conoha-cli` (verified at `c3j1` region, mid-2026)
+> those values are **not** read by `docker compose`'s `${VAR}` substitution
+> at `compose up` time, so the runner came up with empty `REPO_URL` /
+> `ACCESS_TOKEN`. The `.env.server` path above is what reliably works for
+> this sample. If you find `conoha app env set` propagating correctly in
+> your environment, please open an issue with details so we can revisit
+> the recommendation.
+
 > The repository root `.gitignore` already excludes `.env.server`, so the
-> file stays local. Do not commit it.
+> file stays local. Do not commit it. The `( umask 077 && cat > … )`
+> subshell creates the file mode `0600` from the start, which avoids the
+> brief world-readable window of a plain `cat` followed by `chmod 600`.
 
 For an organization-level runner, set `REPO_URL=https://github.com/your-org`.
 
@@ -116,6 +126,25 @@ services:
     # volumes:
     #   - /var/run/docker.sock:/var/run/docker.sock   # remove if unused
 ```
+
+> **Compatibility caveat.** Because the container runs as the unprivileged
+> `runner` user (UID 1001) — see `RUN_AS_ROOT=false` and `USER runner` in
+> the Dockerfile/`compose.yml` — UID 1001 inside the container has no
+> membership in the host's `docker` group, so the mounted socket is **not
+> usable by default**. The threat surface is correspondingly smaller, but
+> Docker-in-Docker workflows on this runner will fail with `permission
+> denied` on the socket. If you need DinD, add the host's docker GID via
+> `group_add` in `compose.yml`:
+>
+> ```yaml
+> # compose.yml — only if you need Docker-in-Docker on this runner.
+> services:
+>   runner:
+>     group_add:
+>       - "${DOCKER_GID:-999}"   # host's `getent group docker | cut -d: -f3`
+> ```
+>
+> This restores DinD usability while keeping the runner non-root.
 
 ## 6. Add the workflow to your spec repo
 

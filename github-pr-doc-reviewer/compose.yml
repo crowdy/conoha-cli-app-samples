@@ -9,8 +9,18 @@ services:
       - RUNNER_WORKDIR=/tmp/runner/work
       - LABELS=${RUNNER_LABELS:-self-hosted,linux,x64,doc-reviewer}
       - DISABLE_AUTO_UPDATE=1
-      # Required because the Dockerfile sets `USER runner` (UID 1001). Without
-      # this, upstream entrypoint refuses to start with
+      # We keep the container running as `runner` (UID 1001) from PID 1
+      # rather than letting the upstream entrypoint configure as root and
+      # then `gosu runner` to drop privileges. Both paths are valid; we
+      # prefer never-root because:
+      #   - persistent claude OAuth credentials (claude_home volume) and
+      #     the runner workspace stay under a single non-root UID, so a
+      #     workflow-level container escape never starts from root.
+      #   - the Docker socket mount is intentionally non-usable by default
+      #     (see docs/setup.md §5 "Docker socket exposure"), which reduces
+      #     blast radius unless DinD is explicitly opted in via group_add.
+      # The trade-off is that `USER runner` requires this RUN_AS_ROOT=false
+      # — without it the upstream entrypoint asserts UID 0 and exits with
       # "ERROR: RUN_AS_ROOT env var is set to true but the user has been
       #  overridden and is not running as root, but UID '1001'".
       - RUN_AS_ROOT=false
