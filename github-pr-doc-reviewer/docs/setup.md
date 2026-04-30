@@ -10,21 +10,37 @@
 ## 2. Deploy the runner
 
 ```bash
-# Create a server (g2l-t-2 = 2 GB; sufficient for runner + claude CLI)
-conoha server create --name doc-reviewer --flavor g2l-t-2 --image ubuntu-24.04 --key mykey
+# Create a server. The flavor and image IDs vary per region — list them with
+# `conoha flavor list` / `conoha image list` and substitute as needed. A
+# 2 GB / 2-3 vCPU flavor (e.g. g2l-t-c3m2) is sufficient for runner + claude CLI.
+conoha server create --name doc-reviewer \
+  --flavor <flavor-id> --image <ubuntu-24.04-image-id> \
+  --key-name mykey \
+  --security-group default --security-group IPv4v6-SSH
 
-# Initialize the app
+# Initialize the app on the server (installs Docker + sets up /opt/conoha/<app>).
 conoha app init doc-reviewer --app-name github-pr-doc-reviewer
 
-# Set environment
-conoha app env set doc-reviewer --app-name github-pr-doc-reviewer \
-  REPO_URL=https://github.com/your-org/your-spec-repo \
-  ACCESS_TOKEN=ghp_xxxxxxxxxxxx \
-  RUNNER_LABELS=self-hosted,linux,x64,doc-reviewer
+# Configure environment via a local .env.server file in this sample directory.
+# `conoha app deploy` materialises this into the server-side `.env` that
+# docker compose reads. (`conoha app env set` is not used here — its values
+# do not consistently propagate into compose's variable substitution at
+# `docker compose up` time.)
+cd github-pr-doc-reviewer/
+cat > .env.server <<'EOF'
+REPO_URL=https://github.com/your-org/your-spec-repo
+ACCESS_TOKEN=ghp_xxxxxxxxxxxx
+RUNNER_NAME=doc-reviewer
+RUNNER_LABELS=self-hosted,linux,x64,doc-reviewer
+EOF
+chmod 600 .env.server   # contains a GitHub PAT — keep restrictive
 
-# Deploy
+# Deploy: archives the directory, uploads via SSH, runs `docker compose up`.
 conoha app deploy doc-reviewer --app-name github-pr-doc-reviewer
 ```
+
+> The repository root `.gitignore` already excludes `.env.server`, so the
+> file stays local. Do not commit it.
 
 For an organization-level runner, set `REPO_URL=https://github.com/your-org`.
 
