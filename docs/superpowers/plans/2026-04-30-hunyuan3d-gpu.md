@@ -58,11 +58,11 @@ MODEL_REPO="${MODEL_REPO:-tencent/Hunyuan3D-2}"
 MODEL_DIR="${HF_HOME:-/root/.cache/huggingface}/hub/models--${MODEL_REPO//\//--}"
 SENTINEL="$MODEL_DIR/.download_complete"
 
-mkdir -p /app/outputs "$(dirname "$MODEL_DIR")"
+mkdir -p /app/outputs "$MODEL_DIR"
 
 if [ ! -f "$SENTINEL" ]; then
     log "Downloading model weights: $MODEL_REPO (~10GB, first boot only)"
-    huggingface-cli download "$MODEL_REPO" --local-dir-use-symlinks False
+    hf download "$MODEL_REPO"
     touch "$SENTINEL"
     log "Model download complete"
 else
@@ -73,7 +73,7 @@ log "GPU info:"
 nvidia-smi --query-gpu=name,memory.total,driver_version --format=csv,noheader || true
 
 log "Starting Hunyuan3D-2 Gradio app on 0.0.0.0:7860"
-exec python3 gradio_app.py
+exec python3 gradio_app.py --host 0.0.0.0 --port 7860 --cache-path /app/outputs
 ```
 
 - [ ] **Step 2: Make it executable and syntax-check**
@@ -123,8 +123,8 @@ RUN pip install --upgrade pip && \
     pip install "huggingface_hub[cli]" hf_transfer
 
 # Pre-build C++ extensions so first boot only downloads weights
-RUN cd hy3dgen/texgen/custom_rasterizer && python3 setup.py install && cd /app
-RUN cd hy3dgen/texgen/differentiable_renderer && python3 setup.py install && cd /app
+RUN cd /app/hy3dgen/texgen/custom_rasterizer && python3 setup.py install \
+ && cd /app/hy3dgen/texgen/differentiable_renderer && python3 setup.py install
 
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
@@ -167,8 +167,6 @@ services:
     environment:
       - HF_HOME=/root/.cache/huggingface
       - TORCH_CUDA_ARCH_LIST=8.9
-      - GRADIO_SERVER_NAME=0.0.0.0
-      - GRADIO_SERVER_PORT=7860
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:7860/"]
       interval: 30s
@@ -491,7 +489,7 @@ Expected: container reaches `healthy` within ~20 minutes.
 
 If healthcheck fails persistently:
 - Inspect logs: `conoha server ssh hunyuan3d -- 'cd ~/apps/hunyuan3d-gpu && docker compose logs --tail=200 hunyuan3d'`
-- Common cause: model DL stalled — verify network and `huggingface-cli` is invoked correctly.
+- Common cause: model DL stalled — verify network and `hf download` is invoked correctly.
 - Do NOT proceed to smoke test until healthy.
 
 ---

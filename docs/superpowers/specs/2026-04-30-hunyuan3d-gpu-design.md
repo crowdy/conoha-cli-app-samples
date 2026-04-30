@@ -85,8 +85,6 @@ services:
     environment:
       - HF_HOME=/root/.cache/huggingface
       - TORCH_CUDA_ARCH_LIST=8.9
-      - GRADIO_SERVER_NAME=0.0.0.0
-      - GRADIO_SERVER_PORT=7860
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:7860/"]
       interval: 30s
@@ -105,6 +103,7 @@ volumes:
 - `start_period: 900s` — 初回モデル DL (~10GB) を healthcheck failure 扱いしないため
 - `TORCH_CUDA_ARCH_LIST=8.9` — L4 専用ビルドにすることでイメージサイズ・ビルド時間を削減
 - ボリュームは 2 つに統合 (`hf_cache` と `outputs`)。issue 雛形の `model_data` は `hf_cache` と重複するため除外
+- リッスンアドレス・出力先は entrypoint で `gradio_app.py` の CLI フラグとして渡す。`gradio_app.py` は `uvicorn.run(host=args.host, port=args.port)` で起動するため `GRADIO_SERVER_*` 環境変数は無効 (smoke で発覚)
 
 ### Dockerfile
 
@@ -137,8 +136,8 @@ RUN pip install --upgrade pip && \
     pip install "huggingface_hub[cli]" hf_transfer
 
 # Pre-build C++ extensions so first boot only downloads weights
-RUN cd hy3dgen/texgen/custom_rasterizer && python3 setup.py install && cd /app
-RUN cd hy3dgen/texgen/differentiable_renderer && python3 setup.py install && cd /app
+RUN cd /app/hy3dgen/texgen/custom_rasterizer && python3 setup.py install \
+ && cd /app/hy3dgen/texgen/differentiable_renderer && python3 setup.py install
 
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
@@ -151,8 +150,8 @@ ENTRYPOINT ["/entrypoint.sh"]
 
 - `HUNYUAN3D_REF` は build-arg として `main` 最新 SHA (`f8db630...`) を初期値で固定。再現性確保
 - 公式 README の install 手順に従い `pip install -r requirements.txt` → `pip install -e .` → 各 texgen 拡張の `python3 setup.py install` の順で構築
-- C++ 拡張 (`custom_rasterizer`, `differentiable_renderer`) を **イメージビルド時に焼き込む**。初回起動時の処理はモデル DL のみとなり、コンテナ再起動が高速化
-- `huggingface_hub[cli]` + `hf_transfer` を追加 — entrypoint で `huggingface-cli download` を使い、~10GB ダウンロード時の速度を大幅改善
+- C++ 拡張 (`custom_rasterizer`, `differentiable_renderer`) を **イメージビルド時に焼き込む**。初回起動時の処理はモデル DL のみとなり、コンテナ再起動が高速化。両者を 1 つの `RUN` レイヤに統合してキャッシュ効率を改善 (code review で指摘)
+- `huggingface_hub[cli]` + `hf_transfer` を追加 — entrypoint で `hf download` を使い、~10GB ダウンロード時の速度を大幅改善
 - `libgl1` / `libegl1` / `libgles2` は Hunyuan3D Paint 段階の OpenGL レンダラー要件
 
 ### entrypoint.sh
@@ -167,11 +166,11 @@ MODEL_REPO="${MODEL_REPO:-tencent/Hunyuan3D-2}"
 MODEL_DIR="${HF_HOME:-/root/.cache/huggingface}/hub/models--${MODEL_REPO//\//--}"
 SENTINEL="$MODEL_DIR/.download_complete"
 
-mkdir -p /app/outputs "$(dirname "$MODEL_DIR")"
+mkdir -p /app/outputs "$MODEL_DIR"
 
 if [ ! -f "$SENTINEL" ]; then
     log "Downloading model weights: $MODEL_REPO (~10GB, first boot only)"
-    huggingface-cli download "$MODEL_REPO" --local-dir-use-symlinks False
+    hf download "$MODEL_REPO"
     touch "$SENTINEL"
     log "Model download complete"
 else
@@ -182,15 +181,15 @@ log "GPU info:"
 nvidia-smi --query-gpu=name,memory.total,driver_version --format=csv,noheader || true
 
 log "Starting Hunyuan3D-2 Gradio app on 0.0.0.0:7860"
-exec python3 gradio_app.py
+exec python3 gradio_app.py --host 0.0.0.0 --port 7860 --cache-path /app/outputs
 ```
 
 設計理由:
 
 - **sentinel ファイルガード** (`fish-speech-tts-gpu` パターン) — 2 回目以降の起動はダウンロードをスキップし即時起動
-- `huggingface-cli download` + `HF_HUB_ENABLE_HF_TRANSFER=1` の組み合わせで初回 DL を高速化
+- `hf download` + `HF_HUB_ENABLE_HF_TRANSFER=1` の組み合わせで初回 DL を高速化。`huggingface-cli download` は `huggingface_hub >= 1.x` で廃止されており非ゼロ終了するため、新コマンドの `hf` を使用 (smoke で発覚し修正)
 - `nvidia-smi` 出力を起動ログに残し、GPU 認識のトラブルシュートを容易に
-- `exec python3 gradio_app.py` — Hunyuan3D-2 公式エントリポイント。リッスンアドレス・ポートは compose の env で 0.0.0.0:7860 に強制
+- `--host 0.0.0.0 --port 7860 --cache-path /app/outputs` を明示。`gradio_app.py` の argparse 既定値は `--port 8080` / `--cache-path gradio_cache` であり、env 変数では制御できない (smoke で発覚し修正)
 
 ## README 構造
 
@@ -242,10 +241,24 @@ exec python3 gradio_app.py
 
 ## 既知の課題・リスク
 
-- **モデル DL 時間**: `start_period: 900s` でも足りない可能性。失敗時は事前 `docker exec` での `huggingface-cli download` 手順を README に追記
+- **モデル DL 時間**: `start_period: 900s` でも足りない可能性。失敗時は事前 `docker exec` での `hf download` 手順を README に追記
 - **C++ 拡張ビルド時間**: 初回 `docker build` で ~10 分かかるが、これはイメージ側に閉じる
 - **L4 24GB のテクスチャ生成**: デフォルト解像度 (512) でも条件次第で OOM。README に "OOM 時は texture を切る" を明記
-- **モデルレポジトリ変更リスク**: `tencent/Hunyuan3D-2` の構造変更で `huggingface-cli download` が壊れる可能性。`HUNYUAN3D_REF` を SHA pin することで上流コードと併せて固定
+- **モデルレポジトリ変更リスク**: `tencent/Hunyuan3D-2` の構造変更で `hf download` が壊れる可能性。`HUNYUAN3D_REF` を SHA pin することで上流コードと併せて固定
+
+## 実機検証ログ (2026-04-30)
+
+ConoHa VPS3 c3j1 リージョンの L4 GPU (`g2l-t-c20m128g1-l4`) で smoke 実施:
+
+- ホスト: `vmi-docker-29.2-ubuntu-24.04-amd64` (Docker 29.2 同梱) + NVIDIA driver 595.58.03 + CUDA 13.2
+- コンテナビルド ~10 分 (キャッシュ無し) / モデル DL ~8 分 / `healthy` 到達まで合計 ~18 分
+- shape 生成 (デモ画像 `assets/example_images/004.png`, `octree_resolution=256`, `steps=30`): **27 秒** で完了 — 410k faces / 205k vertices / glTF 2.0 valid (7.4 MB)
+- 出力先: `/app/outputs/<uuid>/white_mesh.glb` (`--cache-path` が想定通りボリュームに反映されることを確認)
+
+smoke 中に発見した 2 件の修正 (本仕様にも反映済み):
+
+1. `huggingface-cli` は `huggingface_hub >= 1.x` で廃止。新コマンドは `hf` (`fix(hunyuan3d-gpu): switch to hf download`)
+2. `gradio_app.py` は `uvicorn.run(host=args.host, port=args.port)` で起動するため `GRADIO_SERVER_*` 環境変数は無効。`--host/--port/--cache-path` を明示的に渡す (`fix(hunyuan3d-gpu): pass listen/cache-path to gradio_app.py`)
 
 ## 参考
 
