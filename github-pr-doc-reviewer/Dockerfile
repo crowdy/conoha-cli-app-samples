@@ -25,9 +25,18 @@ RUN npm install -g @anthropic-ai/claude-code
 COPY entrypoint.sh /usr/local/bin/doc-reviewer-entrypoint.sh
 RUN chmod +x /usr/local/bin/doc-reviewer-entrypoint.sh
 
-# Ensure runner user owns the .claude directory mount target
-RUN mkdir -p /home/runner/.claude && chown -R runner:runner /home/runner/.claude
+# Ensure runner user owns the volume mount targets. Pre-creating these with
+# the right ownership lets a fresh named volume (claude_home, runner_work)
+# inherit runner ownership on first mount; otherwise Docker initialises the
+# volume root-owned and Runner.Listener fails with "Access to the path ...
+# is denied" the first time it tries to write there.
+RUN mkdir -p /home/runner/.claude /tmp/runner/work \
+    && chown -R runner:runner /home/runner/.claude /tmp/runner
 
 USER runner
 
 ENTRYPOINT ["/usr/local/bin/doc-reviewer-entrypoint.sh"]
+# Setting ENTRYPOINT in a derived image resets CMD inherited from the base.
+# Re-declare upstream's CMD explicitly so the runner Listener actually starts
+# after the entrypoint configures it.
+CMD ["./bin/Runner.Listener", "run", "--startuptype", "service"]

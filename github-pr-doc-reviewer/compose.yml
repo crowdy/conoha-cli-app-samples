@@ -9,6 +9,11 @@ services:
       - RUNNER_WORKDIR=/tmp/runner/work
       - LABELS=${RUNNER_LABELS:-self-hosted,linux,x64,doc-reviewer}
       - DISABLE_AUTO_UPDATE=1
+      # Required because the Dockerfile sets `USER runner` (UID 1001). Without
+      # this, upstream entrypoint refuses to start with
+      # "ERROR: RUN_AS_ROOT env var is set to true but the user has been
+      #  overridden and is not running as root, but UID '1001'".
+      - RUN_AS_ROOT=false
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - claude_home:/home/runner/.claude
