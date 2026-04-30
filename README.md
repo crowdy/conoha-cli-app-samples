@@ -71,6 +71,7 @@ conoha app deploy myserver
 | [ollama-webui](ollama-webui/) | Ollama + Open WebUI | ローカル LLM チャット（CPU） | g2l-t-4 (4GB) |
 | [ollama-webui-gpu](ollama-webui-gpu/) | Ollama + Open WebUI (GPU) | Gemma 4 など大規模モデル対応 LLM チャット | g2l-t-c20m128g1-l4 (L4 GPU) |
 | [fish-speech-tts-gpu](fish-speech-tts-gpu/) | Fish Speech + Go CLI | GPU 音声合成（TTS）+ 音声クローニング + CLI クライアント | g2l-t-c20m128g1-l4 (L4 GPU) |
+| [hunyuan3d-gpu](hunyuan3d-gpu/) | Tencent Hunyuan3D-2 + Gradio | 画像→3D モデル (GLB) 生成 (Tencent Hunyuan3D-2, NVIDIA L4 GPU) | g2l-t-c20m128g1-l4 (L4 GPU) |
 | [hydra-python-api](hydra-python-api/) | Ory Hydra + FastAPI | OAuth2 認可サーバー + API | g2l-t-2 (2GB) |
 | [quickwit-otel](quickwit-otel/) | Quickwit + OpenTelemetry + Grafana | ログ・トレース収集・検索基盤 | g2l-t-2 (2GB) |
 | [uptime-kuma](uptime-kuma/) | Uptime Kuma | セルフホスティング稼働監視 | g2l-t-1 (1GB) |
