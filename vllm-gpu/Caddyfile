@@ -3,7 +3,10 @@
         # Streaming/SSE support for /v1/chat/completions stream=true
         flush_interval -1
     }
-    encode gzip
+    @not_sse {
+        not header Content-Type text/event-stream
+    }
+    encode @not_sse gzip
     log {
         output stdout
         format json
