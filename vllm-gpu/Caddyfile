@@ -1,0 +1,11 @@
+{$DOMAIN_NAME} {
+    reverse_proxy vllm:8000 {
+        # Streaming/SSE support for /v1/chat/completions stream=true
+        flush_interval -1
+    }
+    encode gzip
+    log {
+        output stdout
+        format json
+    }
+}
