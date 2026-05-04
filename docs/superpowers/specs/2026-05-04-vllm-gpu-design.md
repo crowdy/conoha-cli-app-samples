@@ -181,7 +181,7 @@ curl -fsS -X POST http://localhost/v1/completions \
 vLLM 公式の `benchmark_serving.py` を Docker 内で実行:
 
 ```bash
-docker compose exec vllm python -m vllm.entrypoints.openai.api_server.benchmarks.benchmark_serving \
+docker compose exec vllm python -m vllm.benchmarks.serve \
   --backend openai \
   --base-url http://localhost:8000 \
   --model default \
