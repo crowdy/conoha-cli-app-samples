@@ -1,6 +1,6 @@
 services:
   vllm:
-    image: vllm/vllm-openai:latest
+    image: vllm/vllm-openai:v0.20.1
     command:
       - --model
       - ${MODEL_NAME:-Qwen/Qwen2.5-7B-Instruct-AWQ}
