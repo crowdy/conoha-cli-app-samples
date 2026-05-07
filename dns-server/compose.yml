@@ -19,7 +19,7 @@ services:
   # we point pdns.conf at 127.0.0.1:5432 and bind-publish db's port
   # to localhost only.
   pdns:
-    image: powerdns/pdns-auth-49:4.9
+    image: powerdns/pdns-auth-49:4.9.14
     network_mode: host
     volumes:
       - ./pdns/pdns.conf:/etc/powerdns/pdns.conf:ro

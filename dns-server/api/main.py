@@ -5,7 +5,7 @@ import os
 from fastapi import FastAPI
 
 from api.db import lifespan
-from api.routers import health, zone
+from api.routers import health, subdomains, zone
 
 ENV = os.environ.get("ENV", "prod")
 
@@ -19,6 +19,7 @@ app = FastAPI(
 
 app.include_router(health.router)
 app.include_router(zone.router)
+app.include_router(subdomains.router)
 
 
 @app.get("/")
