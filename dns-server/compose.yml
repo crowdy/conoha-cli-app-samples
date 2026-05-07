@@ -1,0 +1,61 @@
+services:
+  app:
+    build: .
+    expose:
+      - "8080"
+    environment:
+      - DATABASE_URL=postgres://pdns:${POSTGRES_PASSWORD:-pdns}@db:5432/pdns
+      - PARENT_ZONE=${PARENT_ZONE:-users.example.com}
+      - ENV=${ENV:-prod}
+    depends_on:
+      pdns-init:
+        condition: service_completed_successfully
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # network_mode: host so PowerDNS owns :53 directly. Side effect:
+  # the host-net container can NOT resolve 'db' via Docker DNS, so
+  # we point pdns.conf at 127.0.0.1:5432 and bind-publish db's port
+  # to localhost only.
+  pdns:
+    image: powerdns/pdns-auth-49:4.9
+    network_mode: host
+    volumes:
+      - ./pdns/pdns.conf:/etc/powerdns/pdns.conf:ro
+    depends_on:
+      pdns-init:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  pdns-init:
+    build: ./pdns-init
+    environment:
+      - DATABASE_URL=postgres://pdns:${POSTGRES_PASSWORD:-pdns}@db:5432/pdns
+      - PARENT_ZONE=${PARENT_ZONE:-users.example.com}
+      - PRIMARY_NS=${PRIMARY_NS:-ns1.example.com.}
+      - SOA_EMAIL=${SOA_EMAIL:-admin.example.com.}
+      - ADMIN_TOKEN=${ADMIN_TOKEN:-}
+    depends_on:
+      db:
+        condition: service_healthy
+
+  db:
+    image: postgres:17-alpine
+    environment:
+      - POSTGRES_USER=pdns
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-pdns}
+      - POSTGRES_DB=pdns
+    ports:
+      # 127.0.0.1 only — pdns (host net) reaches db at localhost:5432.
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pdns"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  db_data:
