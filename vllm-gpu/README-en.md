@@ -59,11 +59,10 @@ conoha server add --flavor g2l-t-c20m128g1-l4 --image ubuntu-24.04 \
 
 # Run the GPU setup above.
 
-# Initialize the app
-conoha app init vllm-gpu --app-name vllm-gpu \
-  --identity ~/.ssh/conoha_mykey --no-input
-
-# Deploy (first run takes 5–20 min for model download; healthcheck start_period=1200s)
+# Deploy (first run takes 5–20 min for model download; healthcheck start_period=1200s).
+# Caddy publishes 80/443 directly, so we don't run `conoha app init` (which
+# would route through conoha-proxy for blue/green). `conoha app deploy` alone
+# is sufficient.
 conoha app deploy vllm-gpu --app-name vllm-gpu \
   --identity ~/.ssh/conoha_mykey --no-input
 ```

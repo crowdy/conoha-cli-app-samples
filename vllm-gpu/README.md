@@ -59,14 +59,12 @@ conoha server add --flavor g2l-t-c20m128g1-l4 --image ubuntu-24.04 \
 
 # 上記の GPU セットアップを実施
 
-# アプリ初期化
-conoha app init vllm-gpu --app-name vllm-gpu \
-  --identity ~/.ssh/conoha_mykey --no-input
-
 # .env を編集（任意。最初はデフォルトのまま動かしても良い）
 # scp や conoha server ssh で .env を作成
 
 # デプロイ（初回はモデル DL で 5–20 分、healthcheck の start_period は 1200 秒）
+# Caddy が 80/443 を直接公開するため、`conoha app init`（conoha-proxy 経由の
+# blue/green 配置）は使わず、`conoha app deploy` のみで運用します。
 conoha app deploy vllm-gpu --app-name vllm-gpu \
   --identity ~/.ssh/conoha_mykey --no-input
 ```

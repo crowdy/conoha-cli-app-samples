@@ -59,11 +59,9 @@ conoha server add --flavor g2l-t-c20m128g1-l4 --image ubuntu-24.04 \
 
 # 위의 GPU 셋업 진행
 
-# 앱 초기화
-conoha app init vllm-gpu --app-name vllm-gpu \
-  --identity ~/.ssh/conoha_mykey --no-input
-
 # 배포 (첫 실행 시 모델 다운로드로 5–20분 소요. healthcheck start_period=1200초)
+# Caddy가 80/443을 직접 공개하므로 conoha-proxy 경유 blue/green 배치를 위한
+# `conoha app init`은 사용하지 않고, `conoha app deploy`만으로 운용합니다.
 conoha app deploy vllm-gpu --app-name vllm-gpu \
   --identity ~/.ssh/conoha_mykey --no-input
 ```
