@@ -94,6 +94,8 @@ conoha app deploy dns-server
 | `ADMIN_TOKEN` | (空) | 空ならコンテナログに 1 度だけ生成・出力 |
 | `ENV` | `prod` | `dev` で `/docs` 露出 |
 
+> **注意**: `POSTGRES_PASSWORD` を既定 (`pdns`) 以外に変更した場合、`pdns/pdns.conf` の `gpgsql-password=` 行も同じ値に書き換える必要がある。PowerDNS は Docker Compose の環境変数を補間しないため、この同期は手動で行う必要がある。
+
 ### 6. 初回起動時のトークン取得
 
 ```bash
@@ -156,6 +158,7 @@ docker compose -f compose.yml -f compose.test.yml down -v
 - **DNSSEC**: 未対応。`pdnsutil secure-zone <zone>` を `pdns` コンテナで実行すれば後付け可能
 - **abuse 対策**: 認証トークンのみ。レート制限・CAPTCHA は未実装
 - **`network_mode: host`**: pdns コンテナは Docker bridge の名前解決ができないため、`db` を `127.0.0.1:5432` に bind-publish して `pdns.conf` から `gpgsql-host=127.0.0.1` で参照している
+- **`audit_log` の肥大化**: `app.audit_log` は API 操作のたびに append されるが、自動削除されない。長期運用時は定期的に `TRUNCATE app.audit_log` するか、`created_at` を基準とした期間 DELETE をスケジュールすること
 
 ## 参考
 
