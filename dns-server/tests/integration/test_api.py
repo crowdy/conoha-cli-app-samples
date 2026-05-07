@@ -159,3 +159,53 @@ class TestPutSubdomain:
             json={"records": [{"type": "A", "value": "203.0.113.42"}]},
         )
         assert resp.status_code == 200
+
+
+class TestDeleteSubdomain:
+    async def test_delete_returns_orphans(self, client, auth_headers):
+        await client.post(
+            "/v1/subdomains",
+            headers=auth_headers,
+            json={
+                "name": "tkim.users.example.com",
+                "records": [{"type": "A", "value": "203.0.113.42"}],
+            },
+        )
+        await client.post(
+            "/v1/subdomains",
+            headers=auth_headers,
+            json={
+                "name": "blog.tkim.users.example.com",
+                "records": [{"type": "CNAME", "value": "tkim.users.example.com."}],
+            },
+        )
+        resp = await client.delete(
+            "/v1/subdomains/tkim.users.example.com", headers=auth_headers
+        )
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["deleted"] == "tkim.users.example.com"
+        assert "blog.tkim.users.example.com" in body["orphaned_descendants"]
+
+    async def test_delete_unknown_returns_404(self, client, auth_headers):
+        resp = await client.delete(
+            "/v1/subdomains/nope.users.example.com", headers=auth_headers
+        )
+        assert resp.status_code == 404
+
+    async def test_after_delete_get_returns_404(self, client, auth_headers):
+        await client.post(
+            "/v1/subdomains",
+            headers=auth_headers,
+            json={
+                "name": "tkim.users.example.com",
+                "records": [{"type": "A", "value": "203.0.113.42"}],
+            },
+        )
+        await client.delete(
+            "/v1/subdomains/tkim.users.example.com", headers=auth_headers
+        )
+        resp = await client.get(
+            "/v1/subdomains/tkim.users.example.com", headers=auth_headers
+        )
+        assert resp.status_code == 404
