@@ -4,13 +4,16 @@
 # and prints throughput / latency stats (TTFT, TPOT, p50/p99).
 #
 # Usage:
-#   BASE_URL=http://<server-ip> NUM_PROMPTS=200 REQUEST_RATE=8 bash scripts/benchmark.sh
+#   NUM_PROMPTS=200 REQUEST_RATE=8 bash scripts/benchmark.sh
 #
+# This runs `vllm.benchmarks.serve` *inside* the vllm container via
+# `docker compose exec`, so BASE_URL defaults to vllm's own listener
+# (http://localhost:8000) — bypassing Caddy to measure raw inference.
 # Defaults are tuned for a single L4 24GB running Qwen 7B AWQ.
 #
 set -euo pipefail
 
-BASE_URL="${BASE_URL:-http://localhost}"
+BASE_URL="${BASE_URL:-http://localhost:8000}"
 NUM_PROMPTS="${NUM_PROMPTS:-200}"
 REQUEST_RATE="${REQUEST_RATE:-8}"
 INPUT_LEN="${INPUT_LEN:-512}"

@@ -8,6 +8,9 @@
 # Usage:
 #   BASE_URL=http://<server-ip> [VLLM_API_KEY=xxx] bash scripts/smoke-test.sh
 #
+# Run from your laptop (or the server). BASE_URL must reach the Caddy
+# port 80/443; from the server itself, http://localhost works.
+#
 set -euo pipefail
 
 BASE_URL="${BASE_URL:-http://localhost}"
@@ -19,13 +22,16 @@ else
   AUTH=()
 fi
 
+# --max-time guards against a wedged server (mid-warmup, hung CUDA, OOM).
+CURL=(curl -fsS --max-time 60)
+
 echo "[1/3] GET ${BASE_URL}/v1/models"
-curl -fsS "${AUTH[@]}" "${BASE_URL}/v1/models" \
+"${CURL[@]}" "${AUTH[@]}" "${BASE_URL}/v1/models" \
   | jq -e '.data[0].id == "default"' > /dev/null
 echo "  ok"
 
 echo "[2/3] POST ${BASE_URL}/v1/chat/completions"
-curl -fsS -X POST "${AUTH[@]}" \
+"${CURL[@]}" -X POST "${AUTH[@]}" \
   -H "Content-Type: application/json" \
   "${BASE_URL}/v1/chat/completions" \
   -d '{"model":"default","messages":[{"role":"user","content":"Say hi in one word."}],"max_tokens":16}' \
@@ -33,7 +39,7 @@ curl -fsS -X POST "${AUTH[@]}" \
 echo "  ok"
 
 echo "[3/3] POST ${BASE_URL}/v1/completions"
-curl -fsS -X POST "${AUTH[@]}" \
+"${CURL[@]}" -X POST "${AUTH[@]}" \
   -H "Content-Type: application/json" \
   "${BASE_URL}/v1/completions" \
   -d '{"model":"default","prompt":"The capital of Japan is","max_tokens":8}' \
