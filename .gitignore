@@ -1,7 +1,25 @@
+# Secret files (NEVER commit any of these)
 .env
-.env.server
-!hydra-python-api/.env
+.env.*
+!.env.example
+!.env.*.example
+*.pem
+*.key
+*.p12
+*.pfx
+id_rsa*
+id_ed25519*
+*credentials*
+!*credentials*.example
+.netrc
+
+# Working memos / handoff notes — keep out of git, may contain operational context
+docs/memory/
+
+# OS / editor
 .DS_Store
+
+# Build artifacts
 node_modules/
 tmp/
 log/
@@ -11,4 +29,10 @@ __pycache__/
 .pytest_cache/
 test-results/
 playwright-report/
+dist/
+build/
+.next/
+.svelte-kit/
+
+# Worktrees
 .worktrees/

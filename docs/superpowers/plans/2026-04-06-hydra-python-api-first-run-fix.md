@@ -42,9 +42,9 @@ Change the hydra service environment from:
 ```yaml
     environment:
       - DSN=postgres://hydra:hydra@db:5432/hydra?sslmode=disable
-      - URLS_SELF_ISSUER=http://133.88.116.147:4444
-      - URLS_LOGIN=http://133.88.116.147:9010/login
-      - URLS_CONSENT=http://133.88.116.147:9010/consent
+      - URLS_SELF_ISSUER=http://<SERVER_IP>:4444
+      - URLS_LOGIN=http://<SERVER_IP>:9010/login
+      - URLS_CONSENT=http://<SERVER_IP>:9010/consent
       - SECRETS_SYSTEM=a-very-secret-key-that-must-be-changed
       - LOG_LEVEL=info
 ```

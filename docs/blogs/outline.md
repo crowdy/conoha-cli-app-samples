@@ -239,7 +239,7 @@ conoha app init myserver --app-name outline
 ```
 
 ```
-Initializing app "outline" on vm-18268c66-ae (133.88.116.147)...
+Initializing app "outline" on vm-18268c66-ae (<SERVER_IP>)...
 ==> Installing Docker...
 ==> Installing Docker Compose plugin...
 ==> Installing git...
@@ -248,13 +248,13 @@ Initialized empty Git repository in /opt/conoha/outline.git/
 ==> Installing post-receive hook...
 ==> Done!
 
-App "outline" initialized on vm-18268c66-ae (133.88.116.147).
+App "outline" initialized on vm-18268c66-ae (<SERVER_IP>).
 ```
 
 ### 3. Dex設定のIP置換
 
 ```bash
-sed -i 's/YOUR_SERVER_IP/133.88.116.147/g' dex-config.yml
+sed -i 's/YOUR_SERVER_IP/<SERVER_IP>/g' dex-config.yml
 ```
 
 ### 4. 環境変数の設定
@@ -264,8 +264,8 @@ conoha app env set myserver --app-name outline \
   SECRET_KEY=$(openssl rand -hex 32) \
   UTILS_SECRET=$(openssl rand -hex 32) \
   DB_PASSWORD=your-secure-password \
-  URL=http://133.88.116.147:3000 \
-  OIDC_AUTH_URI=http://133.88.116.147:5556/dex/auth
+  URL=http://<SERVER_IP>:3000 \
+  OIDC_AUTH_URI=http://<SERVER_IP>:5556/dex/auth
 ```
 
 ```
@@ -284,7 +284,7 @@ conoha app deploy myserver --app-name outline
 
 ```
 Archiving current directory...
-Uploading to vm-18268c66-ae (133.88.116.147)...
+Uploading to vm-18268c66-ae (<SERVER_IP>)...
 Building and starting containers...
  Image outlinewiki/outline:0.82.0 Pulling
  Image postgres:16-alpine Pulling
