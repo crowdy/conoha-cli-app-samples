@@ -63,3 +63,50 @@ class TestPostSubdomain:
         assert first.status_code == 201
         dup = await client.post("/v1/subdomains", headers=auth_headers, json=payload)
         assert dup.status_code == 409
+
+
+class TestGetSubdomain:
+    async def test_list_includes_created(self, client, auth_headers):
+        await client.post(
+            "/v1/subdomains",
+            headers=auth_headers,
+            json={
+                "name": "tkim.users.example.com",
+                "records": [{"type": "A", "value": "203.0.113.42"}],
+            },
+        )
+        resp = await client.get("/v1/subdomains", headers=auth_headers)
+        assert resp.status_code == 200
+        names = [s["name"] for s in resp.json()]
+        assert "tkim.users.example.com" in names
+
+    async def test_get_single_returns_records_and_descendants(self, client, auth_headers):
+        await client.post(
+            "/v1/subdomains",
+            headers=auth_headers,
+            json={
+                "name": "tkim.users.example.com",
+                "records": [{"type": "A", "value": "203.0.113.42"}],
+            },
+        )
+        await client.post(
+            "/v1/subdomains",
+            headers=auth_headers,
+            json={
+                "name": "blog.tkim.users.example.com",
+                "records": [{"type": "CNAME", "value": "tkim.users.example.com."}],
+            },
+        )
+        resp = await client.get(
+            "/v1/subdomains/tkim.users.example.com", headers=auth_headers
+        )
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["name"] == "tkim.users.example.com"
+        assert "blog.tkim.users.example.com" in body["descendants"]
+
+    async def test_get_unknown_returns_404(self, client, auth_headers):
+        resp = await client.get(
+            "/v1/subdomains/nope.users.example.com", headers=auth_headers
+        )
+        assert resp.status_code == 404

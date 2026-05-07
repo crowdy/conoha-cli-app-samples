@@ -86,3 +86,82 @@ async def create_subdomain(
 
 def _records_json(records: list[Record]) -> str:
     return json.dumps([r.model_dump() for r in records])
+
+
+@router.get("", response_model=list[SubdomainResponse])
+async def list_subdomains(
+    token_id: int = Depends(require_token),
+) -> list[SubdomainResponse]:
+    async with pool().acquire() as conn:
+        domain_id = await get_parent_domain_id(conn)
+        rows = await conn.fetch(
+            """
+            SELECT name, type, content, ttl
+            FROM records
+            WHERE domain_id = $1
+              AND type NOT IN ('SOA', 'NS')
+              AND name <> $2
+            ORDER BY name, type, content
+            """,
+            domain_id,
+            PARENT_ZONE,
+        )
+
+    grouped: dict[str, list[Record]] = {}
+    for row in rows:
+        grouped.setdefault(row["name"], []).append(
+            Record(type=row["type"], value=row["content"], ttl=row["ttl"])
+        )
+    return [
+        SubdomainResponse(name=name, records=records)
+        for name, records in grouped.items()
+    ]
+
+
+@router.get("/{name}", response_model=SubdomainResponse)
+async def get_subdomain(
+    name: str,
+    token_id: int = Depends(require_token),
+) -> SubdomainResponse:
+    try:
+        canonical = validate_name(name, PARENT_ZONE)
+    except ValidationError as exc:
+        raise _err400(str(exc))
+
+    async with pool().acquire() as conn:
+        domain_id = await get_parent_domain_id(conn)
+
+        rows = await conn.fetch(
+            """
+            SELECT type, content, ttl FROM records
+            WHERE domain_id = $1 AND name = $2
+            ORDER BY type, content
+            """,
+            domain_id,
+            canonical,
+        )
+        if not rows:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"subdomain {canonical} not found",
+            )
+
+        descendant_rows = await conn.fetch(
+            """
+            SELECT DISTINCT name FROM records
+            WHERE domain_id = $1
+              AND name LIKE '%.' || $2
+              AND type NOT IN ('SOA', 'NS')
+            ORDER BY name
+            """,
+            domain_id,
+            canonical,
+        )
+
+    return SubdomainResponse(
+        name=canonical,
+        records=[
+            Record(type=r["type"], value=r["content"], ttl=r["ttl"]) for r in rows
+        ],
+        descendants=[r["name"] for r in descendant_rows],
+    )
