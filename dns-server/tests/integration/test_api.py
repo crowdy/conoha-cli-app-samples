@@ -110,3 +110,52 @@ class TestGetSubdomain:
             "/v1/subdomains/nope.users.example.com", headers=auth_headers
         )
         assert resp.status_code == 404
+
+
+class TestPutSubdomain:
+    async def test_put_replaces_records(self, client, auth_headers):
+        await client.post(
+            "/v1/subdomains",
+            headers=auth_headers,
+            json={
+                "name": "tkim.users.example.com",
+                "records": [{"type": "A", "value": "203.0.113.1"}],
+            },
+        )
+        resp = await client.put(
+            "/v1/subdomains/tkim.users.example.com",
+            headers=auth_headers,
+            json={"records": [{"type": "A", "value": "203.0.113.2"}]},
+        )
+        assert resp.status_code == 200
+        assert resp.json()["records"] == [
+            {"type": "A", "value": "203.0.113.2", "ttl": 300}
+        ]
+
+    async def test_put_is_idempotent(self, client, auth_headers):
+        body = {"records": [{"type": "A", "value": "203.0.113.7"}]}
+        await client.post(
+            "/v1/subdomains",
+            headers=auth_headers,
+            json={
+                "name": "tkim.users.example.com",
+                "records": body["records"],
+            },
+        )
+        first = await client.put(
+            "/v1/subdomains/tkim.users.example.com", headers=auth_headers, json=body
+        )
+        second = await client.put(
+            "/v1/subdomains/tkim.users.example.com", headers=auth_headers, json=body
+        )
+        assert first.status_code == 200
+        assert second.status_code == 200
+        assert first.json()["records"] == second.json()["records"]
+
+    async def test_put_creates_if_absent(self, client, auth_headers):
+        resp = await client.put(
+            "/v1/subdomains/tkim.users.example.com",
+            headers=auth_headers,
+            json={"records": [{"type": "A", "value": "203.0.113.42"}]},
+        )
+        assert resp.status_code == 200
