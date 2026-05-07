@@ -56,6 +56,7 @@ conoha app deploy myserver
 | [laravel-mysql](laravel-mysql/) | Laravel + MySQL | Eloquent CRUD アプリ | g2l-t-2 (2GB) |
 | [nextjs-fastapi-postgresql](nextjs-fastapi-postgresql/) | Next.js + FastAPI + PostgreSQL | フルスタック CRUD アプリ | g2l-t-2 (2GB) |
 | [django-postgresql](django-postgresql/) | Django + PostgreSQL | Django ORM アプリ + 管理画面 | g2l-t-2 (2GB) |
+| [dns-server](dns-server/) | PowerDNS + PostgreSQL + FastAPI | 個人向け DNS ホスティング (サブドメイン CRUD API 付き) | g2l-t-1 (1GB) |
 | [vite-react](vite-react/) | Vite + React (静的SPA) | カウンターアプリ | g2l-t-1 (1GB) |
 | [sveltekit](sveltekit/) | SvelteKit (SSR) | カウンターアプリ | g2l-t-2 (2GB) |
 | [go-fiber](go-fiber/) | Go + Fiber | 高速 REST API | g2l-t-1 (1GB) |
