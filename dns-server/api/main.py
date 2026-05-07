@@ -1,11 +1,11 @@
-"""FastAPI app for the dns-server sample.
-
-Routers are mounted in Task 8 once they exist.
-"""
+"""FastAPI app for the dns-server sample."""
 
 import os
 
 from fastapi import FastAPI
+
+from api.db import lifespan
+from api.routers import health, zone
 
 ENV = os.environ.get("ENV", "prod")
 
@@ -14,7 +14,11 @@ app = FastAPI(
     version="0.1.0",
     docs_url="/docs" if ENV == "dev" else None,
     openapi_url="/openapi.json" if ENV == "dev" else None,
+    lifespan=lifespan,
 )
+
+app.include_router(health.router)
+app.include_router(zone.router)
 
 
 @app.get("/")
