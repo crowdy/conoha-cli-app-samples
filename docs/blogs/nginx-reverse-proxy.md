@@ -259,7 +259,7 @@ conoha app init myserver --app-name reverse-proxy
 ```
 
 ```
-Initializing app "reverse-proxy" on vm-18268c66-ae (133.88.116.147)...
+Initializing app "reverse-proxy" on vm-18268c66-ae (<SERVER_IP>)...
 ==> Installing Docker...
 ==> Installing Docker Compose plugin...
 ==> Installing git...
@@ -276,7 +276,7 @@ conoha app deploy myserver --app-name reverse-proxy
 
 ```
 Archiving current directory...
-Uploading to vm-18268c66-ae (133.88.116.147)...
+Uploading to vm-18268c66-ae (<SERVER_IP>)...
 Building and starting containers...
  Image reverse-proxy-app1 Building
  Image reverse-proxy-app2 Building
@@ -341,11 +341,11 @@ $ curl -s http://<サーバーIP>/debug/headers | python3 -m json.tool
 ```json
 {
     "headers": {
-        "Host": "133.88.116.147",
-        "X-Real-IP": "210.172.128.230",
-        "X-Forwarded-For": "210.172.128.230",
+        "Host": "<SERVER_IP>",
+        "X-Real-IP": "<CLIENT_IP>",
+        "X-Forwarded-For": "<CLIENT_IP>",
         "X-Forwarded-Proto": "http",
-        "X-Forwarded-Host": "133.88.116.147",
+        "X-Forwarded-Host": "<SERVER_IP>",
         "X-Forwarded-Port": "80",
         "X-Request-ID": "396ca3a7623519ee9b914661d1292f5d",
         "User-Agent": "curl/8.5.0",

@@ -140,8 +140,8 @@ Publishable Key にClerkのドメインがbase64エンコードされていま�
 
 ```bash
 echo "pk_test_bWF4aW11bS1iaXJkLTkyLmNsZXJrLmFjY291bnRzLmRldiQ" | sed 's/pk_test_//' | base64 -d
-# → maximum-bird-92.clerk.accounts.dev
-# → CLERK_JWKS_URL=https://maximum-bird-92.clerk.accounts.dev/.well-known/jwks.json
+# → <CLERK_INSTANCE>.clerk.accounts.dev
+# → CLERK_JWKS_URL=https://<CLERK_INSTANCE>.clerk.accounts.dev/.well-known/jwks.json
 ```
 
 ## 事前準備：Clerk/Stripe をAPIで設定

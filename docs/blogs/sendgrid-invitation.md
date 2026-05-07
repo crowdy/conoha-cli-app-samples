@@ -310,7 +310,7 @@ conoha server create \
   --name sendgrid-invitation \
   --flavor g2l-t-c2m1 \
   --image vmi-docker-29.2-ubuntu-24.04-amd64 \
-  --key-name tkim-cli-test-key \
+  --key-name <YOUR_SSH_KEY_NAME> \
   --security-group IPv4v6-SSH \
   --security-group IPv4v6-Web \
   --security-group 3000-9999 \

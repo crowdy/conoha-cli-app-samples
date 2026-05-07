@@ -275,7 +275,7 @@ func productToResp(p generated.Product) productResp {
 ### Step 1: サーバーの既存アプリを確認・削除
 
 ```bash
-$ conoha app list tkim-cli-test
+$ conoha app list <YOUR_SERVER_NAME>
 mercari                        running
 rust-actix-web                 no containers
 ```
@@ -283,15 +283,15 @@ rust-actix-web                 no containers
 既存アプリを削除してリソースを確保します。
 
 ```bash
-$ conoha app destroy tkim-cli-test --app-name mercari --yes
-$ conoha app destroy tkim-cli-test --app-name rust-actix-web --yes
+$ conoha app destroy <YOUR_SERVER_NAME> --app-name mercari --yes
+$ conoha app destroy <YOUR_SERVER_NAME> --app-name rust-actix-web --yes
 ```
 
 ### Step 2: ワンコマンドデプロイ
 
 ```bash
 $ cd nextjs-go-google_ucp
-$ conoha app deploy tkim-cli-test --app-name ucp-demo
+$ conoha app deploy <YOUR_SERVER_NAME> --app-name ucp-demo
 ```
 
 デプロイログの流れ:

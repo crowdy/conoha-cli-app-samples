@@ -1196,38 +1196,38 @@ Japanese docs following repo convention: stack, deploy, test users, usage"
 
 ## Task 8: Deploy and verify
 
-- [ ] **Step 1: Deploy to tkim-cli-test**
+- [ ] **Step 1: Deploy to <YOUR_SERVER_NAME>**
 
 Destroy existing rails-app first to free port, then deploy:
 
 ```bash
-conoha app destroy tkim-cli-test --app-name rails-app --yes --no-input
-conoha app init tkim-cli-test --app-name mercari --no-input
+conoha app destroy <YOUR_SERVER_NAME> --app-name rails-app --yes --no-input
+conoha app init <YOUR_SERVER_NAME> --app-name mercari --no-input
 cd rails-mercari
-conoha app deploy tkim-cli-test --app-name mercari --no-input
+conoha app deploy <YOUR_SERVER_NAME> --app-name mercari --no-input
 ```
 
 - [ ] **Step 2: Create .env.server with server IP**
 
-Get the server IP from `conoha server show tkim-cli-test` and create `.env.server`:
+Get the server IP from `conoha server show <YOUR_SERVER_NAME>` and create `.env.server`:
 
 ```bash
 cat > .env.server << 'EOF'
-DEX_ISSUER_HOST=133.88.116.147
-RAILS_HOST=133.88.116.147
+DEX_ISSUER_HOST=<SERVER_IP>
+RAILS_HOST=<SERVER_IP>
 EOF
 ```
 
 - [ ] **Step 3: Redeploy with correct host**
 
 ```bash
-conoha app deploy tkim-cli-test --app-name mercari --no-input
+conoha app deploy <YOUR_SERVER_NAME> --app-name mercari --no-input
 ```
 
 - [ ] **Step 4: Verify services are running**
 
 ```bash
-conoha app status tkim-cli-test --app-name mercari --no-input
+conoha app status <YOUR_SERVER_NAME> --app-name mercari --no-input
 ```
 
 Expected: all 6 containers running (nginx, web, sidekiq, redis, db, dex).
@@ -1235,7 +1235,7 @@ Expected: all 6 containers running (nginx, web, sidekiq, redis, db, dex).
 - [ ] **Step 5: Verify HTTP access**
 
 ```bash
-curl -s -o /dev/null -w '%{http_code}' http://133.88.116.147/
+curl -s -o /dev/null -w '%{http_code}' http://<SERVER_IP>/
 ```
 
 Expected: `200`
@@ -1243,7 +1243,7 @@ Expected: `200`
 - [ ] **Step 6: Verify Dex is accessible**
 
 ```bash
-curl -s http://133.88.116.147/dex/.well-known/openid-configuration | head -5
+curl -s http://<SERVER_IP>/dex/.well-known/openid-configuration | head -5
 ```
 
 Expected: JSON with `issuer` field.
@@ -1251,7 +1251,7 @@ Expected: JSON with `issuer` field.
 - [ ] **Step 7: Check logs for errors**
 
 ```bash
-conoha app logs tkim-cli-test --app-name mercari --no-input | tail -30
+conoha app logs <YOUR_SERVER_NAME> --app-name mercari --no-input | tail -30
 ```
 
 Expected: Puma started, Sidekiq connected, no errors.

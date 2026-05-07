@@ -314,7 +314,7 @@ ConoHa では Docker が事前インストールされた `vmi-docker-29.2-ubunt
 conoha server create --name line-api-mock \
   --flavor 784f1ae8-0bc8-4d06-a06b-2afaa9580e0a \
   --image 722c231f-3f61-4e79-a5a6-c70d6c9ea908 \
-  --key-name tkim-cli-test-key \
+  --key-name <YOUR_SSH_KEY_NAME> \
   --security-group IPv4v6-SSH \
   --security-group 3000-9999 \
   --wait -y
@@ -331,11 +331,11 @@ conoha server create --name line-api-mock \
 
 ```bash
 conoha app init line-api-mock --app-name line-api-mock \
-  -i ~/.ssh/conoha_tkim-cli-test-key
+  -i ~/.ssh/<YOUR_SSH_KEY_FILE>
 ```
 
 ```
-Initializing app "line-api-mock" on vm-cff4bd79-d4 (160.251.184.240)...
+Initializing app "line-api-mock" on vm-XXXXXXXX-XX (<SERVER_IP>)...
 ==> Installing Docker...
 ==> Installing Docker Compose plugin...
 ==> Installing git...
@@ -349,7 +349,7 @@ Initialized empty Git repository in /opt/conoha/line-api-mock.git/
 
 ```bash
 conoha app deploy line-api-mock --app-name line-api-mock \
-  -i ~/.ssh/conoha_tkim-cli-test-key
+  -i ~/.ssh/<YOUR_SSH_KEY_FILE>
 ```
 
 docker build が走り、`line-api-mock-app-1` と `line-api-mock-db-1` が立ち上がります。
@@ -369,37 +369,40 @@ Deploy complete.
 
 ```bash
 conoha app logs line-api-mock --app-name line-api-mock \
-  -i ~/.ssh/conoha_tkim-cli-test-key | grep -E "admin_|channel_|access_token"
+  -i ~/.ssh/<YOUR_SSH_KEY_FILE> | grep -E "admin_|channel_|access_token"
 ```
 
 ```
 app-1  |   admin_user:     admin
-app-1  |   admin_password: 038a7083e97f39ab09ceb57b
-app-1  |   channel_id:     9875215823
-app-1  |   channel_secret: 3f2077426350d19ff96946b939df5568
-app-1  |   access_token:   9bb59346c4991d9f2841c5f818a439e20e109f35b367cf56
+app-1  |   admin_password: <GENERATED_24_HEX>
+app-1  |   channel_id:     <GENERATED_CHANNEL_ID>
+app-1  |   channel_secret: <GENERATED_CHANNEL_SECRET>
+app-1  |   access_token:   <GENERATED_ACCESS_TOKEN>
 ```
+
+> ⚠️ 上記の値はサンプル時点で実際に生成されたものを発行直後にローテートしました。
+> 値は起動毎にランダム生成されるため、各自の環境では異なる値が出力されます。
 
 ---
 
 ## 動作確認
 
-VM の IP を `160.251.184.240` とします。
+VM の IP を `<SERVER_IP>` とします（`conoha server show <NAME>` で取得）。
 
 ### ヘルスチェック
 
 ```bash
-curl http://160.251.184.240:3000/health
+curl http://<SERVER_IP>:3000/health
 # {"status":"ok"}
 ```
 
 ### 管理 UI
 
-ブラウザで `http://160.251.184.240:3000/admin` を開くと Basic 認証ダイアログが出ます。ログ出力の `admin / <password>` で入る と、ダッシュボード・チャネル一覧・仮想ユーザー一覧・会話 UI・webhook ログが操作できます。
+ブラウザで `http://<SERVER_IP>:3000/admin` を開くと Basic 認証ダイアログが出ます。ログ出力の `admin / <password>` で入る と、ダッシュボード・チャネル一覧・仮想ユーザー一覧・会話 UI・webhook ログが操作できます。
 
 ### Swagger UI
 
-`http://160.251.184.240:3000/docs` で vendored OpenAPI を Swagger UI から閲覧・試行できます。
+`http://<SERVER_IP>:3000/docs` で vendored OpenAPI を Swagger UI から閲覧・試行できます。
 
 ### @line/bot-sdk からの接続
 
@@ -409,15 +412,15 @@ VM 上のモックに対して、手元のマシンから公式 SDK で接続で
 import { messagingApi } from "@line/bot-sdk";
 
 const client = new messagingApi.MessagingApiClient({
-  channelAccessToken: "9bb59346c4991d9f2841c5f818a439e20e109f35b367cf56",
-  baseURL: "http://160.251.184.240:3000",
+  channelAccessToken: "<GENERATED_ACCESS_TOKEN>",
+  baseURL: "http://<SERVER_IP>:3000",
 });
 
 await client.pushMessage({
-  to: "Ufb864fd820f62456f3559977bacd77b4", // ログに出たシードユーザー
+  to: "<SEED_USER_ID>", // ログに出たシードユーザー
   messages: [{ type: "text", text: "hello from sdk" }],
 });
-// { sentMessages: [{ id: "485653616123594294" }] }
+// { sentMessages: [{ id: "<GENERATED_MESSAGE_ID>" }] }
 ```
 
 メッセージは管理 UI の会話画面に即座に反映されます。
@@ -485,7 +488,7 @@ Playwright の E2E では `playwright.config.ts` の `webServer.env` で明示�
 ```
 [line-api-mock] Admin auth (generated — set ADMIN_USER/ADMIN_PASSWORD env vars to override):
   admin_user:     admin
-  admin_password: 038a7083e97f39ab09ceb57b   ← 再起動で別物に
+  admin_password: <GENERATED_24_HEX>   ← 再起動で別物に
 ```
 
 **解決策 (暫定)**: README に「長期運用するなら `ADMIN_USER` / `ADMIN_PASSWORD` を明示セット」と記載し、conoha の `app env set` や `.env.server` で投入する運用を案内。

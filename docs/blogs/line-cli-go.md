@@ -87,9 +87,9 @@ viper を使い、**環境変数 < 設定ファイル (`.line-cli.yaml`) < CLI �
 
 ```yaml
 # .line-cli.yaml
-base_url: http://160.251.184.240:3000
-channel_id: "9875215823"
-channel_secret: "3f2077426350d19ff96946b939df5568"
+base_url: http://<SERVER_IP>:3000
+channel_id: "<GENERATED_CHANNEL_ID>"
+channel_secret: "<GENERATED_CHANNEL_SECRET>"
 ```
 
 ```bash
@@ -150,18 +150,18 @@ func (t *nullStripTransport) RoundTrip(req *http.Request) (*http.Response, error
 
 ## ConoHa 上のモックサーバーに対する実行結果
 
-前回の記事でデプロイした `160.251.184.240:3000` のモックに対して、全 17 コマンドを実行しました。
+前回の記事でデプロイした `<SERVER_IP>:3000` のモックに対して、全 17 コマンドを実行しました。
 
 ### トークン発行・検証・失効
 
 ```bash
 $ ./line-cli-go token issue
-  access_token: 4dbd060de0ccb4c4bee61592170e8e205f3ad12ad3e797ea
+  access_token: <GENERATED_ACCESS_TOKEN>
   expires_in: 2592000
   token_type: Bearer
 
 $ ./line-cli-go --access-token $TOKEN token verify
-  client_id: 9875215823
+  client_id: <GENERATED_CHANNEL_ID>
   expires_in: 2591991
   scope:
 
@@ -174,13 +174,13 @@ v2 OAuth のフロー (issue → verify → revoke) は完全に動作しまし�
 ### メッセージ送信
 
 ```bash
-$ ./line-cli-go message push --to Ufb864fd820f62456f3559977bacd77b4 --text "hello from Go CLI"
+$ ./line-cli-go message push --to <SEED_USER_ID> --text "hello from Go CLI"
   sentMessages: [457285719429999121]
 
 $ ./line-cli-go message broadcast --text "broadcast test"
 ✓ Broadcast sent
 
-$ ./line-cli-go message multicast --to Ufb864fd820f62456f3559977bacd77b4 --text "multicast test"
+$ ./line-cli-go message multicast --to <SEED_USER_ID> --text "multicast test"
 ✓ Multicast sent
   recipients: 1
 
@@ -193,10 +193,10 @@ push / broadcast / multicast / narrowcast すべて成功。管理 UI の会話�
 ### プロフィール・Webhook・クォータ
 
 ```bash
-$ ./line-cli-go profile get --user-id Ufb864fd820f62456f3559977bacd77b4
+$ ./line-cli-go profile get --user-id <SEED_USER_ID>
   displayName: テストユーザー
   language: ja
-  userId: Ufb864fd820f62456f3559977bacd77b4
+  userId: <SEED_USER_ID>
 
 $ ./line-cli-go webhook get
   active: true
