@@ -176,6 +176,36 @@ docker compose -f compose.yml -f compose.test.yml down -v
 - **`network_mode: host`**: pdns コンテナは Docker bridge の名前解決ができないため、`db` を `127.0.0.1:5432` に bind-publish して `pdns.conf` から `gpgsql-host=127.0.0.1` で参照している
 - **`audit_log` の肥大化と機密性**: `app.audit_log` は API 操作のたびに append されるが、自動削除されない。長期運用時は定期的に `TRUNCATE app.audit_log` するか、`created_at` を基準とした期間 DELETE をスケジュールすること。**注意**: `payload` カラムには TXT レコードを含むユーザー送信値が平文で残る — DB バックアップや GRANT は機密扱いで管理すること
 
+## 未実装・今後の課題
+
+このサンプルは v1 として「最小の動く DNS ホスティング」を提供する。本番運用に近づけるには以下の実装が追加で必要 — それぞれ独立に着手可能なため、必要なものから取り込めばよい。
+
+### セキュリティ / ハードニング
+
+- **Per-tenant トークンモデル**: 現状は single admin token のみ。`app.api_tokens` テーブルはマルチテナント拡張を阻害しない形で設計済み (`label` 列、`audit_log.token_id` FK)。ルーター側に「トークンが所有するネームスペース範囲」の検証を入れ、自助登録 / トークン発行フロー API を追加すれば本格的な ndnd.jp 相当になる
+- **レート制限**: 認証トークンを得た攻撃者が大量サブドメインを生やす abuse は未防止。IP / トークンベースの rate limit middleware (例: `slowapi`) を `app` に組み込む
+- **DB レベルの一意制約**: 現在 POST/PUT race は `pg_advisory_xact_lock` で防御しているが、`records (domain_id, name) WHERE type NOT IN ('SOA','NS')` への部分一意インデックスを `app` schema に追加すれば二重防御になる
+- **DNSSEC**: `pdnsutil secure-zone <zone>` で後付け可能と記載しているが、本リポジトリではこのコンテナ構成での end-to-end 検証 (鍵生成、`DNSKEY`/`DS` 公開、レジストラへの DS 登録手順) は未実施。動作確認手順を README に追記すべき
+- **TLS/HTTPS DNS (DoT/DoH/DNSCrypt)**: 平文 UDP/TCP 53 のみサポート。`:443` (DoH) や `:853` (DoT) は未対応 — 別 sidecar (`dnsdist` 等) で前段配置するパターンを文書化する余地あり
+- **予約語ブラックリスト拡充**: 現状 `{www, api, admin, mail, ns, ns1, ns2, mx, localhost, root}`。`cdn`, `ftp`, `webmail`, `cpanel`, `smtp`, `imap`, `pop`, `pop3`, `webdisk`, `autoconfig`, `autodiscover` など c-Panel/Plesk 系の典型ターゲットを追加検討
+- **`POSTGRES_PASSWORD` 既定値の強制変更**: `entrypoint.sh` 起動時に既定値 `pdns` を検出したら警告 (or 拒否) する仕組み
+
+### 運用 / 自動化
+
+- **`audit_log` 自動退避ジョブ**: 4 つ目の accessory として `pg_cron` ベースの `DELETE FROM app.audit_log WHERE created_at < now() - interval '90 days'` を定期実行するコンテナを追加。ジョブ間隔と保存期間は環境変数で外出し
+- **冗長化 / Secondary NS**: 本サンプルは単一 VPS。レジストラ要件 (最低 2 つの NS) を満たすには別 VPS で `pdns` を `slave` として起動し、`AXFR`/`NOTIFY` で同期する構成が必要。`compose.yml` の secondary プロファイル化、または姉妹サンプル `dns-server-secondary/` への分離が候補
+- **Backup / restore**: `db_data` ボリュームの dump/restore 手順、特に `app.api_tokens` を含むバックアップの暗号化要件
+- **PowerDNS アップグレード**: 4.9 → 4.10 等のメジャー上げ手順。gpgsql スキーマは LTS 間で安定とされるが、本リポジトリでは未検証
+- **Troubleshooting セクション**: `pdns` が起動しない / `db` が unhealthy / `/health` が 503 — 各失敗モードの代表的原因と切り分けコマンドを README に追加
+
+### コード / テスト品質
+
+- **`test_models.py`**: 設計仕様 (`docs/superpowers/specs/2026-05-07-dns-server-sample-design.md`) には記載があるが本 PR では作成せず。Pydantic v2 のシリアライズ往復と `Field` 制約境界 (`ttl=59`, `ttl=86401`, `records` 数 0 / 21 等) を pinning するテストを追加
+- **DNS 解決テストのタイミング**: `tests/integration/test_dns.py` は `PROPAGATE = 12s` 固定。低速 VPS や CI で flaky の可能性 — `dig` ポーリングループ化 (最大 30s, 0.5s 間隔) で安定化
+- **同時実行テスト**: 同一 name への並列 POST が advisory lock 経由で正しく 1 件のみ作成され、もう一方が 409 を受けるテストを追加
+- **`bump_soa` のロギング**: 現状 SOA RDATA パース失敗時は silent。`logger.warning("could not parse SOA serial: %s", ...)` を入れて運用時にデバッグしやすく
+- **`conftest.py` teardown**: `clean_records` は each test の事前削除のみ。最後のテスト後にも DB が残るため、test session 終了時の cleanup fixture を追加
+
 ## 参考
 
 - [PowerDNS Authoritative Server](https://doc.powerdns.com/authoritative/)
