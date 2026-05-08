@@ -94,7 +94,7 @@ conoha app deploy dns-server
 | `ADMIN_TOKEN` | (空) | 空ならコンテナログに 1 度だけ生成・出力 |
 | `ENV` | `prod` | `dev` で `/docs` 露出 |
 
-> **注意**: `POSTGRES_PASSWORD` を既定 (`pdns`) 以外に変更した場合、`pdns/pdns.conf` の `gpgsql-password=` 行も同じ値に書き換える必要がある。PowerDNS は Docker Compose の環境変数を補間しないため、この同期は手動で行う必要がある。
+`POSTGRES_PASSWORD` は `pdns` の `--gpgsql-password=` コマンドライン引数として `compose.yml` 経由で渡されるため、`pdns/pdns.conf` を手で書き換える必要はない。`pdns.conf` 内の `gpgsql-password=pdns` はコマンドライン引数があれば上書きされる。
 
 ### 6. 初回起動時のトークン取得
 

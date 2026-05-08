@@ -26,6 +26,11 @@ services:
     # the only listener exposed is pdns_server itself.
     user: "0:0"
     network_mode: host
+    # PowerDNS doesn't interpolate env vars in pdns.conf, so we override the
+    # one secret (gpgsql-password) on the command line — compose substitutes
+    # ${POSTGRES_PASSWORD} before exec, keeping pdns.conf free of secrets.
+    command:
+      - "--gpgsql-password=${POSTGRES_PASSWORD:-pdns}"
     volumes:
       - ./pdns/pdns.conf:/etc/powerdns/pdns.conf:ro
     depends_on:
