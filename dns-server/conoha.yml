@@ -1,0 +1,18 @@
+name: dns-server
+# Replace with your own FQDN before running `conoha app init`.
+hosts:
+  - api.example.com
+web:
+  service: app
+  port: 8080
+# pdns-init seeds the schema and zone, then exits. pdns binds the host's
+# :53 directly. db is a single PostgreSQL instance shared by both. None
+# of these can be duplicated per blue/green slot — they hold state or
+# the only authoritative DNS listener.
+health:
+  path: /health
+  unhealthy_threshold: 24    # 24 × 5s = 120s, covers init + first boot
+accessories:
+  - pdns
+  - db
+  - pdns-init
