@@ -1,18 +1,24 @@
 """End-to-end DNS resolution tests.
 
 Uses dnspython to query the PowerDNS instance bound on localhost:53
-(host network mode). Allows ~12 s after each API write for the gpgsql
-cache to expire.
+(host network mode). After each API write we poll the resolver until
+the gpgsql positive/negative cache expires and the new state appears
+(or a timeout is hit), instead of sleeping for a fixed PROPAGATE.
 """
 
 import asyncio
 
 import dns.resolver
-import pytest
+
+from tests.conftest import PARENT_ZONE
 
 DNS_HOST = "127.0.0.1"
 DNS_PORT = 53
-PROPAGATE = 12  # PowerDNS gpgsql cache default 10s + slack
+RESOLVE_TIMEOUT = 60  # cap, must be > PowerDNS negquery-cache-ttl
+RESOLVE_INTERVAL = 0.5
+
+TKIM = f"tkim.{PARENT_ZONE}"
+BLOG = f"blog.{TKIM}"
 
 
 def _resolver():
@@ -24,18 +30,34 @@ def _resolver():
     return r
 
 
+async def _poll(predicate, timeout=RESOLVE_TIMEOUT, interval=RESOLVE_INTERVAL):
+    """Call predicate() repeatedly until it returns truthy or timeout."""
+    deadline = asyncio.get_running_loop().time() + timeout
+    last_exc = None
+    while asyncio.get_running_loop().time() < deadline:
+        try:
+            result = predicate()
+            if result:
+                return result
+        except Exception as exc:  # noqa: BLE001 — predicate may raise dns errors
+            last_exc = exc
+        await asyncio.sleep(interval)
+    if last_exc is not None:
+        raise last_exc
+    raise TimeoutError(f"poll timed out after {timeout}s")
+
+
 class TestDnsResolution:
     async def test_a_record_resolves(self, client, auth_headers):
         await client.post(
             "/v1/subdomains",
             headers=auth_headers,
             json={
-                "name": "tkim.users.example.com",
+                "name": TKIM,
                 "records": [{"type": "A", "value": "203.0.113.42"}],
             },
         )
-        await asyncio.sleep(PROPAGATE)
-        ans = _resolver().resolve("tkim.users.example.com", "A")
+        ans = await _poll(lambda: _resolver().resolve(TKIM, "A"))
         assert {r.to_text() for r in ans} == {"203.0.113.42"}
 
     async def test_cname_resolves(self, client, auth_headers):
@@ -43,7 +65,7 @@ class TestDnsResolution:
             "/v1/subdomains",
             headers=auth_headers,
             json={
-                "name": "tkim.users.example.com",
+                "name": TKIM,
                 "records": [{"type": "A", "value": "203.0.113.42"}],
             },
         )
@@ -51,27 +73,30 @@ class TestDnsResolution:
             "/v1/subdomains",
             headers=auth_headers,
             json={
-                "name": "blog.tkim.users.example.com",
-                "records": [{"type": "CNAME", "value": "tkim.users.example.com."}],
+                "name": BLOG,
+                "records": [{"type": "CNAME", "value": f"{TKIM}."}],
             },
         )
-        await asyncio.sleep(PROPAGATE)
-        ans = _resolver().resolve("blog.tkim.users.example.com", "CNAME")
-        assert any("tkim.users.example.com" in r.to_text() for r in ans)
+        ans = await _poll(lambda: _resolver().resolve(BLOG, "CNAME"))
+        assert any(TKIM in r.to_text() for r in ans)
 
     async def test_delete_yields_nxdomain(self, client, auth_headers):
         await client.post(
             "/v1/subdomains",
             headers=auth_headers,
             json={
-                "name": "tkim.users.example.com",
+                "name": TKIM,
                 "records": [{"type": "A", "value": "203.0.113.42"}],
             },
         )
-        await asyncio.sleep(PROPAGATE)
-        await client.delete(
-            "/v1/subdomains/tkim.users.example.com", headers=auth_headers
-        )
-        await asyncio.sleep(PROPAGATE)
-        with pytest.raises(dns.resolver.NXDOMAIN):
-            _resolver().resolve("tkim.users.example.com", "A")
+        await _poll(lambda: _resolver().resolve(TKIM, "A"))
+        await client.delete(f"/v1/subdomains/{TKIM}", headers=auth_headers)
+
+        def expect_nxdomain():
+            try:
+                _resolver().resolve(TKIM, "A")
+                return False
+            except dns.resolver.NXDOMAIN:
+                return True
+
+        await _poll(expect_nxdomain)

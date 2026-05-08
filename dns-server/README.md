@@ -201,7 +201,6 @@ docker compose -f compose.yml -f compose.test.yml down -v
 ### コード / テスト品質
 
 - **`test_models.py`**: 設計仕様 (`docs/superpowers/specs/2026-05-07-dns-server-sample-design.md`) には記載があるが本 PR では作成せず。Pydantic v2 のシリアライズ往復と `Field` 制約境界 (`ttl=59`, `ttl=86401`, `records` 数 0 / 21 等) を pinning するテストを追加
-- **DNS 解決テストのタイミング**: `tests/integration/test_dns.py` は `PROPAGATE = 12s` 固定。低速 VPS や CI で flaky の可能性 — `dig` ポーリングループ化 (最大 30s, 0.5s 間隔) で安定化
 - **同時実行テスト**: 同一 name への並列 POST が advisory lock 経由で正しく 1 件のみ作成され、もう一方が 409 を受けるテストを追加
 - **`bump_soa` のロギング**: 現状 SOA RDATA パース失敗時は silent。`logger.warning("could not parse SOA serial: %s", ...)` を入れて運用時にデバッグしやすく
 - **`conftest.py` teardown**: `clean_records` は each test の事前削除のみ。最後のテスト後にも DB が残るため、test session 終了時の cleanup fixture を追加

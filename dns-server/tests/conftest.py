@@ -17,7 +17,11 @@ import pytest
 API_BASE = os.environ.get("DNS_API_BASE", "http://127.0.0.1:8080")
 DB_URL = os.environ.get("DNS_TEST_DB", "postgres://pdns:pdns@127.0.0.1:5432/pdns")
 ADMIN_TOKEN = os.environ.get("DNS_ADMIN_TOKEN", "test-admin-token")
-PARENT_ZONE = "users.example.com"
+# tests/integration uses this for record names; tests/test_api.py and
+# tests/test_validators.py keep "users.example.com" hardcoded as fixture
+# convention. Override only when running the integration suite against
+# a deployment whose PARENT_ZONE differs from the default.
+PARENT_ZONE = os.environ.get("PARENT_ZONE", "users.example.com")
 
 
 @pytest.fixture(scope="session")
