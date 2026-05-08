@@ -99,8 +99,24 @@ conoha app deploy dns-server
 ### 6. 初回起動時のトークン取得
 
 ```bash
-conoha app logs dns-server pdns-init
+conoha app logs <server-name> --app-name dns-server --service pdns-init
 # 出力に "ADMIN_TOKEN=..." の行が含まれる (初回のみ)
+```
+
+### 7. トークン回転
+
+`pdns-init` は `app.api_tokens` が空の場合のみトークンを生成する。回転するには既存トークンを削除してから `pdns-init` を再実行:
+
+```bash
+# DB に直接接続してトークンレコードを削除
+conoha app exec <server-name> --app-name dns-server --service db -- \
+  psql -U pdns -d pdns -c "DELETE FROM app.api_tokens"
+
+# pdns-init を再実行 (新しいトークンがログに出力される)
+conoha app exec <server-name> --app-name dns-server --service pdns-init -- /entrypoint.sh
+
+# あるいは ADMIN_TOKEN 環境変数を明示指定して再デプロイ
+ADMIN_TOKEN=<new-token> conoha app deploy <server-name>
 ```
 
 ## API 早見表
@@ -158,7 +174,7 @@ docker compose -f compose.yml -f compose.test.yml down -v
 - **DNSSEC**: 未対応。`pdnsutil secure-zone <zone>` を `pdns` コンテナで実行すれば後付け可能
 - **abuse 対策**: 認証トークンのみ。レート制限・CAPTCHA は未実装
 - **`network_mode: host`**: pdns コンテナは Docker bridge の名前解決ができないため、`db` を `127.0.0.1:5432` に bind-publish して `pdns.conf` から `gpgsql-host=127.0.0.1` で参照している
-- **`audit_log` の肥大化**: `app.audit_log` は API 操作のたびに append されるが、自動削除されない。長期運用時は定期的に `TRUNCATE app.audit_log` するか、`created_at` を基準とした期間 DELETE をスケジュールすること
+- **`audit_log` の肥大化と機密性**: `app.audit_log` は API 操作のたびに append されるが、自動削除されない。長期運用時は定期的に `TRUNCATE app.audit_log` するか、`created_at` を基準とした期間 DELETE をスケジュールすること。**注意**: `payload` カラムには TXT レコードを含むユーザー送信値が平文で残る — DB バックアップや GRANT は機密扱いで管理すること
 
 ## 参考
 

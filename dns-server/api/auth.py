@@ -35,8 +35,12 @@ class PgTokenStore:
 async def verify_token(raw: str, store: TokenStore) -> int:
     rows = await store.fetch_all()
     for row in rows:
-        if bcrypt.checkpw(raw.encode(), row["token_hash"].encode()):
-            return row["id"]
+        try:
+            if bcrypt.checkpw(raw.encode(), row["token_hash"].encode()):
+                return row["id"]
+        except (ValueError, TypeError):
+            # Malformed/corrupt token_hash row — skip rather than 500.
+            continue
     raise AuthError("token not recognised")
 
 

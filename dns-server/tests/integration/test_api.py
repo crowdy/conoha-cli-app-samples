@@ -64,6 +64,31 @@ class TestPostSubdomain:
         dup = await client.post("/v1/subdomains", headers=auth_headers, json=payload)
         assert dup.status_code == 409
 
+    async def test_cname_collision_with_existing_txt_returns_409(self, client, auth_headers):
+        # Create a subdomain with TXT
+        resp = await client.post(
+            "/v1/subdomains",
+            headers=auth_headers,
+            json={
+                "name": "tkim.users.example.com",
+                "records": [{"type": "TXT", "value": "owner=alice"}],
+            },
+        )
+        assert resp.status_code == 201
+        # Attempt to add a CNAME at the same name via a separate POST.
+        # The "subdomain already exists" 409 path covers RFC 1034 exclusivity
+        # for the cross-request case. (The in-body case is already enforced by
+        # validate_records_set.)
+        dup = await client.post(
+            "/v1/subdomains",
+            headers=auth_headers,
+            json={
+                "name": "tkim.users.example.com",
+                "records": [{"type": "CNAME", "value": "other.users.example.com."}],
+            },
+        )
+        assert dup.status_code == 409
+
 
 class TestGetSubdomain:
     async def test_list_includes_created(self, client, auth_headers):

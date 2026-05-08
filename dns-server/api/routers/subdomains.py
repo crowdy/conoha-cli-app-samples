@@ -38,6 +38,14 @@ async def create_subdomain(
         async with conn.transaction():
             domain_id = await get_parent_domain_id(conn)
 
+            # Serialize concurrent writes for the same name. Without this lock,
+            # two simultaneous POSTs for the same `canonical` can both pass the
+            # count=0 check and both insert (records has no UNIQUE constraint).
+            await conn.execute(
+                "SELECT pg_advisory_xact_lock(hashtext($1))",
+                f"dns-subdomain:{canonical}",
+            )
+
             existing = await conn.fetchval(
                 "SELECT count(*) FROM records WHERE domain_id = $1 AND name = $2",
                 domain_id,
@@ -50,6 +58,7 @@ async def create_subdomain(
                 )
 
             for r in payload.records:
+                content = r.value.lower() if r.type == "CNAME" else r.value
                 await conn.execute(
                     """
                     INSERT INTO records (domain_id, name, type, content, ttl, auth, disabled)
@@ -58,7 +67,7 @@ async def create_subdomain(
                     domain_id,
                     canonical,
                     r.type,
-                    r.value,
+                    content,
                     r.ttl,
                 )
 
@@ -184,11 +193,23 @@ async def put_subdomain(
             domain_id = await get_parent_domain_id(conn)
 
             await conn.execute(
+                "SELECT pg_advisory_xact_lock(hashtext($1))",
+                f"dns-subdomain:{canonical}",
+            )
+
+            existed = await conn.fetchval(
+                "SELECT 1 FROM records WHERE domain_id = $1 AND name = $2 LIMIT 1",
+                domain_id,
+                canonical,
+            )
+
+            await conn.execute(
                 "DELETE FROM records WHERE domain_id = $1 AND name = $2",
                 domain_id,
                 canonical,
             )
             for r in payload.records:
+                content = r.value.lower() if r.type == "CNAME" else r.value
                 await conn.execute(
                     """
                     INSERT INTO records (domain_id, name, type, content, ttl, auth, disabled)
@@ -197,7 +218,7 @@ async def put_subdomain(
                     domain_id,
                     canonical,
                     r.type,
-                    r.value,
+                    content,
                     r.ttl,
                 )
             await bump_soa(conn, domain_id)
@@ -205,9 +226,10 @@ async def put_subdomain(
             await conn.execute(
                 """
                 INSERT INTO app.audit_log (token_id, action, subdomain, payload)
-                VALUES ($1, 'update', $2, $3::jsonb)
+                VALUES ($1, $2, $3, $4::jsonb)
                 """,
                 token_id,
+                "update" if existed else "create",
                 canonical,
                 _records_json(payload.records),
             )
