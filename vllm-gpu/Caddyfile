@@ -1,0 +1,18 @@
+{$DOMAIN_NAME} {
+	reverse_proxy vllm:8000 {
+		flush_interval -1
+	}
+
+	# vLLM streams Server-Sent Events for stream=true requests; OpenAI
+	# clients announce Accept: text/event-stream on those. Skip gzip for
+	# them so chunks aren't buffered and the stream isn't broken.
+	@no_sse {
+		not header Accept *text/event-stream*
+	}
+	encode @no_sse gzip
+
+	log {
+		output stdout
+		format json
+	}
+}
