@@ -129,3 +129,51 @@ EOF
   result=$(echo "$output" | jq -c '."new.md"')
   [ "$result" = "[1,2,3]" ]
 }
+
+@test "path containing whitespace → preserved (no truncation at space)" {
+  # Regression for review I1: default awk field-splitting on $2 truncated
+  # `+++ b/with space/foo.md` to just `b/with`, silently rerouting findings
+  # on whitespace-bearing paths to the body.
+  cat > "$DIFF" <<'EOF'
+diff --git a/with space/foo.md b/with space/foo.md
+--- a/with space/foo.md
++++ b/with space/foo.md
+@@ -0,0 +1,2 @@
++one
++two
+EOF
+  run inline_eligible_lines "$DIFF"
+  [ "$status" -eq 0 ]
+  [ "$(echo "$output" | jq -c '."with space/foo.md"')" = "[1,2]" ]
+  [ "$(echo "$output" | jq 'has("with")')" = "false" ]
+}
+
+@test "path with trailing tab+timestamp → timestamp stripped" {
+  # Some git versions emit `+++ b/foo.md\t<timestamp>` when configured with
+  # `--src-prefix=`/`--dst-prefix=` or `format-patch`. The timestamp must
+  # not appear in the path key.
+  printf '%s\n' \
+    'diff --git a/foo.md b/foo.md' \
+    '--- a/foo.md	2026-05-11 12:00:00.000000000 +0900' \
+    '+++ b/foo.md	2026-05-11 12:00:01.000000000 +0900' \
+    '@@ -0,0 +1,1 @@' \
+    '+line' > "$DIFF"
+  run inline_eligible_lines "$DIFF"
+  [ "$status" -eq 0 ]
+  [ "$(echo "$output" | jq -c '."foo.md"')" = "[1]" ]
+}
+
+@test "path that itself starts with b/ → only the leading b/ prefix stripped" {
+  # Regression: make sure sub(/^b\//, ...) is anchored — a real path named
+  # `b/foo.md` (git emits `+++ b/b/foo.md`) must remain `b/foo.md` in the map.
+  cat > "$DIFF" <<'EOF'
+diff --git a/b/foo.md b/b/foo.md
+--- a/b/foo.md
++++ b/b/foo.md
+@@ -0,0 +1,1 @@
++x
+EOF
+  run inline_eligible_lines "$DIFF"
+  [ "$status" -eq 0 ]
+  [ "$(echo "$output" | jq -c '."b/foo.md"')" = "[1]" ]
+}

@@ -255,3 +255,28 @@ EOF
   echo "$body" | grep -qF 'c.md`:'
   ! echo "$body" | grep -qF 'a.md`:L10'
 }
+
+@test "post_review: finding with null path is routed to body, not dropped" {
+  # Regression for review I2: previously `jq` did `$valid[null]`, which
+  # raised "Cannot index object with null" and silently dropped the record
+  # from the annotated stream (jq still exit 0, set -e didn't trip).
+  cat > "$POST_REVIEW_DIFF_FILE" <<'EOF'
+diff --git a/a.md b/a.md
+--- a/a.md
++++ b/a.md
+@@ -0,0 +1,1 @@
++x
+EOF
+  cat > "$WORK_DIR/findings.jsonl" <<'EOF'
+{"path":null,"line":5,"severity":"warning","category":"x","message":"null-path finding"}
+{"path":"a.md","line":1,"severity":"info","category":"y","message":"normal"}
+EOF
+  GH_MOCK_MODE=accept run post_review 1 "$WORK_DIR/findings.jsonl" "summary"
+  [ "$status" -eq 0 ]
+  # Normal finding still anchored inline.
+  jq -e '.comments | length == 1' "$WORK_DIR/gh-calls/0.payload"
+  jq -e '.comments[0].path == "a.md"' "$WORK_DIR/gh-calls/0.payload"
+  # Null-path finding surfaced in body — message must not be lost.
+  body=$(jq -r '.body' "$WORK_DIR/gh-calls/0.payload")
+  echo "$body" | grep -qF 'null-path finding'
+}

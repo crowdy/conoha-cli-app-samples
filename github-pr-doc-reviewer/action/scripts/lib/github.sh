@@ -71,7 +71,12 @@ inline_eligible_lines() {
   local diff_file="$1"
   awk '
     /^\+\+\+ / {
-      file = $2
+      # Strip the "+++ " prefix manually so paths containing whitespace are
+      # not truncated by default field-splitting. Optional trailing
+      # \t<timestamp> (emitted by some `git format-patch` configurations) is
+      # then trimmed before stripping the leading b/.
+      file = substr($0, 5)
+      sub(/\t.*$/, "", file)
       if (file == "/dev/null") { file = ""; next }
       sub(/^b\//, "", file)
       next
@@ -129,12 +134,17 @@ post_review() {
   valid_map=$(inline_eligible_lines "$diff_file")
 
   # Annotate each finding with whether it can be anchored inline. A finding is
-  # eligible iff it has a positive line AND that (path, line) sits inside a
-  # diff hunk.
+  # eligible iff it has a non-null path, a positive line, AND that (path, line)
+  # sits inside a diff hunk. Guarding against a null path matters: bare
+  # `$valid[null]` throws "Cannot index object with null", which jq prints to
+  # stderr and then silently drops the record from the stream (jq still exits
+  # 0, so `set -e` doesn't catch it). Null-path findings instead become
+  # general body findings.
   local annotated_file="$work_dir/findings-annotated.jsonl"
   jq -c --argjson valid "$valid_map" '
     . as $f |
     $f + {_eligible: (
+      $f.path != null and
       $f.line != null and $f.line > 0 and
       (($valid[$f.path] // []) | any(. == $f.line))
     )}
@@ -154,11 +164,13 @@ post_review() {
 
   # General findings: anything not anchored inline (no line, or outside any
   # hunk). Line numbers are kept in the rendered output when present so the
-  # reader can still locate the issue.
+  # reader can still locate the issue. A null path is rendered as a
+  # placeholder rather than collapsing the bullet to an empty string (which
+  # `sed '/^$/d'` would then silently drop).
   local general_md
   general_md=$(jq -r '
     select(._eligible | not) |
-    "- **[" + (.severity|ascii_upcase) + " / " + .category + "]** `" + .path + "`" +
+    "- **[" + (.severity|ascii_upcase) + " / " + .category + "]** `" + (.path // "(unknown)") + "`" +
     (if .line and .line > 0 then ":L" + (.line|tostring) else "" end) +
     ": " + .message
   ' "$annotated_file" | sed '/^$/d')
@@ -197,7 +209,7 @@ post_review() {
   # Consolidate all findings into the body and retry without inline comments.
   local fallback_md
   fallback_md=$(jq -r '
-    "- **[" + (.severity|ascii_upcase) + " / " + .category + "]** `" + .path + "`" +
+    "- **[" + (.severity|ascii_upcase) + " / " + .category + "]** `" + (.path // "(unknown)") + "`" +
     (if .line and .line > 0 then ":L" + (.line|tostring) else "" end) +
     " — " + .message
   ' "$findings_file" | sed '/^$/d')
