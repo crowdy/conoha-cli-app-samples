@@ -62,14 +62,48 @@ truncate_to_chars() {
   printf '%s%s' "${s:0:$keep}" "$marker"
 }
 
+# inline_eligible_lines DIFF_FILE
+# Parse a unified=0 diff and emit {path: [lines, ...]} as JSON. The lines are
+# the new-side line numbers covered by addition hunks — the only anchors
+# GitHub will accept for inline review comments. Files with no addition lines
+# (pure deletions, deleted files) are omitted from the map. Empty diff → "{}".
+inline_eligible_lines() {
+  local diff_file="$1"
+  awk '
+    /^\+\+\+ / {
+      file = $2
+      if (file == "/dev/null") { file = ""; next }
+      sub(/^b\//, "", file)
+      next
+    }
+    /^@@ / {
+      if (file == "") next
+      plus = $3
+      sub(/^\+/, "", plus)
+      n = split(plus, a, ",")
+      start = a[1] + 0
+      count = (n == 2 ? a[2] + 0 : 1)
+      if (count == 0) next
+      for (i = 0; i < count; i++) print file "\t" (start + i)
+    }
+  ' "$diff_file" | jq -R -s '
+    split("\n") | map(select(length > 0)) |
+    map(split("\t") | {path: .[0], line: (.[1] | tonumber)}) |
+    group_by(.path) |
+    map({key: .[0].path, value: [.[].line]}) |
+    from_entries
+  '
+}
+
 # post_review PR_NUMBER FINDINGS_JSONL SUMMARY_TEXT
 # Posts a PR review with inline comments where line is known, and a
 # summary body with general findings. Always uses event=COMMENT.
 #
-# TODO(#88): pre-filter inline comments against the PR's actual diff hunks
-# (parse `git diff origin/$BASE_REF...HEAD --unified=0` for `@@ +new_start,n`
-# headers) so the first POST succeeds with valid inline anchoring instead of
-# relying on the 422-fallback below.
+# Inline comments are pre-filtered to lines inside the PR's actual diff
+# hunks (GitHub rejects the entire review with 422 if any inline comment
+# anchors outside a hunk). Out-of-hunk findings — and findings without a
+# line — are consolidated into the review body's General findings list.
+# The 422 fallback below remains as defence in depth.
 post_review() {
   local pr="$1"
   local findings_file="$2"
@@ -79,24 +113,55 @@ post_review() {
   # to a fresh tmp dir if the caller didn't set one.
   local work_dir="${WORK_DIR:-$(mktemp -d)}"
 
-  # Build inline comments array from findings with line >= 1
+  # Build the diff-hunk map so we can pre-filter inline comments to anchors
+  # GitHub will accept. Tests inject a fixture via POST_REVIEW_DIFF_FILE; the
+  # production path runs `git diff` against the PR base. If the diff is
+  # unavailable for any reason, fall back to an empty map (everything becomes
+  # a general finding rather than risking a 422 round-trip).
+  local diff_file valid_map
+  if [ -n "${POST_REVIEW_DIFF_FILE:-}" ]; then
+    diff_file="$POST_REVIEW_DIFF_FILE"
+  else
+    diff_file="$work_dir/pr-diff.patch"
+    local base_ref="${GITHUB_BASE_REF:-main}"
+    git diff "origin/$base_ref...HEAD" --unified=0 > "$diff_file" 2>/dev/null || : > "$diff_file"
+  fi
+  valid_map=$(inline_eligible_lines "$diff_file")
+
+  # Annotate each finding with whether it can be anchored inline. A finding is
+  # eligible iff it has a positive line AND that (path, line) sits inside a
+  # diff hunk.
+  local annotated_file="$work_dir/findings-annotated.jsonl"
+  jq -c --argjson valid "$valid_map" '
+    . as $f |
+    $f + {_eligible: (
+      $f.line != null and $f.line > 0 and
+      (($valid[$f.path] // []) | any(. == $f.line))
+    )}
+  ' "$findings_file" > "$annotated_file"
+
+  # Inline comments: only eligible findings.
   local comments_json
   comments_json=$(jq -s '
-    [ .[] | select(.line != null and .line > 0) |
+    [ .[] | select(._eligible) |
       { path: .path,
         line: .line,
         side: "RIGHT",
         body: ("**[" + (.severity|ascii_upcase) + " / " + .category + "]** " + .message)
       }
     ]
-  ' "$findings_file")
+  ' "$annotated_file")
 
-  # General findings (no line) go into the body
+  # General findings: anything not anchored inline (no line, or outside any
+  # hunk). Line numbers are kept in the rendered output when present so the
+  # reader can still locate the issue.
   local general_md
   general_md=$(jq -r '
-    select(.line == null or .line <= 0) |
-    "- **[" + (.severity|ascii_upcase) + " / " + .category + "]** `" + .path + "`: " + .message
-  ' "$findings_file" | sed '/^$/d')
+    select(._eligible | not) |
+    "- **[" + (.severity|ascii_upcase) + " / " + .category + "]** `" + .path + "`" +
+    (if .line and .line > 0 then ":L" + (.line|tostring) else "" end) +
+    ": " + .message
+  ' "$annotated_file" | sed '/^$/d')
 
   local body
   body=$(printf '## Doc Review (deep mode)\n\n%s\n' "$summary")

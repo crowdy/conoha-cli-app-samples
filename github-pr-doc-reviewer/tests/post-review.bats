@@ -48,6 +48,24 @@ esac
 STUB
   chmod +x "$MOCK_BIN/gh"
   PATH="$MOCK_BIN:$PATH"; export PATH
+
+  # Default diff fixture: a hunk covering a.md:3 and b.md:7, so the existing
+  # tests' findings are inline-eligible by default. Individual tests can
+  # override POST_REVIEW_DIFF_FILE before invoking post_review.
+  POST_REVIEW_DIFF_FILE="$BATS_TEST_TMPDIR/diff.patch"
+  cat > "$POST_REVIEW_DIFF_FILE" <<'EOF'
+diff --git a/a.md b/a.md
+--- a/a.md
++++ b/a.md
+@@ -2,0 +3,1 @@
++three
+diff --git a/b.md b/b.md
+--- a/b.md
++++ b/b.md
+@@ -6,0 +7,1 @@
++seven
+EOF
+  export POST_REVIEW_DIFF_FILE
 }
 
 # ---------------------------------------------------------------------------
@@ -150,4 +168,90 @@ EOF
   body=$(jq -r '.body' "$WORK_DIR/gh-calls/1.payload")
   [ "${#body}" -le 2000 ]
   echo "$body" | grep -qF 'body truncated'
+}
+
+# ---------------------------------------------------------------------------
+# Issue #88: pre-filter inline comments against actual diff hunks
+# ---------------------------------------------------------------------------
+
+@test "post_review: finding on a line outside any hunk goes to body, not inline" {
+  # Acceptance from #88: a finding on line 22 of a file whose only hunk is at
+  # line 26 must be a general body finding, not a rejected inline comment.
+  cat > "$POST_REVIEW_DIFF_FILE" <<'EOF'
+diff --git a/a.md b/a.md
+--- a/a.md
++++ b/a.md
+@@ -25,0 +26,1 @@
++twenty-six
+EOF
+  cat > "$WORK_DIR/findings.jsonl" <<'EOF'
+{"path":"a.md","line":22,"severity":"warning","category":"x","message":"outside hunk"}
+EOF
+  GH_MOCK_MODE=accept run post_review 1 "$WORK_DIR/findings.jsonl" "summary"
+  [ "$status" -eq 0 ]
+  # Exactly one POST (no fallback needed).
+  [ "$(ls "$WORK_DIR/gh-calls" | grep -c '\.payload$')" -eq 1 ]
+  # No inline comments.
+  jq -e '.comments | length == 0' "$WORK_DIR/gh-calls/0.payload"
+  # Finding listed in body under "General findings", with line annotated.
+  body=$(jq -r '.body' "$WORK_DIR/gh-calls/0.payload")
+  echo "$body" | grep -qF 'General findings'
+  echo "$body" | grep -qF 'a.md`:L22'
+}
+
+@test "post_review: finding on a line inside a hunk stays inline" {
+  # Acceptance from #88: a finding on line 22 of a file whose hunk covers
+  # 20-24 must be posted as an inline comment on line 22.
+  cat > "$POST_REVIEW_DIFF_FILE" <<'EOF'
+diff --git a/a.md b/a.md
+--- a/a.md
++++ b/a.md
+@@ -19,0 +20,5 @@
++twenty
++twenty-one
++twenty-two
++twenty-three
++twenty-four
+EOF
+  cat > "$WORK_DIR/findings.jsonl" <<'EOF'
+{"path":"a.md","line":22,"severity":"warning","category":"x","message":"inside hunk"}
+EOF
+  GH_MOCK_MODE=accept run post_review 1 "$WORK_DIR/findings.jsonl" "summary"
+  [ "$status" -eq 0 ]
+  jq -e '.comments | length == 1' "$WORK_DIR/gh-calls/0.payload"
+  jq -e '.comments[0].path == "a.md"' "$WORK_DIR/gh-calls/0.payload"
+  jq -e '.comments[0].line == 22' "$WORK_DIR/gh-calls/0.payload"
+  # No "General findings" section needed.
+  body=$(jq -r '.body' "$WORK_DIR/gh-calls/0.payload")
+  ! echo "$body" | grep -qF 'General findings'
+}
+
+@test "post_review: mixed in/out-of-hunk split correctly" {
+  cat > "$POST_REVIEW_DIFF_FILE" <<'EOF'
+diff --git a/a.md b/a.md
+--- a/a.md
++++ b/a.md
+@@ -9,0 +10,2 @@
++ten
++eleven
+diff --git a/b.md b/b.md
+--- a/b.md
++++ b/b.md
+@@ -0,0 +1,1 @@
++only-line
+EOF
+  cat > "$WORK_DIR/findings.jsonl" <<'EOF'
+{"path":"a.md","line":10,"severity":"warning","category":"x","message":"in-hunk a"}
+{"path":"a.md","line":50,"severity":"warning","category":"x","message":"out-of-hunk a"}
+{"path":"b.md","line":1,"severity":"error","category":"y","message":"in-hunk b"}
+{"path":"c.md","line":null,"severity":"info","category":"z","message":"no-line c"}
+EOF
+  GH_MOCK_MODE=accept run post_review 1 "$WORK_DIR/findings.jsonl" "summary"
+  [ "$status" -eq 0 ]
+  # Two inline (a.md:10, b.md:1); two general (a.md:50, c.md).
+  jq -e '.comments | length == 2' "$WORK_DIR/gh-calls/0.payload"
+  body=$(jq -r '.body' "$WORK_DIR/gh-calls/0.payload")
+  echo "$body" | grep -qF 'a.md`:L50'
+  echo "$body" | grep -qF 'c.md`:'
+  ! echo "$body" | grep -qF 'a.md`:L10'
 }
