@@ -22,7 +22,13 @@ from slurm_client.payload import build_submit_payload
 
 
 def _client(ctx: click.Context) -> SlurmClient:
-    cfg = ctx.obj["config"]
+    try:
+        cfg = resolve_config(
+            ctx.obj["_endpoint"], ctx.obj["_token"], ctx.obj["_user"]
+        )
+    except RuntimeError as e:
+        click.echo(f"error: {e}", err=True)
+        sys.exit(2)
     return SlurmClient(cfg.endpoint, cfg.token, cfg.user)
 
 
@@ -36,12 +42,11 @@ def _print_json(data) -> None:
 @click.option("--user", default=None, help="X-SLURM-USER-NAME (defaults to 'slurm')")
 @click.pass_context
 def cli(ctx: click.Context, endpoint, token, user) -> None:
-    try:
-        cfg = resolve_config(endpoint, token, user)
-    except RuntimeError as e:
-        click.echo(f"error: {e}", err=True)
-        sys.exit(2)
-    ctx.obj = {"config": cfg}
+    # Resolution deferred to _client() so --help works without config
+    ctx.ensure_object(dict)
+    ctx.obj["_endpoint"] = endpoint
+    ctx.obj["_token"] = token
+    ctx.obj["_user"] = user
 
 
 @cli.command()
