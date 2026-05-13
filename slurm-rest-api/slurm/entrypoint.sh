@@ -72,10 +72,10 @@ run_slurm() {
     echo "[entrypoint] starting slurmctld, slurmd, slurmrestd"
     runuser -u slurm -- slurmctld -D &
     SLURMCTLD_PID=$!
-    sleep 2
+    wait_for localhost 6817 30
     slurmd -D &
     SLURMD_PID=$!
-    sleep 2
+    wait_for localhost 6818 30
     # slurmrestd runs as slurm; -a rest_auth/jwt enables JWT-only auth on the listener
     runuser -u slurm -- slurmrestd -a rest_auth/jwt 0.0.0.0:6820 &
     SLURMRESTD_PID=$!
