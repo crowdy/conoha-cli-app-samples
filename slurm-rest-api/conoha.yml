@@ -1,0 +1,18 @@
+name: slurm-rest-api
+# Replace with your own FQDN before running `conoha app init`.
+hosts:
+  - slurm.example.com
+web:
+  service: slurm
+  port: 6820
+  # Slurm is stateful (running jobs, queues, accounting DB). A second blue/green
+  # slot would fight over munge keys, JWT keys, and the DB, so pin to a single
+  # instance — same pattern as outline / gitea / hydra-python-api.
+  blue_green: false
+health:
+  path: /openapi/v3
+  # 24 × 5s = 120s, covers: mariadb -> slurmdbd -> munge -> slurmctld -> slurmrestd
+  unhealthy_threshold: 24
+accessories:
+  - slurmdbd
+  - mariadb
