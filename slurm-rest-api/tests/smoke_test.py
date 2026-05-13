@@ -27,7 +27,6 @@ S = requests.Session()
 S.headers.update({
     "X-SLURM-USER-NAME": USER,
     "X-SLURM-USER-TOKEN": TOKEN,
-    "Authorization": f"Bearer {TOKEN}",
     "Accept": "application/json",
 })
 

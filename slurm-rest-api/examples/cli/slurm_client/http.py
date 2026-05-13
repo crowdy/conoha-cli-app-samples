@@ -23,10 +23,12 @@ class SlurmClient:
         self.user = user
         self.timeout = timeout
         self._session = requests.Session()
+        # slurmrestd's JWT plugin gets confused if both X-SLURM-USER-TOKEN
+        # and Authorization: Bearer are present. Send only the X-SLURM-*
+        # pair (this is the canonical way the Slurm docs recommend).
         self._session.headers.update({
             "X-SLURM-USER-NAME": user,
             "X-SLURM-USER-TOKEN": token,
-            "Authorization": f"Bearer {token}",
             "Accept": "application/json",
         })
 
