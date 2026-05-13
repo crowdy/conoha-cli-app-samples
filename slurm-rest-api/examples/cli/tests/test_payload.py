@@ -21,9 +21,9 @@ def test_minimal_inline_payload():
     assert job["memory_per_node"] == 128
     assert job["time_limit"] == 5
     assert "array" not in job
-    assert job["current_working_directory"] == "/data"
-    assert job["standard_output"] == "/data/logs/%j.out"
-    assert job["standard_error"] == "/data/logs/%j.err"
+    assert job["current_working_directory"] == "/tmp"
+    assert job["standard_output"] == "/tmp/slurm-%j.out"
+    assert job["standard_error"] == "/tmp/slurm-%j.err"
     assert payload["script"].startswith("#!/bin/bash\n")
     assert "print('hello')" in payload["script"]
 

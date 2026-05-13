@@ -1,18 +1,22 @@
 """Aggregate hyperparam_sweep.py results into a single table.
 
-Run inside the slurm container:
-    docker exec slurm-rest-api-slurm-1 python3 /work/scripts/collect_sweep.py
-or copy this file in via `docker cp` and exec.
+Each sweep task writes /tmp/sweep_<idx>.json on the cpu-worker that ran
+it. Run this collector inside the cpu-worker container:
+
+    docker exec -i $(docker ps -qf label=com.docker.compose.service=cpu-worker) \
+        python3 < examples/workloads/collect_sweep.py
 """
 import glob
 import json
-import os
 
-paths = sorted(glob.glob("/work/results/sweep_*.json"))
+paths = sorted(glob.glob("/tmp/sweep_*.json"))
 if not paths:
-    raise SystemExit("no sweep_*.json files in /work/results")
+    raise SystemExit("no sweep_*.json files in /tmp on this worker")
 
-rows = [json.load(open(p)) for p in paths]
+rows = []
+for p in paths:
+    with open(p) as f:
+        rows.append(json.load(f))
 rows.sort(key=lambda r: r["task_id"])
 
 print(f"{'task':<6}{'n_estimators':<14}{'mean_acc':<12}{'std':<10}")

@@ -12,7 +12,11 @@ from __future__ import annotations
 from typing import Any, Optional
 
 DEFAULT_PARTITION = "cpu"
-JOB_DIR = "/data"
+# Job stdout/stderr is per-container ephemeral storage (`/tmp` inside the
+# cpu-worker container). For shared workload outputs (e.g., the sweep
+# collector) mount a named volume into both slurmctld and cpu-worker at
+# the path your scripts write to.
+JOB_DIR = "/tmp"
 
 
 def build_submit_payload(
@@ -48,8 +52,8 @@ def build_submit_payload(
         "memory_per_node": memory_mb,
         "time_limit": time_limit_min,
         "current_working_directory": JOB_DIR,
-        "standard_output": f"{JOB_DIR}/logs/%j.out",
-        "standard_error": f"{JOB_DIR}/logs/%j.err",
+        "standard_output": f"{JOB_DIR}/slurm-%j.out",
+        "standard_error": f"{JOB_DIR}/slurm-%j.err",
         "environment": ["PATH=/usr/bin:/bin"],
     }
     if array:
