@@ -164,3 +164,7 @@ This is a demo. Production deployments need at minimum:
 - GPU `Gres` scheduling
 - Backup slurmctld (HA)
 - Real multi-node (this sample is one VM with one worker)
+
+Note: `slurmd` and `slurmrestd` run with `privileged: true` (SYS_ADMIN for
+cgroup management and `unshare()`). A hardened deployment would drop to
+explicit `cap_add: [SYS_ADMIN]` and tune `apparmor` / `seccomp` profiles.
