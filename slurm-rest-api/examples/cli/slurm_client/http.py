@@ -1,11 +1,11 @@
-"""Thin requests-based wrapper around the slurmrestd v0.0.40 endpoints."""
+"""Thin requests-based wrapper around the slurmrestd v0.0.42 endpoints."""
 from __future__ import annotations
 
 from typing import Any, Optional
 
 import requests
 
-API_VERSION = "v0.0.40"
+API_VERSION = "v0.0.42"
 DEFAULT_TIMEOUT = 30
 
 
@@ -49,12 +49,13 @@ class SlurmClient:
         return r.status_code == 200
 
     def nodes(self) -> dict[str, Any]:
-        r = self._session.get(self._url("slurm", "/nodes"),
+        # Collection endpoints in slurmrestd require a trailing slash.
+        r = self._session.get(self._url("slurm", "/nodes/"),
                               timeout=self.timeout)
         return self._check(r)
 
     def jobs(self, job_id: Optional[int] = None) -> dict[str, Any]:
-        path = f"/job/{job_id}" if job_id is not None else "/jobs"
+        path = f"/job/{job_id}" if job_id is not None else "/jobs/"
         r = self._session.get(self._url("slurm", path), timeout=self.timeout)
         return self._check(r)
 
@@ -71,7 +72,7 @@ class SlurmClient:
     def history(self, limit: int = 20) -> dict[str, Any]:
         # slurmdbd jobs endpoint; users param filters to current user.
         r = self._session.get(
-            self._url("slurmdb", "/jobs"),
+            self._url("slurmdb", "/jobs/"),
             params={"users": self.user},
             timeout=self.timeout,
         )

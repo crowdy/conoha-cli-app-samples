@@ -16,14 +16,14 @@ def test_minimal_inline_payload():
     )
     job = payload["job"]
     assert job["name"] == "hello"
-    assert job["partition"] == "debug"
+    assert job["partition"] == "cpu"
     assert job["cpus_per_task"] == 1
     assert job["memory_per_node"] == 128
     assert job["time_limit"] == 5
     assert "array" not in job
-    assert job["current_working_directory"] == "/work"
-    assert job["standard_output"] == "/work/logs/%j.out"
-    assert job["standard_error"] == "/work/logs/%j.err"
+    assert job["current_working_directory"] == "/data"
+    assert job["standard_output"] == "/data/logs/%j.out"
+    assert job["standard_error"] == "/data/logs/%j.err"
     assert payload["script"].startswith("#!/bin/bash\n")
     assert "print('hello')" in payload["script"]
 
@@ -50,9 +50,20 @@ def test_non_inline_payload_uses_file_path():
         time_limit_min=10,
         array=None,
         inline=False,
-        script_path="/work/scripts/workload.py",
+        script_path="/data/scripts/workload.py",
     )
-    assert payload["script"] == "#!/bin/bash\npython3 /work/scripts/workload.py\n"
+    assert payload["script"] == "#!/bin/bash\npython3 /data/scripts/workload.py\n"
+
+
+def test_partition_override():
+    payload = build_submit_payload(
+        name="x",
+        script_body="pass\n",
+        cpus=1, memory_mb=64, time_limit_min=1,
+        array=None, inline=True,
+        partition="gpu",
+    )
+    assert payload["job"]["partition"] == "gpu"
 
 
 def test_inline_requires_script_body():

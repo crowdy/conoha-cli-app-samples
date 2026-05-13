@@ -3,11 +3,16 @@
 Two modes:
 - inline=True: embed Python source as a heredoc inside the wrapper bash script
 - inline=False: wrapper bash script runs `python3 <script_path>` (the file
-  must already exist inside the container at /work/scripts/<name>)
+  must already exist inside the container at /data/scripts/<name>)
+
+The shared job directory is /data (the giovtorres image's slurm_jobdir).
 """
 from __future__ import annotations
 
 from typing import Any, Optional
+
+DEFAULT_PARTITION = "cpu"
+JOB_DIR = "/data"
 
 
 def build_submit_payload(
@@ -20,6 +25,7 @@ def build_submit_payload(
     array: Optional[str],
     inline: bool,
     script_path: Optional[str] = None,
+    partition: str = DEFAULT_PARTITION,
 ) -> dict[str, Any]:
     if inline:
         if not script_body:
@@ -37,13 +43,13 @@ def build_submit_payload(
 
     job: dict[str, Any] = {
         "name": name,
-        "partition": "debug",
+        "partition": partition,
         "cpus_per_task": cpus,
         "memory_per_node": memory_mb,
         "time_limit": time_limit_min,
-        "current_working_directory": "/work",
-        "standard_output": "/work/logs/%j.out",
-        "standard_error": "/work/logs/%j.err",
+        "current_working_directory": JOB_DIR,
+        "standard_output": f"{JOB_DIR}/logs/%j.out",
+        "standard_error": f"{JOB_DIR}/logs/%j.err",
         "environment": ["PATH=/usr/bin:/bin"],
     }
     if array:
