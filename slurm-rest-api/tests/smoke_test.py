@@ -88,11 +88,20 @@ if job_id:
 check("job reached COMPLETED", bool(state) and "COMPLETED" in state,
       f"final state={state}")
 
+# Slurmdbd flushes job records on JobAcctGatherFrequency boundary plus propagation.
+# Wait up to 30s for the accounting record to appear before failing the test.
+time.sleep(2)
+
 # 5. accounting
-r = S.get(f"{ENDPOINT}/slurmdb/{API}/jobs", params={"users": USER}, timeout=15)
-acct_jobs = r.json().get("jobs", []) if r.ok else []
-seen = any(j.get("name") == "smoke" for j in acct_jobs)
+seen = False
+for _ in range(30):
+    r = S.get(f"{ENDPOINT}/slurmdb/{API}/jobs", params={"users": USER}, timeout=15)
+    acct_jobs = r.json().get("jobs", []) if r.ok else []
+    seen = any(j.get("name") == "smoke" for j in acct_jobs)
+    if seen:
+        break
+    time.sleep(1)
 check("smoke job recorded in slurmdb",
-      seen, f"status={r.status_code} count={len(acct_jobs)}")
+      seen, f"count={len(acct_jobs) if 'acct_jobs' in dir() else 0}")
 
 sys.exit(1 if failures else 0)
