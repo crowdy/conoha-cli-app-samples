@@ -26,6 +26,6 @@ RUN chmod 0755 /usr/local/bin/entrypoint.sh \
     && chmod 0600 /etc/slurm/slurmdbd.conf \
     && chown slurm:slurm /etc/slurm/slurmdbd.conf
 
-EXPOSE 6820 6817 6818 6819
+EXPOSE 6820
 
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
