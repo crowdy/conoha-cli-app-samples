@@ -1,0 +1,60 @@
+services:
+  slurm:
+    build: .
+    environment:
+      - ROLE=slurm
+      - SLURM_DB_PASSWORD=${SLURM_DB_PASSWORD:-changeme-slurm-db}
+    expose:
+      - "6820"
+    volumes:
+      - munge-key:/etc/munge
+      - slurm-spool:/var/spool/slurm
+      - slurm-log:/var/log/slurm
+      - work:/work
+    depends_on:
+      slurmdbd:
+        condition: service_healthy
+    restart: unless-stopped
+
+  slurmdbd:
+    build: .
+    environment:
+      - ROLE=slurmdbd
+      - SLURM_DB_PASSWORD=${SLURM_DB_PASSWORD:-changeme-slurm-db}
+    volumes:
+      - munge-key:/etc/munge
+      - slurm-log:/var/log/slurm
+    depends_on:
+      mariadb:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z localhost 6819"]
+      interval: 5s
+      timeout: 5s
+      retries: 24
+      start_period: 30s
+    restart: unless-stopped
+
+  mariadb:
+    image: mariadb:11
+    environment:
+      - MARIADB_DATABASE=slurm_acct_db
+      - MARIADB_USER=slurm
+      - MARIADB_PASSWORD=${SLURM_DB_PASSWORD:-changeme-slurm-db}
+      - MARIADB_ROOT_PASSWORD=${MARIADB_ROOT_PASSWORD:-changeme-mariadb-root}
+    volumes:
+      - mariadb-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -uroot -p\"${MARIADB_ROOT_PASSWORD:-changeme-mariadb-root}\""]
+      interval: 5s
+      timeout: 5s
+      retries: 24
+      start_period: 30s
+    restart: unless-stopped
+
+volumes:
+  munge-key:
+  slurm-spool:
+  slurm-log:
+  mariadb-data:
+  work:
