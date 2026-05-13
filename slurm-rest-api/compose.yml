@@ -1,4 +1,6 @@
-x-slurm-image: &slurm-image giovtorres/slurm-docker-cluster:25.11.4
+# We build a thin layer (./Dockerfile) on top of the giovtorres image to add
+# python3-numpy / python3-scikit-learn for the workload examples.
+x-slurm-image: &slurm-image slurm-rest-api:local
 
 services:
   mariadb:
@@ -43,6 +45,9 @@ services:
 
   slurmctld:
     image: *slurm-image
+    # Build the local layered image once; the other slurm-* services reference
+    # the same tag and reuse it without rebuilding.
+    build: .
     command: ["slurmctld"]
     hostname: slurmctld
     volumes:
