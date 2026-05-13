@@ -33,7 +33,7 @@ services:
       interval: 5s
       timeout: 5s
       retries: 24
-      start_period: 30s
+      start_period: 60s
     restart: unless-stopped
 
   mariadb:
@@ -50,7 +50,7 @@ services:
       interval: 5s
       timeout: 5s
       retries: 24
-      start_period: 30s
+      start_period: 60s
     restart: unless-stopped
 
 volumes:
