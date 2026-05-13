@@ -1,5 +1,6 @@
 services:
   slurm:
+    image: slurm-rest-api:local
     build: .
     environment:
       - ROLE=slurm
@@ -17,7 +18,7 @@ services:
     restart: unless-stopped
 
   slurmdbd:
-    build: .
+    image: slurm-rest-api:local
     environment:
       - ROLE=slurmdbd
       - SLURM_DB_PASSWORD=${SLURM_DB_PASSWORD:-changeme-slurm-db}
