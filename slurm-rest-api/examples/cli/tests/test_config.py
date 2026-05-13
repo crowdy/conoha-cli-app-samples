@@ -62,6 +62,18 @@ def test_missing_endpoint_raises(tmp_path, monkeypatch):
         resolve_config(None, None, None, config_dir=tmp_path)
 
 
+def test_missing_token_raises(tmp_path, monkeypatch):
+    for k in ("SLURM_API_ENDPOINT", "SLURM_API_TOKEN", "SLURM_API_USER"):
+        monkeypatch.delenv(k, raising=False)
+    with pytest.raises(RuntimeError, match="token"):
+        resolve_config(
+            cli_endpoint="https://x.example.com",
+            cli_token=None,
+            cli_user=None,
+            config_dir=tmp_path,
+        )
+
+
 def test_endpoint_strips_trailing_slash(tmp_path, monkeypatch):
     monkeypatch.setenv("SLURM_API_ENDPOINT", "https://x.example.com/")
     monkeypatch.setenv("SLURM_API_TOKEN", "t")
