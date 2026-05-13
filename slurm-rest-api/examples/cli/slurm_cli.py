@@ -150,14 +150,15 @@ def history(ctx, limit):
 
 
 @cli.command()
-def logs():
-    """Logs are not retrievable through slurmrestd. SSH to the VM and use:
-
-    \b
-      docker exec -it $(docker ps -qf label=com.docker.compose.service=slurm) \\
-          cat /work/logs/<job_id>.out
-    """
-    click.echo(logs.__doc__)
+@click.argument("job_id", type=int)
+def logs(job_id):
+    """Print the shell command to view a job's stdout (slurmrestd can't stream logs)."""
+    click.echo(
+        "slurmrestd does not stream logs. Run this on the VM to view stdout:\n"
+        f"\n"
+        f"  docker exec $(docker ps -qf label=com.docker.compose.service=slurm) \\\n"
+        f"      cat /work/logs/{job_id}.out\n"
+    )
 
 
 if __name__ == "__main__":

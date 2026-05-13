@@ -36,7 +36,7 @@ conoha server ssh myserver -- ./examples/get-token.sh slurm 86400 \
 ./slurm_cli.py submit ../workloads/hyperparam_sweep.py --array 0-4 --inline
 ./slurm_cli.py cancel JOB_ID
 ./slurm_cli.py history --limit 20
-./slurm_cli.py logs   # prints SSH instructions; slurmrestd does not stream logs
+./slurm_cli.py logs JOB_ID   # prints SSH command to view stdout; slurmrestd can't stream logs
 ```
 
 ## Tests
