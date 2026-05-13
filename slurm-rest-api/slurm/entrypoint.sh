@@ -76,8 +76,12 @@ run_slurm() {
     slurmd -D &
     SLURMD_PID=$!
     wait_for localhost 6818 30
-    # slurmrestd runs as slurm; -a rest_auth/jwt enables JWT-only auth on the listener
-    runuser -u slurm -- slurmrestd -a rest_auth/jwt 0.0.0.0:6820 &
+    # slurmrestd runs as slurm; -a rest_auth/jwt enables JWT-only auth on the listener;
+    # -s pins the loaded plugins so /slurmdb/* and the v0.0.40 OpenAPI route are guaranteed.
+    runuser -u slurm -- slurmrestd \
+        -a rest_auth/jwt \
+        -s slurmctld,slurmdbd,openapi/v0.0.40 \
+        0.0.0.0:6820 &
     SLURMRESTD_PID=$!
     trap 'kill $SLURMRESTD_PID $SLURMD_PID $SLURMCTLD_PID 2>/dev/null || true' TERM INT
     # Exit if any daemon dies
