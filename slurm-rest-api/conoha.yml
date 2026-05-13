@@ -3,7 +3,7 @@ name: slurm-rest-api
 hosts:
   - slurm.example.com
 web:
-  service: slurm
+  service: slurmrestd
   port: 6820
   # Slurm is stateful (running jobs, queues, accounting DB). A second blue/green
   # slot would fight over munge keys, JWT keys, and the DB, so pin to a single
@@ -11,8 +11,10 @@ web:
   blue_green: false
 health:
   path: /openapi/v3
-  # 24 × 5s = 120s, covers: mariadb -> slurmdbd -> munge -> slurmctld -> slurmrestd
+  # 24 × 5s = 120s, covers: mariadb -> slurmdbd -> slurmctld -> slurmd -> slurmrestd
   unhealthy_threshold: 24
 accessories:
-  - slurmdbd
   - mariadb
+  - slurmdbd
+  - slurmctld
+  - slurmd

@@ -15,18 +15,19 @@ set -euo pipefail
 USER_NAME="${1:-slurm}"
 LIFESPAN="${2:-86400}"
 
-# Find the running slurm-rest-api_slurm container. compose's project name is
-# the directory name on the VM (slurm-rest-api).
-CONTAINER=$(docker ps --filter "label=com.docker.compose.service=slurm" \
+# Find the running slurmctld container. compose's project name is the
+# directory name on the VM (slurm-rest-api). slurmctld is where tokens
+# are issued from (slurmrestd validates with the same shared key).
+CONTAINER=$(docker ps --filter "label=com.docker.compose.service=slurmctld" \
                        --filter "label=com.docker.compose.project=slurm-rest-api" \
                        --format '{{.ID}}' | head -n1)
 
 if [[ -z "${CONTAINER}" ]]; then
-    echo "error: slurm container not running (compose project: slurm-rest-api)" >&2
+    echo "error: slurmctld container not running (compose project: slurm-rest-api)" >&2
     exit 1
 fi
 
 # `scontrol token` prints "SLURM_JWT=<token>"
 docker exec -u slurm "${CONTAINER}" \
     scontrol token username="${USER_NAME}" lifespan="${LIFESPAN}" \
-    | awk -F= 'NR==1 { printf "%s", $2 }'
+    | sed -n 's/^SLURM_JWT=//p' | tr -d '\n'
