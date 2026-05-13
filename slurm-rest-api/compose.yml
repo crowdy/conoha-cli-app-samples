@@ -62,13 +62,18 @@ services:
     restart: unless-stopped
 
   # Service name must be "cpu-worker" — the giovtorres image's entrypoint
-  # hardcodes that string when discovering its replica number via Docker DNS.
+  # hardcodes that string when discovering its replica number via Docker DNS,
+  # which it builds as ${COMPOSE_PROJECT_NAME}-cpu-worker-${N}.
   cpu-worker:
     image: *slurm-image
     command: ["slurmd-cpu"]
     # slurmd needs SYS_ADMIN for cgroup management; the giovtorres image
     # documents privileged: true as the supported configuration.
     privileged: true
+    environment:
+      # The entrypoint's replica-detection helper needs this to build the
+      # container hostname lookup; compose doesn't propagate it by default.
+      - COMPOSE_PROJECT_NAME=slurm-rest-api
     volumes:
       - etc_munge:/etc/munge
       - etc_slurm:/etc/slurm
