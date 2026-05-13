@@ -89,6 +89,7 @@ conoha app deploy myserver
 | [plausible-analytics](plausible-analytics/) | Plausible CE + PostgreSQL + ClickHouse | プライバシー重視 Web アナリティクス | g2l-t-2 (2GB) |
 | [outline](outline/) | Outline + PostgreSQL + Redis + Dex | セルフホスティングチーム Wiki（OIDC認証付き） | g2l-t-2 (2GB) |
 | [meilisearch](meilisearch/) | Meilisearch | セルフホスティング全文検索エンジン | g2l-t-1 (1GB) |
+| [slurm-rest-api](slurm-rest-api/) | Slurm + slurmrestd + slurmdbd + MariaDB | Slurm 単一ノードクラスター + REST API (JWT 認証、Python CLI + NumPy/sklearn ワークロード例) | g2l-t-2 (2GB) |
 
 ## 自分のアプリをデプロイするには
 
