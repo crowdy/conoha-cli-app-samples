@@ -61,7 +61,9 @@ services:
       start_period: 30s
     restart: unless-stopped
 
-  slurmd:
+  # Service name must be "cpu-worker" — the giovtorres image's entrypoint
+  # hardcodes that string when discovering its replica number via Docker DNS.
+  cpu-worker:
     image: *slurm-image
     command: ["slurmd-cpu"]
     # slurmd needs SYS_ADMIN for cgroup management; the giovtorres image

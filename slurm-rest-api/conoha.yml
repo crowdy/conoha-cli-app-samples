@@ -17,4 +17,4 @@ accessories:
   - mariadb
   - slurmdbd
   - slurmctld
-  - slurmd
+  - cpu-worker
