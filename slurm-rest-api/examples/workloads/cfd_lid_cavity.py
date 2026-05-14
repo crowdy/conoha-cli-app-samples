@@ -12,8 +12,13 @@ u-velocity on the vertical centerline next to the Ghia et al. (1982)
 reference.
 
 Array layout: f[i, j] maps to (x_i, y_j). The lid is the j = -1 edge.
-Tunables (env vars): GRID (default 256), RE (100), STEPS (60000),
-POISSON_ITERS (60).
+Tunables (env vars): GRID (default 64), RE (100), STEPS (8000),
+POISSON_ITERS (60). The defaults are the configuration validated against
+the Ghia et al. (1982) Re=100 reference. Larger grids stress the GPU
+more but the Jacobi streamfunction solve converges slowly with N — bump
+POISSON_ITERS and STEPS together (roughly POISSON_ITERS ~ (N/64)^2 and
+enough STEPS to reach t >= 12) or the printed min-u comparison will be
+a transient, not the steady state.
 """
 import os
 import time
@@ -25,9 +30,9 @@ import matplotlib.pyplot as plt
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
-N = int(os.environ.get("GRID", "256"))
+N = int(os.environ.get("GRID", "64"))
 RE = float(os.environ.get("RE", "100"))
-STEPS = int(os.environ.get("STEPS", "60000"))
+STEPS = int(os.environ.get("STEPS", "8000"))
 POISSON_ITERS = int(os.environ.get("POISSON_ITERS", "60"))
 
 job_id = os.environ.get("SLURM_JOB_ID")
@@ -66,6 +71,8 @@ with torch.no_grad():
         v[1:-1, 1:-1] = -(psi[2:, 1:-1] - psi[:-2, 1:-1]) / (2.0 * h)
 
         # 3. Wall vorticity (Thom's formula). psi = 0 on every wall.
+        #    (corner cells are written twice by adjacent walls — harmless,
+        #     they are never read by the interior stencil.)
         w[0, :] = -2.0 * psi[1, :] / (h * h)              # left   wall x=0
         w[-1, :] = -2.0 * psi[-2, :] / (h * h)            # right  wall x=1
         w[:, 0] = -2.0 * psi[:, 1] / (h * h)              # bottom wall y=0
@@ -98,7 +105,7 @@ u[1:-1, 1:-1] = (psi[1:-1, 2:] - psi[1:-1, :-2]) / (2.0 * h)
 centerline_u = u[N // 2, :].cpu().numpy()
 min_u = float(centerline_u.min())
 
-print(f"elapsed={elapsed:.2f}s dt={dt:.2e}")
+print(f"elapsed={elapsed:.2f}s dt={dt:.2e} steps={STEPS}")
 print(f"observed: min u on vertical centerline = {min_u:.3f}")
 print("reference (Ghia et al. 1982, Re=100): min u ~ -0.21")
 
