@@ -55,3 +55,40 @@ def resolve_server_ip(server: str) -> str:
         if "(v4" in line and ":" in line:
             return line.split(":", 1)[1].strip().split()[0]
     raise RuntimeError(f"no IPv4 found for server {server!r} in:\n{out}")
+
+
+def fetch_result(
+    *,
+    server: str,
+    job_id: int,
+    identity: Optional[str],
+    output: str,
+    remote_path: str,
+    ssh_user: str = "root",
+) -> None:
+    """Resolve the server IP, ssh in, and write the remote file to `output`.
+
+    Raises RuntimeError with an actionable message on the common failure
+    modes (no container, file missing because the job is not a completed
+    CFD workload, ssh failure).
+    """
+    ip = resolve_server_ip(server)
+    cmd = build_fetch_command(
+        ip=ip, identity=identity, remote_path=remote_path, ssh_user=ssh_user,
+    )
+    with open(output, "wb") as fh:
+        proc = subprocess.run(cmd, stdout=fh, stderr=subprocess.PIPE)
+    if proc.returncode != 0:
+        # ssh succeeded to the host but the remote command failed, or ssh
+        # itself failed. Surface stderr verbatim plus a hint.
+        import os
+        if os.path.exists(output) and os.path.getsize(output) == 0:
+            os.remove(output)
+        stderr = proc.stderr.decode(errors="replace").strip()
+        if "No such container" in stderr or "head -1" in stderr or not stderr:
+            raise RuntimeError(
+                f"no gpu-worker container running on {server!r}, or no "
+                f"result file at {remote_path}. Is job {job_id} a completed "
+                "CFD workload? (check `slurm_cli.py status {job_id}`)"
+            )
+        raise RuntimeError(f"fetch failed:\n{stderr}")
