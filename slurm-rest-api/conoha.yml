@@ -27,4 +27,5 @@ accessories:
   - slurmdbd
   - slurmctld
   - cpu-worker
+  - gpu-worker
   - slurmrestd

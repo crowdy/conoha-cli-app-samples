@@ -19,6 +19,17 @@ DEFAULT_PARTITION = "cpu"
 JOB_DIR = "/tmp"
 
 
+def _normalize_gres(gres: str) -> str:
+    """Translate user-facing `gpu:N` / `gres/gpu:N` into the TRES form.
+
+    sbatch's familiar `--gres=gpu:1` becomes `gres/gpu:1` on the REST API.
+    Accepting both lets users paste sbatch flags verbatim without thinking
+    about the schema difference.
+    """
+    g = gres.strip()
+    return g if g.startswith("gres/") else f"gres/{g}"
+
+
 def build_submit_payload(
     *,
     name: str,
@@ -30,6 +41,7 @@ def build_submit_payload(
     inline: bool,
     script_path: Optional[str] = None,
     partition: str = DEFAULT_PARTITION,
+    gres: Optional[str] = None,
 ) -> dict[str, Any]:
     if inline:
         if not script_body:
@@ -58,5 +70,10 @@ def build_submit_payload(
     }
     if array:
         job["array"] = array
+    if gres:
+        # tres_per_task is the v0.0.42 field that mirrors sbatch's
+        # --gres=gpu:N semantics for single-task GPU jobs. The gpu-worker
+        # registers `Gres=gpu:nvidia:N` so `gres/gpu:N` matches.
+        job["tres_per_task"] = _normalize_gres(gres)
 
     return {"job": job, "script": wrapper}
