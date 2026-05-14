@@ -44,12 +44,13 @@ print(f"capability={torch.cuda.get_device_capability(0)}")
 banner("matmul GFLOPS on GPU")
 N = int(os.environ.get("MATMUL_N", "4096"))
 ROUNDS = int(os.environ.get("MATMUL_ROUNDS", "5"))
+ROUNDS = max(ROUNDS, 1)  # a 0-round benchmark would divide by ~0 below
 for dtype, label in [(torch.float32, "fp32"), (torch.float16, "fp16")]:
     a = torch.randn(N, N, dtype=dtype, device="cuda")
     b = torch.randn(N, N, dtype=dtype, device="cuda")
     # Warm up + cudnn autotune.
     for _ in range(2):
-        _ = a @ b
+        c = a @ b
     torch.cuda.synchronize()
     t0 = time.perf_counter()
     for _ in range(ROUNDS):

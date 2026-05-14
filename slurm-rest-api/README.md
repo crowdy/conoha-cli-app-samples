@@ -75,6 +75,17 @@ If this fails, the rest of this sample will not start either — the
 `gpu-worker` container requests `count: all` GPUs at create time and
 the daemon will refuse to spawn it without a working NVIDIA runtime.
 
+> **Validated combination.** This sample was last verified end-to-end on
+> a ConoHa `g2l-t-c20m128g1-l4` with NVIDIA driver **595.58.03**, the
+> `vmi-docker-29.2-ubuntu-24.04-amd64` image, and the gpu image's pinned
+> **torch 2.12.0+cu130** (CUDA 13.0). Any driver R535+ should work — the
+> torch cu13x wheels are forward-compatible — but if `torch.cuda.is_available()`
+> returns `False` after a ConoHa driver bump, that triple is the known-good
+> baseline to compare against. Note: `conoha gpu setup` currently installs
+> the open-kernel 595 driver but pins `nvidia-utils-535`; if `nvidia-smi`
+> reports a "Driver/library version mismatch", install the matching
+> `nvidia-utils-595-server` to align userspace with the kernel module.
+
 ## Quick start
 
 ```bash
@@ -240,7 +251,7 @@ Exit 0 means all 5 checks passed.
 
 Add `SLURM_SMOKE_GPU=1` to also exercise the gpu partition (3 extra
 checks: the gpu-worker is registered with `Gres=gpu:nvidia:>=1`, a
-`tres_per_task=gres/gpu:1` job is accepted, and the inline torch
+`tres_per_node=gres/gpu:1` job is accepted, and the inline torch
 script completes — which by itself confirms the L4 is visible to the
 container via the NVIDIA Container Toolkit):
 
@@ -261,8 +272,8 @@ SLURM_SMOKE_GPU=1 SLURM_API_ENDPOINT=... SLURM_API_TOKEN=... \
 | `slurm-edge` returns 502 | slurmrestd accessory not up yet | `docker compose logs slurmrestd`; wait for the slurmctld healthcheck to pass |
 | `cpu-worker` keeps restarting | replica-detection found no DNS match | check `COMPOSE_PROJECT_NAME` is forwarded (see compose.yml) and the project name in `docker ps` matches `<project>-cpu-worker-1` |
 | `gpu-worker` fails with `could not select device driver "" with capabilities: [[gpu]]` | NVIDIA Container Toolkit not installed or `nvidia-ctk runtime configure --runtime=docker` not run | re-run the host prerequisites section above, then `sudo systemctl restart docker` and redeploy |
-| `gpu-worker` log "Gres=gpu:nvidia:0" | the toolkit is set up but the container saw no `/dev/nvidia*` (driver missing or `--gpus all` not honored) | `nvidia-smi` on the host, then `docker run --rm --gpus all nvidia/cuda:12.4.0-base-ubuntu22.04 nvidia-smi` to confirm device passthrough |
-| GPU job stays `PENDING (Resources)` | partition=gpu requested but g1 not IDLE yet | `./slurm_cli.py nodes` and wait for `g1 ... state=IDLE`; first start is slower than cpu-worker (cgroup + device init) |
+| `gpu-worker` exits with `FATAL: slurmd-gpu requested but no /dev/nvidiaN devices are visible` | the toolkit is set up but the container saw no GPU device files (driver broken, or the nvidia runtime isn't honoring the device reservation) | `nvidia-smi` on the host, then `docker run --rm --gpus all nvidia/cuda:12.4.0-base-ubuntu22.04 nvidia-smi` to confirm device passthrough — `entrypoint-gpu.sh` fails fast here on purpose rather than registering a 0-GPU node |
+| GPU job stays `PENDING (Resources)` | partition=gpu requested but g1 not IDLE yet | `./slurm_cli.py nodes` and wait for `g1 ... state=IDLE gres=gpu:nvidia:1`; first start is slower than cpu-worker (cgroup + device init) |
 
 ## Out of scope (intentionally)
 

@@ -9,9 +9,15 @@ The shared job directory is /data (the giovtorres image's slurm_jobdir).
 """
 from __future__ import annotations
 
+import re
 from typing import Any, Optional
 
 DEFAULT_PARTITION = "cpu"
+
+# sbatch --gres grammar we accept: NAME:COUNT or NAME:TYPE:COUNT, e.g.
+# "gpu:1", "gpu:nvidia:1". NAME/TYPE are alphanumeric+underscore; COUNT
+# is a non-negative integer.
+_GRES_RE = re.compile(r"^[A-Za-z][\w]*(:[A-Za-z][\w]*)?:\d+$")
 # Job stdout/stderr is per-container ephemeral storage (`/tmp` inside the
 # cpu-worker container). For shared workload outputs (e.g., the sweep
 # collector) mount a named volume into both slurmctld and cpu-worker at
@@ -20,14 +26,23 @@ JOB_DIR = "/tmp"
 
 
 def _normalize_gres(gres: str) -> str:
-    """Translate user-facing `gpu:N` / `gres/gpu:N` into the TRES form.
+    """Translate an sbatch-style `--gres` spec into the slurmrestd TRES form.
 
-    sbatch's familiar `--gres=gpu:1` becomes `gres/gpu:1` on the REST API.
-    Accepting both lets users paste sbatch flags verbatim without thinking
-    about the schema difference.
+    Input is the familiar sbatch grammar — `gpu:1` or `gpu:nvidia:1` — and
+    the result is the `gres/...` form the v0.0.42 schema expects in
+    `tres_per_node`. We validate strictly: a malformed spec (missing colon,
+    non-numeric count, an already-`gres/`-prefixed value) is rejected here
+    with a clear message rather than being passed through to slurmrestd,
+    which would otherwise reject it with the opaque error 2072 "Invalid
+    generic resource (gres) specification".
     """
     g = gres.strip()
-    return g if g.startswith("gres/") else f"gres/{g}"
+    if not _GRES_RE.match(g):
+        raise ValueError(
+            f"invalid --gres spec {gres!r}: expected sbatch-style "
+            "'NAME:COUNT' or 'NAME:TYPE:COUNT', e.g. 'gpu:1' or 'gpu:nvidia:1'"
+        )
+    return f"gres/{g}"
 
 
 def build_submit_payload(

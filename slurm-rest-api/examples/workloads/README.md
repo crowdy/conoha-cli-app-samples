@@ -68,6 +68,6 @@ in Slurm, which is exactly what `smoke_test.py` keys off when
 ../cli/slurm_cli.py logs <JOB_ID>   # prints the docker exec command
 ```
 
-The `--gres gpu:1` flag is translated to `tres_per_task=gres/gpu:1` on
+The `--gres gpu:1` flag is translated to `tres_per_node=gres/gpu:1` on
 the REST API. The gpu partition is non-default in the baked
 `slurm.conf` (it ships `Default=NO`), so `--partition gpu` is required.
