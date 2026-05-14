@@ -59,11 +59,14 @@ def nodes(ctx):
         click.echo(f"error: {e}", err=True); sys.exit(1)
     rows = data.get("nodes", [])
     for n in rows:
+        gres = n.get("gres") or ""
+        gres_str = f" gres={gres}" if gres else ""
         click.echo(
             f"{n.get('name', '?'):<16} "
             f"state={','.join(n.get('state', []))} "
             f"cpus={n.get('cpus', '?')} "
             f"mem={n.get('real_memory', '?')}MB"
+            f"{gres_str}"
         )
     if not rows:
         click.echo("(no nodes)")
@@ -99,22 +102,30 @@ def status(ctx, job_id):
 @click.option("--name", default=None, help="Job name (defaults to script stem)")
 @click.option("--partition", default="cpu", show_default=True,
               help="Slurm partition (the giovtorres image ships 'cpu' and 'gpu')")
+@click.option("--gres", default=None,
+              help="Generic resources, sbatch-style 'NAME:COUNT' or "
+                   "'NAME:TYPE:COUNT'. E.g. 'gpu:1' or 'gpu:nvidia:1' to "
+                   "request one GPU from the gpu-worker. Forwarded as "
+                   "tres_per_node='gres/gpu:1' to slurmrestd.")
 @click.option("--inline/--no-inline", default=True,
               help="--inline (default) embeds the Python source in the job script. "
                    "--no-inline expects /data/scripts/<script_basename> to already "
                    "exist in the cpu-worker container (docker cp it in first).")
 @click.pass_context
 def submit(ctx, script: pathlib.Path, cpus, memory_mb, time_limit_min,
-           array, name, partition, inline):
+           array, name, partition, gres, inline):
     """Submit a Python script as a Slurm job."""
     name = name or script.stem
     script_body = script.read_text() if inline else None
     script_path = None if inline else f"/data/scripts/{script.name}"
-    payload = build_submit_payload(
-        name=name, script_body=script_body, cpus=cpus, memory_mb=memory_mb,
-        time_limit_min=time_limit_min, array=array, inline=inline,
-        script_path=script_path, partition=partition,
-    )
+    try:
+        payload = build_submit_payload(
+            name=name, script_body=script_body, cpus=cpus, memory_mb=memory_mb,
+            time_limit_min=time_limit_min, array=array, inline=inline,
+            script_path=script_path, partition=partition, gres=gres,
+        )
+    except ValueError as e:
+        raise click.UsageError(str(e))
     try:
         data = _client(ctx).submit(payload)
     except SlurmAPIError as e:

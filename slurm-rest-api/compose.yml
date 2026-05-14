@@ -1,6 +1,11 @@
-# We build a thin layer (./Dockerfile) on top of the giovtorres image to add
-# python3-numpy / python3-scikit-learn for the workload examples.
+# Two layered images on top of giovtorres/slurm-docker-cluster:
+#   slurm-rest-api:local      — cpu stage (numpy + sklearn), used by slurmdbd /
+#                               slurmctld / cpu-worker / slurmrestd
+#   slurm-rest-api-gpu:local  — gpu stage (cpu layer + torch CUDA wheel),
+#                               used only by gpu-worker. Keeps the cpu image
+#                               from carrying torch's ~2.5 GB unused.
 x-slurm-image: &slurm-image slurm-rest-api:local
+x-slurm-gpu-image: &slurm-gpu-image slurm-rest-api-gpu:local
 
 services:
   # Public edge fronting slurmrestd. Lives in the conoha web slot so
@@ -37,9 +42,12 @@ services:
 
   slurmdbd:
     image: *slurm-image
-    # Build the local layered image once; the other slurm-* services reference
-    # the same tag and reuse it without rebuilding.
-    build: .
+    # Build the cpu-stage image once; slurmctld / cpu-worker / slurmrestd
+    # reference the same tag and reuse it without rebuilding. gpu-worker
+    # triggers its own build below to the gpu stage.
+    build:
+      context: .
+      target: cpu
     command: ["slurmdbd"]
     hostname: slurmdbd
     environment:
@@ -111,6 +119,57 @@ services:
       timeout: 5s
       retries: 24
       start_period: 30s
+    restart: unless-stopped
+
+  # Service name must be "gpu-worker" — same replica-detection rule as
+  # cpu-worker. The slurmd-gpu entrypoint counts /dev/nvidia[0-9] and
+  # registers itself dynamically with `--conf "Feature=gpu Gres=gpu:nvidia:N"`.
+  # The baked slurm.conf already ships NodeSet=gpu_nodes Feature=gpu plus
+  # PartitionName=gpu, so no slurm.conf override is needed.
+  #
+  # This service is always-on: this sample targets an L4 GPU host where the
+  # NVIDIA Container Toolkit is installed (see README). Bringing the stack up
+  # on a host without GPU support will fail at this service — that is the
+  # intended invariant for this sample.
+  gpu-worker:
+    image: *slurm-gpu-image
+    build:
+      context: .
+      target: gpu
+    command: ["slurmd-gpu"]
+    privileged: true
+    # The deploy.resources.reservations.devices form is the docker-compose v2
+    # canonical way to request NVIDIA GPUs. Requires the NVIDIA Container
+    # Toolkit + `nvidia-ctk runtime configure --runtime=docker` on the host
+    # (same prerequisite as our vllm-gpu / hunyuan3d-gpu samples).
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    environment:
+      - COMPOSE_PROJECT_NAME=${COMPOSE_PROJECT_NAME}
+      # NVIDIA driver visibility & compute capabilities. `all` exposes every
+      # GPU the host advertises; `compute,utility` is the standard combo for
+      # CUDA workloads (compute = libcuda + nvcc API, utility = nvidia-smi).
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=compute,utility
+    volumes:
+      - etc_munge:/etc/munge
+      - etc_slurm:/etc/slurm
+      - var_log_slurm:/var/log/slurm
+      - slurm_jobdir:/data
+    depends_on:
+      slurmctld:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "pidof slurmd"]
+      interval: 5s
+      timeout: 5s
+      retries: 24
+      start_period: 60s
     restart: unless-stopped
 
   slurmrestd:

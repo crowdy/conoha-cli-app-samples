@@ -3,14 +3,18 @@
 Single-node Slurm cluster with REST API (`slurmrestd`) deployable via
 [`conoha-cli`](https://github.com/crowdy/conoha-cli). Built on the
 maintained [`giovtorres/slurm-docker-cluster`](https://github.com/giovtorres/slurm-docker-cluster)
-image (Slurm 25.11, Rocky Linux 9, JWT enabled). Six compose services:
+image (Slurm 25.11, Rocky Linux 9, JWT enabled). Seven compose services:
 a tiny `slurm-edge` Caddy front (web) + the Slurm cluster as accessories
-(`mariadb` + `slurmdbd` + `slurmctld` + `cpu-worker` + `slurmrestd`).
+(`mariadb` + `slurmdbd` + `slurmctld` + `cpu-worker` + `gpu-worker` +
+`slurmrestd`).
 
 - HTTPS API via the conoha proxy at `https://<your-fqdn>/slurm/v0.0.42/...`
 - JWT auth — token issued by `scontrol token` over SSH
 - Python CLI (`examples/cli/`) for submit / status / cancel / history
-- Two workload examples (`examples/workloads/`): NumPy matmul + sklearn array job
+- Three workload examples (`examples/workloads/`): NumPy matmul + sklearn
+  array job (cpu partition) + torch CUDA check (gpu partition)
+- `cpu` and `gpu` partitions on a single L4 host — schedule both CPU
+  jobs and CUDA jobs from the same REST API
 
 > **Why this base image?** Ubuntu's `slurm-wlm` package ships `slurmrestd`
 > with the `rest_auth/jwt` plugin but does NOT include the `auth/jwt`
@@ -34,45 +38,106 @@ a tiny `slurm-edge` Caddy front (web) + the Slurm cluster as accessories
 > project. The thin Caddy edge needs no shared volume and lives in the
 > web slot.
 
-**Recommended flavor:** `g2l-t-2` (2 GB, 3 vCPU). The image's bundled
-`slurm.conf` advertises `CPUs=8 RealMemory=2000` per worker — those are
-advisory caps that work fine on smaller VMs for the demo workloads.
+**Required flavor:** `g2l-t-c20m128g1-l4` (20 vCPU, 128 GB, L4 24 GB).
+This sample's `gpu-worker` service is always-on and asks the NVIDIA
+Container Runtime for `count: all` GPUs — it cannot start on a host
+without a CUDA-capable GPU and the NVIDIA Container Toolkit. (If you
+want to run on a CPU-only VM, comment out the `gpu-worker` block in
+`compose.yml` and drop the entry from `conoha.yml#accessories`.)
+
+The image's bundled `slurm.conf` advertises `MaxNodeCount=100`,
+`GresTypes=gpu`, plus `cpu` and `gpu` NodeSets — workers self-register
+under whichever partition matches their `Feature=` tag.
+
+## Host prerequisites (NVIDIA Container Toolkit)
+
+This sample needs the host to expose its L4 GPU to Docker. The easiest
+path is the bundled `conoha gpu setup` automation, which installs the
+NVIDIA Container Toolkit and the datacenter driver, then reboots and
+waits for `nvidia-smi` to come back:
+
+```bash
+conoha gpu setup <server-name> --identity ~/.ssh/conoha_mykey
+# → installs toolkit, runs `nvidia-ctk runtime configure --runtime=docker`,
+#   installs driver via `ubuntu-drivers install --gpgpu`, reboots, and
+#   verifies `nvidia-smi` lists the L4.
+```
+
+If you prefer to run it manually (or you're not using the `vmi-docker-*`
+ConoHa VMI image), the equivalent steps are documented in `vllm-gpu` /
+`hunyuan3d-gpu`. Sanity-check the result with:
+
+```bash
+docker run --rm --gpus all nvidia/cuda:12.4.0-base-ubuntu22.04 nvidia-smi
+```
+
+If this fails, the rest of this sample will not start either — the
+`gpu-worker` container requests `count: all` GPUs at create time and
+the daemon will refuse to spawn it without a working NVIDIA runtime.
+
+> **Validated combination.** This sample was last verified end-to-end on
+> a ConoHa `g2l-t-c20m128g1-l4` with NVIDIA driver **595.58.03**, the
+> `vmi-docker-29.2-ubuntu-24.04-amd64` image, and the gpu image's pinned
+> **torch 2.12.0+cu130** (CUDA 13.0). Any driver R535+ should work — the
+> torch cu13x wheels are forward-compatible — but if `torch.cuda.is_available()`
+> returns `False` after a ConoHa driver bump, that triple is the known-good
+> baseline to compare against. Note: `conoha gpu setup` currently installs
+> the open-kernel 595 driver but pins `nvidia-utils-535`; if `nvidia-smi`
+> reports a "Driver/library version mismatch", install the matching
+> `nvidia-utils-595-server` to align userspace with the kernel module.
 
 ## Quick start
 
 ```bash
-# 1. Create a server (skip if you already have one)
-conoha server create --name myserver --flavor g2l-t-2 --image ubuntu-24.04 --key mykey
+# 1. Create an L4 server (skip if you already have one)
+conoha server create --name myserver --flavor g2l-t-c20m128g1-l4 \
+    --image ubuntu-24.04 --key mykey
+# In-stock errors on L4 are common — if `server create` fails after
+# carving a boot volume, retry with `--volume <existing-vol-id>` to
+# reuse the orphan. See the conoha-cli skill for the full pattern.
 
-# 2. Edit conoha.yml: set hosts: to your FQDN (with an A record pointing to the VM)
+# 2. Install NVIDIA Container Toolkit + driver (~10 min, reboots once)
+conoha gpu setup myserver --identity ~/.ssh/conoha_mykey
 
-# 3. Start the proxy (once per server)
+# 3. Edit conoha.yml: set hosts: to your FQDN (with an A record pointing to the VM)
+
+# 4. Start the proxy (once per server)
 conoha proxy boot --acme-email you@example.com myserver
 
-# 4. Deploy
+# 5. Deploy
 cd slurm-rest-api
 cp .env.example .env   # edit the two passwords; use only [A-Za-z0-9_-]
 conoha app init myserver
 conoha app deploy myserver
 
-# 5. Bootstrap the JWT token
+# 6. Bootstrap the JWT token
 mkdir -p ~/.slurm-api
 echo "https://slurm.example.com" > ~/.slurm-api/endpoint
 conoha server ssh myserver -- ./examples/get-token.sh slurm 86400 \
     > ~/.slurm-api/token
 
-# 6. Install CLI deps
+# 7. Install CLI deps
 cd examples/cli
 python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 
-# 7. Try it
+# 8. Try it
 ./slurm_cli.py nodes
+# Expect c1 IDLE and g1 IDLE with Gres=gpu:nvidia:1
+
+# CPU
 ./slurm_cli.py submit ../workloads/numpy_matmul.py --cpus 2 --inline
-./slurm_cli.py status
 ./slurm_cli.py submit ../workloads/hyperparam_sweep.py --array 0-4 --inline
+
+# GPU
+./slurm_cli.py submit ../workloads/torch_gpu_check.py \
+    --partition gpu --gres gpu:1 --cpus 2 --mem 4096 --time 5 --inline
+
 ./slurm_cli.py history
 ```
+
+L4 VPS pricing is several times the cpu-only flavors. Tear down with
+`conoha server delete --delete-boot-volume --yes <name>` after testing.
 
 ## Architecture
 
@@ -96,13 +161,17 @@ HTTPS (conoha proxy)
           v
    +-------------+         +------------+
    |  slurmctld  |<--munge-+  slurmdbd  |
-   +------+------+         +------+-----+
-          | munge                 |
-          v                       v
-   +-------------+         +------------+
-   | cpu-worker  |         |  mariadb   |
-   | (slurmd -Z) |         |   :3306    |
-   +-------------+         +------------+
+   +-+-----------+         +------+-----+
+     | munge                      |
+     |                            v
+     |                     +------------+
+     |                     |  mariadb   |
+     |                     |   :3306    |
+     |                     +------------+
+     | munge
+     +--> cpu-worker (slurmd -Z, Feature=cpu) → partition=cpu
+     +--> gpu-worker (slurmd -Z, Feature=gpu, Gres=gpu:nvidia:N) → partition=gpu
+                                                                  (NVIDIA Container Runtime)
 ```
 
 Shared named volumes (all scoped to the accessory project):
@@ -180,6 +249,18 @@ python3 tests/smoke_test.py
 
 Exit 0 means all 5 checks passed.
 
+Add `SLURM_SMOKE_GPU=1` to also exercise the gpu partition (3 extra
+checks: the gpu-worker is registered with `Gres=gpu:nvidia:>=1`, a
+`tres_per_node=gres/gpu:1` job is accepted, and the inline torch
+script completes — which by itself confirms the L4 is visible to the
+container via the NVIDIA Container Toolkit):
+
+```bash
+SLURM_SMOKE_GPU=1 SLURM_API_ENDPOINT=... SLURM_API_TOKEN=... \
+    python3 tests/smoke_test.py
+# → 8/8 PASS
+```
+
 ## Troubleshooting
 
 | Symptom | Cause | Fix |
@@ -190,6 +271,9 @@ Exit 0 means all 5 checks passed.
 | `slurmdbd` fails to connect | `SLURM_DB_PASSWORD` mismatch between services | check `.env` is consistent and was loaded by compose |
 | `slurm-edge` returns 502 | slurmrestd accessory not up yet | `docker compose logs slurmrestd`; wait for the slurmctld healthcheck to pass |
 | `cpu-worker` keeps restarting | replica-detection found no DNS match | check `COMPOSE_PROJECT_NAME` is forwarded (see compose.yml) and the project name in `docker ps` matches `<project>-cpu-worker-1` |
+| `gpu-worker` fails with `could not select device driver "" with capabilities: [[gpu]]` | NVIDIA Container Toolkit not installed or `nvidia-ctk runtime configure --runtime=docker` not run | re-run the host prerequisites section above, then `sudo systemctl restart docker` and redeploy |
+| `gpu-worker` exits with `FATAL: slurmd-gpu requested but no /dev/nvidiaN devices are visible` | the toolkit is set up but the container saw no GPU device files (driver broken, or the nvidia runtime isn't honoring the device reservation) | `nvidia-smi` on the host, then `docker run --rm --gpus all nvidia/cuda:12.4.0-base-ubuntu22.04 nvidia-smi` to confirm device passthrough — `entrypoint-gpu.sh` fails fast here on purpose rather than registering a 0-GPU node |
+| GPU job stays `PENDING (Resources)` | partition=gpu requested but g1 not IDLE yet | `./slurm_cli.py nodes` and wait for `g1 ... state=IDLE gres=gpu:nvidia:1`; first start is slower than cpu-worker (cgroup + device init) |
 
 ## Out of scope (intentionally)
 
@@ -197,11 +281,12 @@ This is a demo. Production deployments need at minimum:
 - Multi-user auth (PAM / LDAP), not the single shared `slurm` user
 - Short-lived JWTs with auto-refresh
 - Job isolation (cgroups, separate uid per job, `pyxis` / `singularity`)
-- GPU `Gres` scheduling
 - Backup slurmctld (HA)
-- Real multi-node (this sample is one VM with one worker)
+- Real multi-node (this sample is one L4 VM with one cpu worker and one
+  gpu worker; production GPU clusters have multiple gpu-worker replicas
+  and likely multi-GPU hosts)
 - A shared writable jobdir (currently jobs write stdout/results to `/tmp`,
-  which is ephemeral inside the cpu-worker container)
+  which is ephemeral inside the worker containers)
 
 Note: `cpu-worker` and `slurmrestd` run with `privileged: true` (SYS_ADMIN
 for cgroup management and `unshare()`). A hardened deployment would drop

@@ -80,3 +80,47 @@ def test_non_inline_requires_script_path():
             name="x", script_body=None, cpus=1, memory_mb=128,
             time_limit_min=5, array=None, inline=False,
         )
+
+
+def _gres_payload(gres):
+    return build_submit_payload(
+        name="g", script_body="pass\n",
+        cpus=1, memory_mb=64, time_limit_min=1,
+        array=None, inline=True, partition="gpu",
+        gres=gres,
+    )
+
+
+def test_gres_name_count_emits_tres_per_node():
+    assert _gres_payload("gpu:1")["job"]["tres_per_node"] == "gres/gpu:1"
+
+
+def test_gres_name_type_count_emits_tres_per_node():
+    assert _gres_payload("gpu:nvidia:2")["job"]["tres_per_node"] == "gres/gpu:nvidia:2"
+
+
+def test_gres_strips_surrounding_whitespace():
+    assert _gres_payload("  gpu:1  ")["job"]["tres_per_node"] == "gres/gpu:1"
+
+
+@pytest.mark.parametrize("bad", [
+    "gpu1",          # missing colon
+    "gpu:",          # missing count
+    "gpu:nvidia",    # type given but no count
+    "gres/gpu:1",    # already TRES-prefixed — caller must use sbatch form
+    "gpu:1.5",       # non-integer count
+    "   ",           # whitespace only
+    "gpu:one",       # non-numeric count
+])
+def test_gres_rejects_malformed_spec(bad):
+    with pytest.raises(ValueError, match="invalid --gres spec"):
+        _gres_payload(bad)
+
+
+def test_gres_absent_means_no_tres_field():
+    payload = build_submit_payload(
+        name="g", script_body="pass\n",
+        cpus=1, memory_mb=64, time_limit_min=1,
+        array=None, inline=True,
+    )
+    assert "tres_per_node" not in payload["job"]
