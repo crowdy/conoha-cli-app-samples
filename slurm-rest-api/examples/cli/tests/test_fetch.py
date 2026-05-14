@@ -1,6 +1,4 @@
 """Unit tests for slurm_client.fetch pure helpers."""
-import pytest
-
 from slurm_client.fetch import build_fetch_command
 
 

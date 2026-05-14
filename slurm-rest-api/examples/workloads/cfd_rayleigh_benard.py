@@ -136,6 +136,13 @@ nu = 1.0 + float((vvel * T).mean())
 print(f"elapsed={elapsed:.2f}s dt={dt:.2e} steps={STEPS}")
 print(f"observed: Nusselt number Nu = {nu:.2f}")
 print("reference: Ra=1e4 -> Nu~2.2,  Ra=1e5 -> Nu~3.9-4.3,  Ra_c~1708")
+# Boundary-layer scaling: BL ~ Ra^(-1/3). At Ra=1e5 that is ~0.022; the
+# default GRID=128 gives h~0.016 so BL/h is only ~1.4 cells — Nu biased
+# ~15% high. Raise GRID (and POISSON_ITERS, STEPS) for a literature match.
+bl_thickness = RA ** (-1.0 / 3.0)
+print(f"note: BL thickness ~ Ra^(-1/3) = {bl_thickness:.3f},  h = {h:.4f},  BL/h = {bl_thickness/h:.1f}")
+print("  Nu is biased high when BL/h < ~3-4; convection cells in the PNG")
+print("  are still qualitatively correct.")
 
 T_n = T.cpu().numpy().T   # transpose -> rows are y, cols are x
 u_n = u.cpu().numpy().T

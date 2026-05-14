@@ -146,7 +146,11 @@ strouhal = f_peak * (2.0 * r) / uLB
 
 print(f"elapsed={elapsed:.2f}s omega={omega:.3f} steps={nsteps}")
 print(f"observed: Strouhal number St = {strouhal:.3f}")
-print("reference (Re~100-200): St ~ 0.16-0.18")
+print("reference (idealized, low blockage, well-resolved): St ~ 0.16-0.18")
+print(f"note: this demo has D/H={2*r/ny:.2f} blockage and omega={omega:.2f}")
+print("  near the BGK stability limit (2.0), which biases St upward;")
+print("  0.20-0.30 is the realistic range at these defaults. The vortex")
+print("  street in the PNG is the qualitative test the demo is meant for.")
 
 # Vorticity field for the PNG.
 rho = fin.sum(0)

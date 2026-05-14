@@ -70,6 +70,41 @@ HTTP 429 rateLimited - too many certificates (250000) already issued for "sslip.
 
 ---
 
+## G6-G8. CFD ワークロード追加 (PR #104) で見つけた「デモサイズ vs 文献値」の罠
+
+PR #104 では 4 つの CFD ソルバー (Sod 衝撃管・リッド駆動キャビティ・LBM 円柱・Rayleigh-Bénard) を L4 上で走らせ、各観測量を文献値と並べて出力する設計にした。Sod (衝撃位置) と キャビティ (Ghia の min-u) は **デフォルト設定で文献値と一致**したが、LBM の Strouhal 数 と RB の Nusselt 数 は **デフォルトで文献範囲を外れた**。デバッグの過程で見えた共通構造を残す。
+
+### G6. LBM の Strouhal 数は閉塞率と BGK omega に強く依存する
+
+L4 で `cfd_lbm_cylinder.py` (`GRID_X=520 GRID_Y=180 Re=150 STEPS=60000`) を走らせると St=0.250 と出る。教科書値は St≈0.16-0.18。FFT 帯域フィルタ [0.05, 0.30] や プローブ位置をオフセンターに変えても結果は変わらない — **0.25 がこの設定での真の支配周波数**。原因:
+
+- **閉塞率 D/H = 40/180 = 0.22** が大きい。文献の St はほぼ自由流での値。閉塞があると有効速度が上がり St も上がる。
+- **omega = 1/(3·nulb + 0.5) ≈ 1.94** が BGK 安定限界 (2.0) に近い。粘性が極小 (nulb ≈ 0.005) で、実効 Re は名目 150 より大きい。
+
+教訓: **「1 分の L4 予算」を尊重しつつ「文献値一致」を期待すると、両方を満たせない領域に押し込まれる。** デモを書く側は (a) スクリプトの reference 出力にデモ固有の補正範囲を併記する、もしくは (b) 観測量自体を「閉塞率・omega に頑健なもの」に取り替える。今回は (a) を採用 (`cfd_lbm_cylinder.py` の reference 出力で D/H と omega を併記)。
+
+### G7. Rayleigh-Bénard の Nu はデフォルト解像度では境界層を解像しきれない
+
+`cfd_rayleigh_benard.py` (`GRID=128 RA=1e5 STEPS=20000`) で Nu=4.95、文献は 3.9-4.3 (Ra=1e5 で)。**高 Ra では熱境界層厚さ BL ~ Ra^(-1/3) ≈ 0.022**、NY=64 で h ≈ 0.016、BL/h ≈ 1.4 — つまり境界層をたった 1-2 セルしか解像していない。Nu が 15% 程度上振れする標準的なパターン。
+
+教訓: **2D で境界層支配の問題 (Rayleigh-Bénard・高 Re チャネル流) を Qiita デモにするなら、(Ra, N) は BL/h ≥ ~4 を満たすペアを選ぶ、もしくはスクリプト自身が BL/h の値を計算して出力する**。今回は後者を採用 (`cfd_rayleigh_benard.py` の出力に `BL/h = 1.4` を明示)。
+
+### G8. (メタ教訓) デモ・サイジングに頑健な観測量を選ぶこと自体が設計判断
+
+Sod と キャビティが デフォルトで文献値を打ったのは偶然ではない:
+
+- **Sod の衝撃位置** は厳密 Riemann 解との比較。グリッドが粗くても収束する性質の量。
+- **キャビティの min-u (Ghia Re=100)** は GRID=64 でも収束する古典的な検証問題。
+
+一方:
+
+- **LBM の St** は閉塞率と omega への感度が高い。
+- **RB の Nu** は BL/h への感度が高い。
+
+「`gpu` パーティションで torch ジョブを回す」というデモの本旨を満たす ためなら、どの観測量を「文献値と並べて出す」かは load-bearing な設計判断。**「絵が文献通り」と「スカラが文献通り」は別物** — 前者を撮りたいだけならどちらの観測量でも良いが、後者まで出すならその観測量がデモ予算と両立するかを事前に確認する。
+
+---
+
 ## まとめ表
 
 | # | 罠 | 検出経路 | 対処 |
@@ -79,6 +114,9 @@ HTTP 429 rateLimited - too many certificates (250000) already issued for "sslip.
 | G3 | `deploy.devices` は swarm 不要 (古い直感が stale) | 既存 GPU サンプル照合 | `deploy.resources.reservations.devices` 採用 |
 | G4 | `conoha gpu setup` のドライバ/userspace バージョン不整合 | 実機 `nvidia-smi` | `nvidia-utils-595-server` で揃える (conoha-cli 側バグ候補) |
 | G5 | sslip.io が LE weekly rate limit | 実機 ACME ログ | 自前ドメイン推奨、検証は SSH トンネルで代替可 |
+| G6 | LBM の St は閉塞率と BGK omega に強く依存し、デモサイズではテキストブック値 0.17 を打たない | 実 L4 で St=0.25 観測、FFT 帯域フィルタ・プローブ位置で変わらず | スクリプト出力にデモ固有の補正範囲を併記 |
+| G7 | RB の Nu は境界層 BL ~ Ra^(-1/3) を満たすセル数が足りないと上振れする | 実 L4 で Nu=4.95 (vs lit 3.9-4.3 at Ra=1e5)、BL/h=1.4 | スクリプトに BL/h を出力させ、文献比較には粗解像度の限界を明示 |
+| G8 | 「絵が文献通り」と「スカラが文献通り」は別物 — どの観測量を出すかが load-bearing な設計判断 | 4 観測量のうち 2 つだけがデフォルトで文献値一致 | デモサイズに頑健な観測量 (Sod 衝撃位置・Ghia min-u) を優先採用 |
 
 ## 次に GPU サンプルを書く人へのチェックリスト
 
@@ -87,3 +125,4 @@ HTTP 429 rateLimited - too many certificates (250000) already issued for "sslip.
 3. `conoha gpu setup` 後は必ず `nvidia-smi` を実機で叩く。"version mismatch" が出たら userspace パッケージをドライバに合わせる。
 4. 実機検証で TLS まで通すなら自前ドメインを用意する。sslip.io 頼みにしない。
 5. CPU 版 postmortem の教訓は全部そのまま効く — 特に「`docker compose up` だけで合格にしない」。G1/G2/G4 はローカル compose up では一切出なかった。
+6. **観測量を文献値と並べる前に、デフォルト設定がその観測量で文献値に届くか実機検証で確認する**。届かないなら (a) デモ設定を文献領域に寄せる、(b) 観測量をデモに頑健なものに替える、(c) スクリプト出力でデモ固有の補正値を併記する、のどれかを選ぶ。「文献範囲外」を放置して PR を出すと、Qiita 読者がスクリプトのバグを疑う。
