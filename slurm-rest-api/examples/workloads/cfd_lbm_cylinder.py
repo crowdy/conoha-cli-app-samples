@@ -127,13 +127,19 @@ if device == "cuda":
 elapsed = time.perf_counter() - t0
 
 # Strouhal number from the wake probe: drop the initial transient, FFT the
-# transverse velocity, take the dominant non-DC frequency.
+# transverse velocity, and pick the dominant peak in the physically plausible
+# St band [0.05, 0.30]. Restricting the band avoids both the low-frequency
+# drift left from the initial transient and 2x-harmonic contamination from
+# the drag (streamwise) mode that can leak into the probe.
 series = probe[nsteps // 3:].cpu()
 series = series - series.mean()
 spec = torch.fft.rfft(series)
 freqs = torch.fft.rfftfreq(series.numel())  # cycles per step
 mag = spec.abs()
-mag[0] = 0.0
+# convert St band -> frequency band (f = St * uLB / (2*r))
+f_low = 0.05 * uLB / (2.0 * r)
+f_high = 0.30 * uLB / (2.0 * r)
+mag[(freqs < f_low) | (freqs > f_high)] = 0.0
 peak = int(torch.argmax(mag))
 f_peak = float(freqs[peak])                 # 1 / step
 strouhal = f_peak * (2.0 * r) / uLB
