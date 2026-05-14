@@ -97,20 +97,23 @@ def status(ctx, job_id):
               help="Time limit (minutes)")
 @click.option("--array", default=None, help="Array spec, e.g. '0-4'")
 @click.option("--name", default=None, help="Job name (defaults to script stem)")
+@click.option("--partition", default="cpu", show_default=True,
+              help="Slurm partition (the giovtorres image ships 'cpu' and 'gpu')")
 @click.option("--inline/--no-inline", default=True,
               help="--inline (default) embeds the Python source in the job script. "
-                   "--no-inline expects /work/scripts/<script_basename> to already "
-                   "exist in the container.")
+                   "--no-inline expects /data/scripts/<script_basename> to already "
+                   "exist in the cpu-worker container (docker cp it in first).")
 @click.pass_context
-def submit(ctx, script: pathlib.Path, cpus, memory_mb, time_limit_min, array, name, inline):
+def submit(ctx, script: pathlib.Path, cpus, memory_mb, time_limit_min,
+           array, name, partition, inline):
     """Submit a Python script as a Slurm job."""
     name = name or script.stem
     script_body = script.read_text() if inline else None
-    script_path = None if inline else f"/work/scripts/{script.name}"
+    script_path = None if inline else f"/data/scripts/{script.name}"
     payload = build_submit_payload(
         name=name, script_body=script_body, cpus=cpus, memory_mb=memory_mb,
         time_limit_min=time_limit_min, array=array, inline=inline,
-        script_path=script_path,
+        script_path=script_path, partition=partition,
     )
     try:
         data = _client(ctx).submit(payload)
@@ -161,8 +164,8 @@ def logs(job_id):
     click.echo(
         "slurmrestd does not stream logs. Run this on the VM to view stdout:\n"
         f"\n"
-        f"  docker exec $(docker ps -qf label=com.docker.compose.service=slurm) \\\n"
-        f"      cat /work/logs/{job_id}.out\n"
+        f"  docker exec $(docker ps -qf label=com.docker.compose.service=cpu-worker) \\\n"
+        f"      cat /tmp/slurm-{job_id}.out\n"
     )
 
 

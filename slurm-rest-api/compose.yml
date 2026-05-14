@@ -3,6 +3,20 @@
 x-slurm-image: &slurm-image slurm-rest-api:local
 
 services:
+  # Public edge fronting slurmrestd. Lives in the conoha web slot so
+  # conoha-proxy's strict 2xx health probe at /healthz can pass without
+  # JWT, while authenticated calls flow through to slurmrestd transparently.
+  # Keeping the cluster (slurmctld + slurmdbd + cpu-worker + slurmrestd) in
+  # the accessory project lets them share the etc_munge / etc_slurm /
+  # var_log_slurm named volumes — those can't cross compose projects.
+  slurm-edge:
+    image: caddy:2-alpine
+    expose:
+      - "6820"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+    restart: unless-stopped
+
   mariadb:
     image: mariadb:12
     hostname: mysql
@@ -23,6 +37,9 @@ services:
 
   slurmdbd:
     image: *slurm-image
+    # Build the local layered image once; the other slurm-* services reference
+    # the same tag and reuse it without rebuilding.
+    build: .
     command: ["slurmdbd"]
     hostname: slurmdbd
     environment:
@@ -45,9 +62,6 @@ services:
 
   slurmctld:
     image: *slurm-image
-    # Build the local layered image once; the other slurm-* services reference
-    # the same tag and reuse it without rebuilding.
-    build: .
     command: ["slurmctld"]
     hostname: slurmctld
     volumes:
@@ -77,8 +91,12 @@ services:
     privileged: true
     environment:
       # The entrypoint's replica-detection helper needs this to build the
-      # container hostname lookup; compose doesn't propagate it by default.
-      - COMPOSE_PROJECT_NAME=slurm-rest-api
+      # container hostname lookup; compose doesn't propagate it into the
+      # container automatically. The ${COMPOSE_PROJECT_NAME} reference is
+      # interpolated at YAML-parse time by compose itself, so this picks
+      # up the real project name passed via `-p` (e.g.
+      # slurm-rest-api-accessories when invoked through conoha-cli).
+      - COMPOSE_PROJECT_NAME=${COMPOSE_PROJECT_NAME}
     volumes:
       - etc_munge:/etc/munge
       - etc_slurm:/etc/slurm
@@ -95,8 +113,6 @@ services:
       start_period: 30s
     restart: unless-stopped
 
-  # slurmrestd runs as its own service so the conoha proxy can expose only :6820
-  # without binding the cluster's internal ports.
   slurmrestd:
     image: *slurm-image
     command: ["slurmrestd"]

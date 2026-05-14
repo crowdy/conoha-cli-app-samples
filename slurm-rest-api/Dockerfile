@@ -5,4 +5,4 @@ FROM giovtorres/slurm-docker-cluster:25.11.4
 # then install numpy + scikit-learn (neither has a Rocky 9 RPM for 3.12).
 RUN python3 -m ensurepip --upgrade \
     && python3 -m pip install --no-cache-dir \
-        numpy scikit-learn
+        'numpy~=2.4' 'scikit-learn~=1.8'
