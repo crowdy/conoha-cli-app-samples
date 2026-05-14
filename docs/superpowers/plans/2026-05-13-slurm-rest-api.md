@@ -1,3 +1,5 @@
+> **⚠ Superseded — historical only.** This plan reflects the original Ubuntu-based implementation. After smoke-testing surfaced JWT plugin and proxy-health issues, the sample was restructured (PR #101) onto `giovtorres/slurm-docker-cluster` with a Caddy edge sidecar. See `slurm-rest-api/README.md` for the current architecture.
+
 # slurm-rest-api Sample Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.

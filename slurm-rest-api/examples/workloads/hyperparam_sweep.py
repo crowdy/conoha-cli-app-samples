@@ -4,7 +4,9 @@ Submit with:
     slurm_cli.py submit hyperparam_sweep.py --array 0-4 --cpus 1 --mem 256 --inline
 
 Each array task uses $SLURM_ARRAY_TASK_ID to pick its parameter, runs
-cross-validation, and writes /work/results/sweep_<idx>.json.
+cross-validation, and writes /tmp/sweep_<idx>.json (ephemeral, per
+cpu-worker container). Aggregate with collect_sweep.py — see the
+workloads README.
 """
 import json
 import os
@@ -36,6 +38,5 @@ result = {
 }
 print(json.dumps(result))
 
-os.makedirs("/work/results", exist_ok=True)
-with open(f"/work/results/sweep_{idx}.json", "w") as f:
+with open(f"/tmp/sweep_{idx}.json", "w") as f:
     json.dump(result, f)

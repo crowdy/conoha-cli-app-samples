@@ -1,61 +1,139 @@
+# We build a thin layer (./Dockerfile) on top of the giovtorres image to add
+# python3-numpy / python3-scikit-learn for the workload examples.
+x-slurm-image: &slurm-image slurm-rest-api:local
+
 services:
-  slurm:
-    image: slurm-rest-api:local
-    build: .
-    environment:
-      - ROLE=slurm
-      - SLURM_DB_PASSWORD=${SLURM_DB_PASSWORD:-changeme-slurm-db}
+  # Public edge fronting slurmrestd. Lives in the conoha web slot so
+  # conoha-proxy's strict 2xx health probe at /healthz can pass without
+  # JWT, while authenticated calls flow through to slurmrestd transparently.
+  # Keeping the cluster (slurmctld + slurmdbd + cpu-worker + slurmrestd) in
+  # the accessory project lets them share the etc_munge / etc_slurm /
+  # var_log_slurm named volumes — those can't cross compose projects.
+  slurm-edge:
+    image: caddy:2-alpine
     expose:
       - "6820"
     volumes:
-      - munge-key:/etc/munge
-      - slurm-spool:/var/spool/slurm
-      - slurm-log:/var/log/slurm
-      - work:/work
-    depends_on:
-      slurmdbd:
-        condition: service_healthy
-    restart: unless-stopped
-
-  slurmdbd:
-    image: slurm-rest-api:local
-    environment:
-      - ROLE=slurmdbd
-      - SLURM_DB_PASSWORD=${SLURM_DB_PASSWORD:-changeme-slurm-db}
-    volumes:
-      - munge-key:/etc/munge
-      - slurm-log:/var/log/slurm
-    depends_on:
-      mariadb:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD-SHELL", "nc -z localhost 6819"]
-      interval: 5s
-      timeout: 5s
-      retries: 24
-      start_period: 60s
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
     restart: unless-stopped
 
   mariadb:
-    image: mariadb:11
+    image: mariadb:12
+    hostname: mysql
     environment:
       - MARIADB_DATABASE=slurm_acct_db
       - MARIADB_USER=slurm
       - MARIADB_PASSWORD=${SLURM_DB_PASSWORD:-changeme-slurm-db}
       - MARIADB_ROOT_PASSWORD=${MARIADB_ROOT_PASSWORD:-changeme-mariadb-root}
     volumes:
-      - mariadb-data:/var/lib/mysql
+      - var_lib_mysql:/var/lib/mysql
     healthcheck:
-      test: ["CMD-SHELL", "mysqladmin ping -h localhost -uroot -p\"${MARIADB_ROOT_PASSWORD:-changeme-mariadb-root}\""]
+      test: ["CMD-SHELL", "mariadb-admin ping -h localhost -uroot -p\"${MARIADB_ROOT_PASSWORD:-changeme-mariadb-root}\""]
       interval: 5s
       timeout: 5s
       retries: 24
       start_period: 60s
     restart: unless-stopped
 
+  slurmdbd:
+    image: *slurm-image
+    # Build the local layered image once; the other slurm-* services reference
+    # the same tag and reuse it without rebuilding.
+    build: .
+    command: ["slurmdbd"]
+    hostname: slurmdbd
+    environment:
+      - MYSQL_USER=slurm
+      - MYSQL_PASSWORD=${SLURM_DB_PASSWORD:-changeme-slurm-db}
+    volumes:
+      - etc_munge:/etc/munge
+      - etc_slurm:/etc/slurm
+      - var_log_slurm:/var/log/slurm
+    depends_on:
+      mariadb:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "pidof slurmdbd"]
+      interval: 5s
+      timeout: 5s
+      retries: 24
+      start_period: 30s
+    restart: unless-stopped
+
+  slurmctld:
+    image: *slurm-image
+    command: ["slurmctld"]
+    hostname: slurmctld
+    volumes:
+      - etc_munge:/etc/munge
+      - etc_slurm:/etc/slurm
+      - var_log_slurm:/var/log/slurm
+      - slurm_jobdir:/data
+    depends_on:
+      slurmdbd:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "scontrol ping >/dev/null 2>&1"]
+      interval: 5s
+      timeout: 5s
+      retries: 24
+      start_period: 30s
+    restart: unless-stopped
+
+  # Service name must be "cpu-worker" — the giovtorres image's entrypoint
+  # hardcodes that string when discovering its replica number via Docker DNS,
+  # which it builds as ${COMPOSE_PROJECT_NAME}-cpu-worker-${N}.
+  cpu-worker:
+    image: *slurm-image
+    command: ["slurmd-cpu"]
+    # slurmd needs SYS_ADMIN for cgroup management; the giovtorres image
+    # documents privileged: true as the supported configuration.
+    privileged: true
+    environment:
+      # The entrypoint's replica-detection helper needs this to build the
+      # container hostname lookup; compose doesn't propagate it into the
+      # container automatically. The ${COMPOSE_PROJECT_NAME} reference is
+      # interpolated at YAML-parse time by compose itself, so this picks
+      # up the real project name passed via `-p` (e.g.
+      # slurm-rest-api-accessories when invoked through conoha-cli).
+      - COMPOSE_PROJECT_NAME=${COMPOSE_PROJECT_NAME}
+    volumes:
+      - etc_munge:/etc/munge
+      - etc_slurm:/etc/slurm
+      - var_log_slurm:/var/log/slurm
+      - slurm_jobdir:/data
+    depends_on:
+      slurmctld:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "pidof slurmd"]
+      interval: 5s
+      timeout: 5s
+      retries: 24
+      start_period: 30s
+    restart: unless-stopped
+
+  slurmrestd:
+    image: *slurm-image
+    command: ["slurmrestd"]
+    hostname: slurmrestd
+    # slurmrestd calls unshare() for namespace isolation per request, which
+    # needs SYS_ADMIN. giovtorres ships privileged: true as the supported config.
+    privileged: true
+    expose:
+      - "6820"
+    volumes:
+      - etc_munge:/etc/munge
+      - etc_slurm:/etc/slurm
+      - var_log_slurm:/var/log/slurm
+    depends_on:
+      slurmctld:
+        condition: service_healthy
+    restart: unless-stopped
+
 volumes:
-  munge-key:
-  slurm-spool:
-  slurm-log:
-  mariadb-data:
-  work:
+  var_lib_mysql:
+  etc_munge:
+  etc_slurm:
+  var_log_slurm:
+  slurm_jobdir:

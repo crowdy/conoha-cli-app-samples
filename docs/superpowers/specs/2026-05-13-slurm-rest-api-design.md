@@ -1,3 +1,5 @@
+> **⚠ Superseded — historical only.** This spec describes the original all-in-one Ubuntu 24.04 container design, which was rewritten in PR #101 to use the `giovtorres/slurm-docker-cluster` image (Rocky 9) with a Caddy edge sidecar. See `slurm-rest-api/README.md` for the current architecture.
+
 # Slurm REST API サンプル — 設計
 
 - **日付:** 2026-05-13
