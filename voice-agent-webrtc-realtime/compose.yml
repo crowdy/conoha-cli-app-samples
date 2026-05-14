@@ -1,0 +1,26 @@
+services:
+  frontend:
+    build: ./frontend
+    # No host-side port: conoha-proxy injects a randomly-bound
+    # 127.0.0.1:0:3000 mapping at deploy time for blue/green slots.
+    expose:
+      - "3000"
+    depends_on:
+      backend:
+        condition: service_healthy
+
+  backend:
+    build: ./backend
+    expose:
+      - "8000"
+    environment:
+      - OPENAI_API_KEY
+      - OPENAI_REALTIME_MODEL
+      - GOOGLE_APPLICATION_CREDENTIALS_JSON
+      - SHEET_ID
+      - RESTAURANT_NAME
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/healthz')"]
+      interval: 5s
+      timeout: 5s
+      retries: 5

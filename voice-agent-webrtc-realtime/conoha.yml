@@ -1,0 +1,11 @@
+name: voice-agent-webrtc-realtime
+# Replace with your own FQDN before running `conoha app init`.
+hosts:
+  - voice-agent.example.com
+web:
+  service: frontend
+  port: 3000
+# `backend` is an accessory so it stays alive across blue/green swaps —
+# only `frontend` is duplicated per slot.
+accessories:
+  - backend
