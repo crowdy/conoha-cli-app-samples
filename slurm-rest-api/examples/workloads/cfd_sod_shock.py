@@ -77,25 +77,30 @@ def hll_flux(UL, UR):
 U = to_conserved(rho, u, p)
 t = 0.0
 step = 0
+if device == "cuda":
+    torch.cuda.synchronize()
 t0 = time.perf_counter()
-while t < TEND:
-    rho, u, p = to_primitive(U)
-    a = torch.sqrt(GAMMA * p / rho)
-    smax = float((u.abs() + a).max())
-    dt = CFL * dx / smax
-    if t + dt > TEND:
-        dt = TEND - t
-    # Interface fluxes between the CELLS cells (CELLS-1 interior interfaces).
-    F = hll_flux(U[:, :-1], U[:, 1:])  # shape [3, CELLS-1]
-    # Update interior cells; transmissive (zero-gradient) boundaries.
-    U[:, 1:-1] = U[:, 1:-1] - dt / dx * (F[:, 1:] - F[:, :-1])
-    U[:, 0] = U[:, 1]
-    U[:, -1] = U[:, -2]
-    if not torch.isfinite(U).all():
-        print(f"divergence detected at step {step} — reduce CFL")
-        raise SystemExit(1)
-    t += dt
-    step += 1
+with torch.no_grad():
+    while t < TEND:
+        rho, u, p = to_primitive(U)
+        a = torch.sqrt(GAMMA * p / rho)
+        smax = float((u.abs() + a).max())
+        dt = CFL * dx / smax
+        if t + dt > TEND:
+            dt = TEND - t
+        # Interface fluxes between the CELLS cells (CELLS-1 interior interfaces).
+        F = hll_flux(U[:, :-1], U[:, 1:])  # shape [3, CELLS-1]
+        # Update interior cells; transmissive (zero-gradient) boundaries.
+        U[:, 1:-1] = U[:, 1:-1] - dt / dx * (F[:, 1:] - F[:, :-1])
+        U[:, 0] = U[:, 1]
+        U[:, -1] = U[:, -2]
+        if not torch.isfinite(U).all():
+            print(f"divergence detected at step {step} — reduce CFL")
+            raise SystemExit(1)
+        t += dt
+        step += 1
+if device == "cuda":
+    torch.cuda.synchronize()
 elapsed = time.perf_counter() - t0
 
 rho, u, p = to_primitive(U)
