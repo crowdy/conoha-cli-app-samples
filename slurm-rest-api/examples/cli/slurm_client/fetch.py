@@ -48,6 +48,7 @@ def resolve_server_ip(server: str) -> str:
     out = subprocess.run(
         ["conoha", "server", "ips", server],
         capture_output=True, text=True, check=True,
+        timeout=30,
     ).stdout
     # lines look like:  ext-gpu-...: 203.0.113.5 (v4, fixed)
     for line in out.splitlines():
