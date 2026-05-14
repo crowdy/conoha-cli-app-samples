@@ -18,7 +18,7 @@ RUN python3 -m pip install --no-cache-dir \
 # with NVIDIA driver R535+ (the vllm-gpu / hunyuan3d-gpu samples document
 # the same driver floor for ConoHa L4 hosts).
 FROM cpu AS gpu
-RUN python3 -m pip install --no-cache-dir torch
+RUN python3 -m pip install --no-cache-dir torch matplotlib
 
 # Wrap the upstream entrypoint so we can generate /etc/slurm/gres.conf
 # before slurmd starts — the giovtorres image's Slurm is not built with
