@@ -9,6 +9,7 @@ get-token.sh, see postmortem C4).
 """
 from __future__ import annotations
 
+import os
 import shlex
 import subprocess
 from typing import Optional
@@ -77,11 +78,10 @@ def fetch_result(
         ip=ip, identity=identity, remote_path=remote_path, ssh_user=ssh_user,
     )
     with open(output, "wb") as fh:
-        proc = subprocess.run(cmd, stdout=fh, stderr=subprocess.PIPE)
+        proc = subprocess.run(cmd, stdout=fh, stderr=subprocess.PIPE, timeout=120)
     if proc.returncode != 0:
         # ssh succeeded to the host but the remote command failed, or ssh
         # itself failed. Surface stderr verbatim plus a hint.
-        import os
         if os.path.exists(output) and os.path.getsize(output) == 0:
             os.remove(output)
         stderr = proc.stderr.decode(errors="replace").strip()
@@ -89,6 +89,6 @@ def fetch_result(
             raise RuntimeError(
                 f"no gpu-worker container running on {server!r}, or no "
                 f"result file at {remote_path}. Is job {job_id} a completed "
-                "CFD workload? (check `slurm_cli.py status {job_id}`)"
+                f"CFD workload? (check `slurm_cli.py status {job_id}`)"
             )
         raise RuntimeError(f"fetch failed:\n{stderr}")

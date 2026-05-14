@@ -7,6 +7,8 @@ Subcommands:
   submit SCRIPT   Submit a Python script as a Slurm job
   cancel JOB      Cancel a job
   history         List recent jobs from slurmdbd accounting
+  logs JOB        Print the shell command to view a job's stdout
+  fetch JOB       Fetch a job's result file from the gpu-worker
 """
 from __future__ import annotations
 
