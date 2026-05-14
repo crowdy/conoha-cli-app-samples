@@ -7,6 +7,8 @@ Subcommands:
   submit SCRIPT   Submit a Python script as a Slurm job
   cancel JOB      Cancel a job
   history         List recent jobs from slurmdbd accounting
+  logs JOB        Print the shell command to view a job's stdout
+  fetch JOB       Fetch a job's result file from the gpu-worker
 """
 from __future__ import annotations
 
@@ -17,6 +19,7 @@ import sys
 import click
 
 from slurm_client.config import resolve_config
+from slurm_client.fetch import fetch_result
 from slurm_client.http import SlurmAPIError, SlurmClient
 from slurm_client.payload import build_submit_payload
 
@@ -178,6 +181,38 @@ def logs(job_id):
         f"  docker exec $(docker ps -qf label=com.docker.compose.service=cpu-worker) \\\n"
         f"      cat /tmp/slurm-{job_id}.out\n"
     )
+
+
+@cli.command()
+@click.argument("job_id", type=int)
+@click.option("--server", required=True,
+              help="conoha server name (used to resolve the VM's IPv4)")
+@click.option("--identity", default=None,
+              help="SSH private key path (default: ssh's own default)")
+@click.option("--ssh-user", default="root", show_default=True,
+              help="SSH user on the VM")
+@click.option("-o", "--output", default=None,
+              help="local output path (default: ./slurm-<job_id>.png)")
+@click.option("--remote-path", default=None,
+              help="path inside the gpu-worker container "
+                   "(default: /tmp/slurm-<job_id>.png)")
+def fetch(job_id, server, identity, ssh_user, output, remote_path):
+    """Fetch a job's result file (e.g. a CFD plot) from the gpu-worker.
+
+    slurmrestd cannot serve job output files, so this SSHes to the VM and
+    `docker exec ... cat`s the file out of the gpu-worker container.
+    """
+    remote_path = remote_path or f"/tmp/slurm-{job_id}.png"
+    output = output or f"slurm-{job_id}.png"
+    try:
+        fetch_result(
+            server=server, job_id=job_id, identity=identity,
+            output=output, remote_path=remote_path, ssh_user=ssh_user,
+        )
+    except (RuntimeError, FileNotFoundError) as e:
+        click.echo(f"error: {e}", err=True)
+        sys.exit(1)
+    click.echo(f"fetched job {job_id} result -> {output}")
 
 
 if __name__ == "__main__":

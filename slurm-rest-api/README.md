@@ -133,6 +133,13 @@ pip install -r requirements.txt
 ./slurm_cli.py submit ../workloads/torch_gpu_check.py \
     --partition gpu --gres gpu:1 --cpus 2 --mem 4096 --time 5 --inline
 
+# CFD: fluid-dynamics solvers on the L4, results fetched as PNG plots
+./slurm_cli.py submit ../workloads/cfd_lbm_cylinder.py \
+    --partition gpu --gres gpu:1 --cpus 2 --mem 4096 --time 10 --inline
+./slurm_cli.py fetch <JOB_ID> --server myserver --identity ~/.ssh/conoha_mykey
+# -> writes ./slurm-<JOB_ID>.png locally. Four CFD scripts ship in
+#    examples/workloads/ — see examples/workloads/README.md.
+
 ./slurm_cli.py history
 ```
 
