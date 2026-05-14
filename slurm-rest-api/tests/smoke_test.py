@@ -16,7 +16,7 @@ Set `SLURM_SMOKE_GPU=1` to also exercise the gpu partition. Three extra
 checks run after the CPU set (they need the gpu-worker accessory plus a
 host with NVIDIA Container Toolkit + a CUDA device, i.e. ConoHa L4):
     6. /nodes contains a node tagged Gres=gpu:nvidia:N (N>=1)
-    7. Submit to partition=gpu with tres_per_task=gres/gpu:1 returns job_id
+    7. Submit to partition=gpu with tres_per_node=gres/gpu:1 returns job_id
     8. The GPU job transitions to COMPLETED (verifies torch sees the L4)
 """
 import os
@@ -142,7 +142,7 @@ if os.environ.get("SLURM_SMOKE_GPU") == "1":
             "cpus_per_task": 1,
             "memory_per_node": 512,
             "time_limit": 3,
-            "tres_per_task": "gres/gpu:1",
+            "tres_per_node": "gres/gpu:1",
             "current_working_directory": "/tmp",
             "standard_output": "/tmp/slurm-%j.out",
             "standard_error": "/tmp/slurm-%j.err",

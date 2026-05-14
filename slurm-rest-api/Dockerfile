@@ -19,3 +19,11 @@ RUN python3 -m pip install --no-cache-dir \
 # the same driver floor for ConoHa L4 hosts).
 FROM cpu AS gpu
 RUN python3 -m pip install --no-cache-dir torch
+
+# Wrap the upstream entrypoint so we can generate /etc/slurm/gres.conf
+# before slurmd starts — the giovtorres image's Slurm is not built with
+# NVML support, so the gres/gpu plugin can't autodetect L4 devices on
+# its own. See entrypoint-gpu.sh for the full rationale.
+COPY entrypoint-gpu.sh /usr/local/bin/entrypoint-gpu.sh
+RUN chmod +x /usr/local/bin/entrypoint-gpu.sh
+ENTRYPOINT ["/usr/local/bin/entrypoint-gpu.sh"]

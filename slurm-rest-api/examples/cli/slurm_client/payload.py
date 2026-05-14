@@ -71,9 +71,11 @@ def build_submit_payload(
     if array:
         job["array"] = array
     if gres:
-        # tres_per_task is the v0.0.42 field that mirrors sbatch's
-        # --gres=gpu:N semantics for single-task GPU jobs. The gpu-worker
-        # registers `Gres=gpu:nvidia:N` so `gres/gpu:N` matches.
-        job["tres_per_task"] = _normalize_gres(gres)
+        # tres_per_node is the v0.0.42 field that sbatch's --gres=gpu:N
+        # maps to (per-node allocation, matching the gpu-worker's
+        # Gres=gpu:nvidia:N registration). tres_per_task / tres_per_job
+        # exist too but use different scoping rules; tres_per_node is the
+        # canonical translation of --gres.
+        job["tres_per_node"] = _normalize_gres(gres)
 
     return {"job": job, "script": wrapper}

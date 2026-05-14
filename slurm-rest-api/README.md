@@ -51,32 +51,29 @@ under whichever partition matches their `Feature=` tag.
 
 ## Host prerequisites (NVIDIA Container Toolkit)
 
-Same one-time setup as `vllm-gpu` / `hunyuan3d-gpu` / `fish-speech-tts-gpu`.
-Run on the L4 VPS once, before `conoha app deploy`:
+This sample needs the host to expose its L4 GPU to Docker. The easiest
+path is the bundled `conoha gpu setup` automation, which installs the
+NVIDIA Container Toolkit and the datacenter driver, then reboots and
+waits for `nvidia-smi` to come back:
 
 ```bash
-# 1. NVIDIA Container Toolkit
-curl -fsSL https://nvidia.github.io/libnvidia-container/gpgkey | \
-  sudo gpg --dearmor -o /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg
-curl -s -L https://nvidia.github.io/libnvidia-container/stable/deb/nvidia-container-toolkit.list | \
-  sed 's#deb https://#deb [signed-by=/usr/share/keyrings/nvidia-container-toolkit-keyring.gpg] https://#g' | \
-  sudo tee /etc/apt/sources.list.d/nvidia-container-toolkit.list
-sudo apt-get update && sudo apt-get install -y nvidia-container-toolkit
-sudo nvidia-ctk runtime configure --runtime=docker
-sudo systemctl restart docker
+conoha gpu setup <server-name> --identity ~/.ssh/conoha_mykey
+# → installs toolkit, runs `nvidia-ctk runtime configure --runtime=docker`,
+#   installs driver via `ubuntu-drivers install --gpgpu`, reboots, and
+#   verifies `nvidia-smi` lists the L4.
+```
 
-# 2. NVIDIA Driver (R535+ — needed by torch's bundled cu12x runtime)
-sudo apt install -y ubuntu-drivers-common
-sudo ubuntu-drivers install --gpgpu
-sudo reboot
+If you prefer to run it manually (or you're not using the `vmi-docker-*`
+ConoHa VMI image), the equivalent steps are documented in `vllm-gpu` /
+`hunyuan3d-gpu`. Sanity-check the result with:
 
-# 3. After reboot, confirm
-sudo apt install -y nvidia-utils-570-server
-nvidia-smi   # must list one L4
+```bash
 docker run --rm --gpus all nvidia/cuda:12.4.0-base-ubuntu22.04 nvidia-smi
 ```
 
-If `docker run --gpus all` fails, the rest of this sample will not start.
+If this fails, the rest of this sample will not start either — the
+`gpu-worker` container requests `count: all` GPUs at create time and
+the daemon will refuse to spawn it without a working NVIDIA runtime.
 
 ## Quick start
 
@@ -88,7 +85,8 @@ conoha server create --name myserver --flavor g2l-t-c20m128g1-l4 \
 # carving a boot volume, retry with `--volume <existing-vol-id>` to
 # reuse the orphan. See the conoha-cli skill for the full pattern.
 
-# 2. Run the host prerequisites above (NVIDIA Container Toolkit + driver)
+# 2. Install NVIDIA Container Toolkit + driver (~10 min, reboots once)
+conoha gpu setup myserver --identity ~/.ssh/conoha_mykey
 
 # 3. Edit conoha.yml: set hosts: to your FQDN (with an A record pointing to the VM)
 

@@ -59,11 +59,14 @@ def nodes(ctx):
         click.echo(f"error: {e}", err=True); sys.exit(1)
     rows = data.get("nodes", [])
     for n in rows:
+        gres = n.get("gres") or ""
+        gres_str = f" gres={gres}" if gres else ""
         click.echo(
             f"{n.get('name', '?'):<16} "
             f"state={','.join(n.get('state', []))} "
             f"cpus={n.get('cpus', '?')} "
             f"mem={n.get('real_memory', '?')}MB"
+            f"{gres_str}"
         )
     if not rows:
         click.echo("(no nodes)")
@@ -101,7 +104,7 @@ def status(ctx, job_id):
               help="Slurm partition (the giovtorres image ships 'cpu' and 'gpu')")
 @click.option("--gres", default=None,
               help="Generic resources, sbatch-style. E.g. 'gpu:1' to request "
-                   "one GPU from the gpu-worker. Forwarded as tres_per_task "
+                   "one GPU from the gpu-worker. Forwarded as tres_per_node "
                    "='gres/gpu:1' to slurmrestd.")
 @click.option("--inline/--no-inline", default=True,
               help="--inline (default) embeds the Python source in the job script. "

@@ -82,14 +82,14 @@ def test_non_inline_requires_script_path():
         )
 
 
-def test_gres_flag_emits_tres_per_task():
+def test_gres_flag_emits_tres_per_node():
     payload = build_submit_payload(
         name="g", script_body="pass\n",
         cpus=1, memory_mb=64, time_limit_min=1,
         array=None, inline=True, partition="gpu",
         gres="gpu:1",
     )
-    assert payload["job"]["tres_per_task"] == "gres/gpu:1"
+    assert payload["job"]["tres_per_node"] == "gres/gpu:1"
 
 
 def test_gres_accepts_tres_form_too():
@@ -99,7 +99,7 @@ def test_gres_accepts_tres_form_too():
         array=None, inline=True, partition="gpu",
         gres="gres/gpu:2",
     )
-    assert payload["job"]["tres_per_task"] == "gres/gpu:2"
+    assert payload["job"]["tres_per_node"] == "gres/gpu:2"
 
 
 def test_gres_absent_means_no_tres_field():
@@ -108,4 +108,4 @@ def test_gres_absent_means_no_tres_field():
         cpus=1, memory_mb=64, time_limit_min=1,
         array=None, inline=True,
     )
-    assert "tres_per_task" not in payload["job"]
+    assert "tres_per_node" not in payload["job"]
