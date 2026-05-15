@@ -48,6 +48,25 @@
 | `GOOGLE_APPLICATION_CREDENTIALS_JSON` | サービスアカウント JSON を 1 行で |
 | `SHEET_ID` | スプレッドシート ID |
 | `RESTAURANT_NAME` | AI の挨拶に差し込む店名(例 `カフェ・コノハ`) |
+| `ALLOWED_ORIGINS` | カンマ区切りの許可オリジン (例 `https://voice-agent.example.com`)。空 = すべて許可 (dev) |
+| `SESSION_RATE_LIMIT_PER_MIN` | `/api/realtime/session` の IP あたり毎分上限(既定 6) |
+
+## ⚠️ セキュリティ上の注意
+
+本サンプルは「QR で誰でも触れるデモ」を目的とした **開発者向けレファレンス** です。
+公開デプロイには **必ず以下を設定** してください:
+
+- **`ALLOWED_ORIGINS`** を自分の FQDN に設定する。空のままだと任意のサイトから
+  `/api/realtime/session` を呼び出されて **あなたの OpenAI API クォータが消費** されます。
+- **`SESSION_RATE_LIMIT_PER_MIN`** はデフォルト 6。本格デモなら 30〜60、長時間放置なら
+  もっと厳しく。各セッションが Realtime API の有料分を消費する点を忘れずに。
+- **OpenAI ダッシュボードで `Usage Limit` を別途設定** し、想定上限を超えたら自動停止
+  する safety net を有効にしておくことを強く推奨。
+- 認証はかかっていません(OpenAI 側 quota と上記 rate limit のみ)。本格的な顧客向け
+  展開には、トップページからの署名付きクッキー発行など別途認証フローを足してください。
+- ConoHa 上では `conoha-proxy` が TLS を終端し X-Forwarded-For を渡すので、上の rate limit は
+  正しいクライアント IP で動きます。直接 expose する場合は逆プロキシで X-Forwarded-For
+  を必ず信頼できる状態にしてください。
 
 ## ローカル起動
 
