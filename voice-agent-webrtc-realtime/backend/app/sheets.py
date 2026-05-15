@@ -16,10 +16,18 @@ class SheetsClient:
     """
 
     def __init__(self, credentials_json: str, sheet_id: str) -> None:
-        info = json.loads(credentials_json)
-        creds = service_account.Credentials.from_service_account_info(
-            info, scopes=_SCOPES
-        )
+        # Wrap with `from None` so tracebacks never include the parsed
+        # credential dict (it contains private_key). Re-raise a sanitized
+        # error that's safe to log.
+        try:
+            info = json.loads(credentials_json)
+            creds = service_account.Credentials.from_service_account_info(
+                info, scopes=_SCOPES
+            )
+        except Exception:
+            raise RuntimeError(
+                "invalid GOOGLE_APPLICATION_CREDENTIALS_JSON"
+            ) from None
         self._svc = build("sheets", "v4", credentials=creds, cache_discovery=False)
         self._sheet_id = sheet_id
 
