@@ -19,6 +19,9 @@ docs/memory/
 # OS / editor
 .DS_Store
 
+# Python virtual environments
+.venv/
+
 # Build artifacts
 node_modules/
 tmp/
