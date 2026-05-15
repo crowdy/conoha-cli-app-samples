@@ -4,7 +4,7 @@ from fastapi import FastAPI
 
 from app import settings
 from app.broadcast import BroadcastHub
-from app.routers import orders, realtime
+from app.routers import events, orders, realtime
 from app.sheets import SheetsClient
 from app.store import OrderStore
 
@@ -28,6 +28,7 @@ def create_app() -> FastAPI:
     app = FastAPI(title="voice-agent-webrtc-realtime", lifespan=lifespan)
     app.include_router(realtime.router)
     app.include_router(orders.router)
+    app.include_router(events.router)
 
     @app.get("/healthz")
     def healthz():
