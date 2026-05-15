@@ -121,6 +121,8 @@ function TalkInner() {
         return;
       }
     }
+    // Clear any leftover audio bytes from a previous turn before reopening.
+    sendEvent(sessionRef.current, { type: "input_audio_buffer.clear" });
     setMicEnabled(sessionRef.current, true);
     setTalking(true);
   }
@@ -147,7 +149,12 @@ function TalkInner() {
     });
     return () => {
       unsubscribe();
-      if (sessionRef.current) closeRealtime(sessionRef.current);
+      if (sessionRef.current) {
+        closeRealtime(sessionRef.current);
+        // Null the ref so a re-mount (HMR / Fast Refresh in dev) doesn't
+        // reuse the closed PeerConnection.
+        sessionRef.current = null;
+      }
     };
   }, []);
 

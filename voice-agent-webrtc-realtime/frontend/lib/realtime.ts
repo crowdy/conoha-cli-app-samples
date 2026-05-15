@@ -83,11 +83,16 @@ export function setMicEnabled(session: RealtimeSession, enabled: boolean): void 
   session.micTrack.enabled = enabled;
 }
 
-/** Send a client event over the Realtime data channel. */
+/** Send a client event over the Realtime data channel.
+ *
+ * Silently no-ops if the data channel isn't open yet. This can happen if
+ * the user releases push-to-talk very quickly before ICE+DC negotiation
+ * completes — without this guard, `dc.send` throws InvalidStateError. */
 export function sendEvent(
   session: RealtimeSession,
   event: Record<string, unknown>,
 ): void {
+  if (session.dc.readyState !== "open") return;
   session.dc.send(JSON.stringify(event));
 }
 
