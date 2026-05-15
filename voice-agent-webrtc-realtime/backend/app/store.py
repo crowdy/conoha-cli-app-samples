@@ -52,5 +52,9 @@ class OrderStore:
     def delete(self, order_id: str) -> None:
         self._orders.pop(order_id, None)
 
+    def restore(self, order: Order) -> None:
+        """Put an order back at its existing key (used to undo a failed update)."""
+        self._orders[order.order_id] = order
+
     def recent(self, limit: int) -> list[Order]:
         return list(self._orders.values())[-limit:]

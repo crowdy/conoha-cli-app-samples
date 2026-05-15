@@ -41,6 +41,10 @@ class SessionRequest(BaseModel):
     mode: str  # validated/normalised by personas.resolve()
 
 
+class RecentOrdersResponse(BaseModel):
+    orders: list[Order]
+
+
 def order_to_row(order: Order) -> list[str]:
     """Serialise an Order into the 8-column Google Sheets row layout."""
     return [

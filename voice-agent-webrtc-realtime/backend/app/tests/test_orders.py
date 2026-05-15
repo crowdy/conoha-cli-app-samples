@@ -70,3 +70,38 @@ def test_recent_orders_returns_last_n(client):
     res = client.get("/api/orders/recent?limit=2")
     assert res.status_code == 200
     assert len(res.json()["orders"]) == 2
+
+
+def test_update_order_sheets_failure_rolls_back(client, app):
+    order = _create(client).json()
+    original_qty = order["items"][0]["qty"]
+
+    app.state.sheets.fail_update = True
+    res = client.patch(
+        f"/api/orders/{order['order_id']}",
+        json={"items": [{"name": "カルボナーラ", "qty": 99}], "notes": "fail"},
+    )
+    assert res.status_code == 502
+
+    # In-memory store reverted to pre-update state.
+    stored = app.state.store.get(order["order_id"])
+    assert stored.items[0].qty == original_qty
+    assert stored.notes is None
+
+    # No order_updated broadcast (we rolled back before publishing).
+    types = [evt["type"] for evt in app.state.hub.history()]
+    assert "order_updated" not in types
+
+
+def test_close_order_sheets_failure_rolls_back(client, app):
+    order = _create(client).json()
+
+    app.state.sheets.fail_update = True
+    res = client.post(f"/api/orders/{order['order_id']}/close")
+    assert res.status_code == 502
+
+    stored = app.state.store.get(order["order_id"])
+    assert stored.status == "open"  # rolled back
+
+    types = [evt["type"] for evt in app.state.hub.history()]
+    assert "order_closed" not in types
