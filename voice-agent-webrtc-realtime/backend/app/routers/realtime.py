@@ -1,9 +1,10 @@
 import httpx
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 
 from app import settings
 from app.models import SessionRequest
 from app.personas import resolve
+from app.security import session_rate_limit
 from app.tools_schema import TOOLS
 
 router = APIRouter(prefix="/api/realtime", tags=["realtime"])
@@ -12,7 +13,10 @@ _OPENAI_SESSIONS_URL = "https://api.openai.com/v1/realtime/sessions"
 
 
 @router.post("/session")
-async def create_session(req: SessionRequest):
+async def create_session(req: SessionRequest, request: Request):
+    if not session_rate_limit(request):
+        raise HTTPException(status_code=429, detail="rate limit exceeded")
+
     mode, instructions = resolve(req.mode)
 
     try:

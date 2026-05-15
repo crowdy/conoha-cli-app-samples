@@ -3,6 +3,7 @@ from fastapi.testclient import TestClient
 
 from app.broadcast import BroadcastHub
 from app.main import create_app
+from app.security import reset_session_bucket
 from app.store import OrderStore
 
 
@@ -14,6 +15,7 @@ class FakeSheets:
         self.updated: list[tuple[int, list[str]]] = []
         self._rows: dict[str, int] = {}
         self.fail = False
+        self.fail_update = False
 
     def append_order(self, row: list[str]) -> None:
         if self.fail:
@@ -25,7 +27,16 @@ class FakeSheets:
         return self._rows.get(order_id)
 
     def update_row(self, row_number: int, row: list[str]) -> None:
+        if self.fail_update:
+            raise RuntimeError("sheets update down")
         self.updated.append((row_number, row))
+
+
+@pytest.fixture(autouse=True)
+def _reset_rate_limit():
+    """Each test starts with an empty per-IP token bucket."""
+    reset_session_bucket()
+    yield
 
 
 @pytest.fixture

@@ -19,8 +19,11 @@ services:
       - GOOGLE_APPLICATION_CREDENTIALS_JSON
       - SHEET_ID
       - RESTAURANT_NAME
+      - ALLOWED_ORIGINS
+      - SESSION_RATE_LIMIT_PER_MIN
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/healthz')"]
       interval: 5s
       timeout: 5s
       retries: 5
+      start_period: 10s
