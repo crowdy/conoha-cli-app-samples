@@ -5,8 +5,10 @@ import { useSearchParams } from "next/navigation";
 
 import { ModeBadge, MODE_STYLES } from "@/components/ModeTheme";
 import { OrderReceipt } from "@/components/OrderReceipt";
+import { OrderTicker } from "@/components/OrderTicker";
 import { PushToTalk } from "@/components/PushToTalk";
 import { Transcript } from "@/components/Transcript";
+import { subscribeEvents } from "@/lib/events";
 import {
   closeRealtime,
   sendEvent,
@@ -15,7 +17,7 @@ import {
   type RealtimeSession,
 } from "@/lib/realtime";
 import { handleToolEvent, type ReceiptOrder, type ToolContext } from "@/lib/tools";
-import { isMode, type Mode, type TranscriptEntry } from "@/lib/types";
+import { isMode, type Mode, type Order, type TranscriptEntry } from "@/lib/types";
 
 function TalkInner() {
   const params = useSearchParams();
@@ -24,11 +26,17 @@ function TalkInner() {
   const style = MODE_STYLES[mode];
 
   const sessionRef = useRef<RealtimeSession | null>(null);
+  const receiptRef = useRef<ReceiptOrder | null>(null);
   const [ready, setReady] = useState(false);
   const [talking, setTalking] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [transcript, setTranscript] = useState<TranscriptEntry[]>([]);
   const [receipt, setReceipt] = useState<ReceiptOrder | null>(null);
+  const [ticker, setTicker] = useState<Order[]>([]);
+
+  useEffect(() => {
+    receiptRef.current = receipt;
+  }, [receipt]);
 
   const toolCtx: ToolContext = {
     mode,
@@ -127,7 +135,18 @@ function TalkInner() {
   }
 
   useEffect(() => {
+    const unsubscribe = subscribeEvents((evt) => {
+      setTicker((prev) => {
+        const ownId = receiptRef.current?.order_id;
+        if (evt.payload.order_id === ownId) return prev;
+        const without = prev.filter(
+          (o) => o.order_id !== evt.payload.order_id,
+        );
+        return [...without, evt.payload].slice(-20);
+      });
+    });
     return () => {
+      unsubscribe();
       if (sessionRef.current) closeRealtime(sessionRef.current);
     };
   }, []);
@@ -144,6 +163,7 @@ function TalkInner() {
       )}
       <OrderReceipt order={receipt} />
       <Transcript entries={transcript} />
+      <OrderTicker orders={ticker} />
       <PushToTalk
         style={style}
         ready={ready || sessionRef.current === null}
