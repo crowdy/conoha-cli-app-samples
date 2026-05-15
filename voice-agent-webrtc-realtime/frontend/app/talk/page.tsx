@@ -4,6 +4,7 @@ import { Suspense, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 
 import { ModeBadge, MODE_STYLES } from "@/components/ModeTheme";
+import { OrderReceipt } from "@/components/OrderReceipt";
 import { PushToTalk } from "@/components/PushToTalk";
 import { Transcript } from "@/components/Transcript";
 import {
@@ -13,6 +14,7 @@ import {
   startRealtime,
   type RealtimeSession,
 } from "@/lib/realtime";
+import { handleToolEvent, type ReceiptOrder, type ToolContext } from "@/lib/tools";
 import { isMode, type Mode, type TranscriptEntry } from "@/lib/types";
 
 function TalkInner() {
@@ -26,28 +28,57 @@ function TalkInner() {
   const [talking, setTalking] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [transcript, setTranscript] = useState<TranscriptEntry[]>([]);
+  const [receipt, setReceipt] = useState<ReceiptOrder | null>(null);
 
-  // Append assistant transcript deltas, or push a finished user line.
+  const toolCtx: ToolContext = {
+    mode,
+    onOptimistic: (items) =>
+      setReceipt({ order_id: null, items, status: "pending" }),
+    onPersisted: (order) =>
+      setReceipt({
+        order_id: order.order_id,
+        items: order.items,
+        status: "persisted",
+      }),
+    onClosed: (order) =>
+      setReceipt({
+        order_id: order.order_id,
+        items: order.items,
+        status: "closed",
+      }),
+    onError: () =>
+      setReceipt((prev) => (prev ? { ...prev, status: "error" } : prev)),
+  };
+
+  function appendAssistantDelta(delta: string) {
+    setTranscript((prev) => {
+      const last = prev[prev.length - 1];
+      if (last && last.role === "assistant" && !last.done) {
+        return [...prev.slice(0, -1), { ...last, text: last.text + delta }];
+      }
+      return [
+        ...prev,
+        {
+          id: `a-${Date.now()}-${Math.random()}`,
+          role: "assistant",
+          text: delta,
+          done: false,
+        },
+      ];
+    });
+  }
+
   function handleEvent(event: Record<string, unknown>) {
     const type = event.type as string;
 
+    if (type === "response.function_call_arguments.done") {
+      const session = sessionRef.current;
+      if (session) void handleToolEvent(session, event, toolCtx);
+      return;
+    }
+
     if (type === "response.audio_transcript.delta") {
-      const delta = event.delta as string;
-      setTranscript((prev) => {
-        const last = prev[prev.length - 1];
-        if (last && last.role === "assistant" && !last.done) {
-          return [...prev.slice(0, -1), { ...last, text: last.text + delta }];
-        }
-        return [
-          ...prev,
-          {
-            id: `a-${Date.now()}-${Math.random()}`,
-            role: "assistant",
-            text: delta,
-            done: false,
-          },
-        ];
-      });
+      appendAssistantDelta(event.delta as string);
     } else if (type === "response.audio_transcript.done") {
       setTranscript((prev) => {
         const last = prev[prev.length - 1];
@@ -71,8 +102,6 @@ function TalkInner() {
     }
   }
 
-  // PushToTalk's onPointerDown is the user gesture that lets iOS Safari
-  // grant getUserMedia; the WebRTC session is created on first press.
   async function handleStart() {
     setError(null);
     if (!sessionRef.current) {
@@ -93,7 +122,6 @@ function TalkInner() {
     const session = sessionRef.current;
     if (!session) return;
     setMicEnabled(session, false);
-    // Push-to-talk: end the user turn and ask for a response.
     sendEvent(session, { type: "input_audio_buffer.commit" });
     sendEvent(session, { type: "response.create" });
   }
@@ -114,6 +142,7 @@ function TalkInner() {
           {error}
         </div>
       )}
+      <OrderReceipt order={receipt} />
       <Transcript entries={transcript} />
       <PushToTalk
         style={style}
