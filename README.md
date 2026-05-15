@@ -90,6 +90,7 @@ conoha app deploy myserver
 | [outline](outline/) | Outline + PostgreSQL + Redis + Dex | セルフホスティングチーム Wiki（OIDC認証付き） | g2l-t-2 (2GB) |
 | [meilisearch](meilisearch/) | Meilisearch | セルフホスティング全文検索エンジン | g2l-t-1 (1GB) |
 | [slurm-rest-api](slurm-rest-api/) | Slurm + slurmrestd + slurmdbd + MariaDB | Slurm 単一ノードクラスター + REST API (JWT 認証、Python CLI + NumPy/sklearn ワークロード例) | g2l-t-2 (2GB) |
+| [voice-agent-webrtc-realtime](voice-agent-webrtc-realtime/) | Next.js + FastAPI + OpenAI Realtime API | QR でアクセスしてブラウザで音声注文する AI エージェント（WebRTC 直結、3 つの通信プロトコル人格、Google Sheets 連携） | g2l-t-2 (2GB) |
 
 ## 自分のアプリをデプロイするには
 
