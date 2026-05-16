@@ -72,7 +72,8 @@ class VoicePipeline:
         self._speech_active = False
         self._silence_samples = 0
         self._out_track = _OutboundTrack()
-        # Silero VAD operates on 16 kHz 30 ms chunks (480 samples)
+        self.bg_tasks: set[asyncio.Task] = set()
+        # Silero VAD operates on 32 ms chunks (512 samples at 16 kHz, Silero requirement)
         self._vad_model, _ = torch.hub.load(repo_or_dir=_SILERO_REPO,
                                               model="silero_vad", trust_repo=True)
 
@@ -93,9 +94,13 @@ class VoicePipeline:
 
     async def _process_chunk(self, pcm16k: np.ndarray) -> None:
         self._buf.append(pcm16k)
-        # Run VAD on the most recent 30 ms (480 samples)
-        recent = pcm16k[-480:] if pcm16k.size >= 480 else pcm16k
-        if recent.size < 480:
+        total_samples = sum(a.size for a in self._buf)
+        if total_samples / 16000 >= self.MAX_UTTERANCE_SEC:
+            await self._flush_utterance()
+            return
+        # Run VAD on the most recent 32 ms (512 samples at 16 kHz, Silero requirement)
+        recent = pcm16k[-512:] if pcm16k.size >= 512 else pcm16k
+        if recent.size < 512:
             return
         tensor = torch.from_numpy(recent.astype(np.float32) / 32768.0)
         prob = float(self._vad_model(tensor, 16000).item())

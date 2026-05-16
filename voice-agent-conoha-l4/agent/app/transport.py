@@ -55,7 +55,9 @@ class WebRTCNegotiator:
         @pc.on("track")
         def on_track(track):
             if track.kind == "audio":
-                asyncio.create_task(pipeline.handle_inbound_track(track))
+                task = asyncio.create_task(pipeline.handle_inbound_track(track))
+                pipeline.bg_tasks.add(task)
+                task.add_done_callback(pipeline.bg_tasks.discard)
 
         @pc.on("connectionstatechange")
         async def on_state():

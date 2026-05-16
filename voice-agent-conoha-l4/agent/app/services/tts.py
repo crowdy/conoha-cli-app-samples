@@ -1,10 +1,8 @@
 # voice-agent-conoha-l4/agent/app/services/tts.py
 import asyncio
-import io
 from pathlib import Path
 
 import numpy as np
-import soundfile as sf
 from style_bert_vits2.tts_model import TTSModel
 from style_bert_vits2.nlp import bert_models
 from style_bert_vits2.constants import Languages
@@ -24,7 +22,15 @@ class SBV2TTSService:
                                style_vec_path=style, device=device)
 
     async def synthesize(self, text: str, language: str) -> bytes:
-        return await asyncio.get_event_loop().run_in_executor(
+        """Synthesize ``text`` to raw int16 PCM at 24 kHz.
+
+        Note: this implementation always uses Japanese voice models
+        (``Languages.JP``) regardless of the ``language`` argument.
+        Callers passing ``"en"`` or ``"ko"`` will receive
+        Japanese-pronunciation output.  Multi-language voice is out of
+        scope for the current spec.
+        """
+        return await asyncio.get_running_loop().run_in_executor(
             None, self._synth_sync, text
         )
 

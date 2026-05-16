@@ -9,3 +9,4 @@ openai==1.57.0
 numpy==1.26.4
 soundfile==0.12.1
 style-bert-vits2==2.6.1
+torchaudio  # needed by torch.hub.load for Silero VAD weights

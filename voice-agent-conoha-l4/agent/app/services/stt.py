@@ -1,9 +1,7 @@
 # voice-agent-conoha-l4/agent/app/services/stt.py
 import asyncio
-import io
 
 import numpy as np
-import soundfile as sf
 from faster_whisper import WhisperModel
 
 
@@ -12,7 +10,7 @@ class WhisperSTTService:
         self._model = WhisperModel(model_size, device=device, compute_type="float16")
 
     async def transcribe(self, pcm16: bytes) -> tuple[str, str]:
-        return await asyncio.get_event_loop().run_in_executor(
+        return await asyncio.get_running_loop().run_in_executor(
             None, self._transcribe_sync, pcm16
         )
 
