@@ -85,6 +85,15 @@ class ToolExecutor:
         self._mode = mode
         self._http = http_client or httpx.AsyncClient(timeout=8.0)
 
+    @staticmethod
+    def _extract_4xx(r) -> dict:
+        """Parse a 4xx response body into a structured error result."""
+        try:
+            err = r.json()
+        except Exception:
+            err = {"detail": r.text}
+        return {"ok": False, "error": "validation failed", "detail": err.get("detail")}
+
     async def dispatch(self, name: str, args: dict) -> dict:
         if name == "add_order":
             body = {
@@ -94,6 +103,8 @@ class ToolExecutor:
                 "items": args["items"],
             }
             r = await self._http.post(f"{settings.BACKEND_URL}/api/orders", json=body)
+            if 400 <= r.status_code < 500:
+                return self._extract_4xx(r)
             r.raise_for_status()
             order = r.json()
             return {"ok": True, "order_id": order["order_id"]}
@@ -104,6 +115,8 @@ class ToolExecutor:
             r = await self._http.patch(
                 f"{settings.BACKEND_URL}/api/orders/{order_id}", json=body
             )
+            if 400 <= r.status_code < 500:
+                return self._extract_4xx(r)
             r.raise_for_status()
             return {"ok": True, "order_id": r.json()["order_id"]}
 
@@ -112,6 +125,8 @@ class ToolExecutor:
             r = await self._http.post(
                 f"{settings.BACKEND_URL}/api/orders/{order_id}/close"
             )
+            if 400 <= r.status_code < 500:
+                return self._extract_4xx(r)
             r.raise_for_status()
             return {"ok": True, "order_id": order_id, "status": "closed"}
 

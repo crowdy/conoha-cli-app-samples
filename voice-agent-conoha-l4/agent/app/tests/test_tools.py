@@ -60,6 +60,20 @@ async def test_unknown_tool_raises():
         await ex.dispatch("hack", {})
 
 
+async def test_add_order_validation_error_returns_detail(httpx_mock):
+    httpx_mock.add_response(
+        url="http://backend:8000/api/orders",
+        method="POST",
+        status_code=422,
+        json={"detail": [{"loc": ["body", "items", 0, "qty"], "msg": "field required"}]},
+    )
+    ex = ToolExecutor(mode="callcenter")
+    out = await ex.dispatch("add_order", {"items": [{"name": "x"}], "language": "ja"})
+    assert out["ok"] is False
+    assert out["error"] == "validation failed"
+    assert out["detail"] is not None
+
+
 def test_openai_tools_shape():
     names = {t["function"]["name"] for t in OPENAI_TOOLS}
     assert names == {"add_order", "update_order", "close_order", "list_orders"}

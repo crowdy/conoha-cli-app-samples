@@ -95,6 +95,9 @@ class VoicePipeline:
             t.cancel()
         await self._loop.aclose()
 
+    def _vad_score(self, tensor) -> float:
+        return self._vad_model(tensor, 16000).item()
+
     async def handle_inbound_track(self, track) -> None:
         try:
             while True:
@@ -118,7 +121,8 @@ class VoicePipeline:
         if recent.size < 512:
             return
         tensor = torch.from_numpy(recent.astype(np.float32) / 32768.0)
-        prob = float(self._vad_model(tensor, 16000).item())
+        loop = asyncio.get_running_loop()
+        prob = float(await loop.run_in_executor(None, self._vad_score, tensor))
 
         if prob >= self.VAD_PROB_THRESHOLD:
             self._speech_active = True
