@@ -18,6 +18,9 @@ function TalkContent() {
   const params = useSearchParams();
   const mode = (params.get("mode") ?? "callcenter") as Mode;
 
+  const mountedRef = useRef(true);
+  useEffect(() => () => { mountedRef.current = false; }, []);
+
   const sessionRef = useRef<VoiceSession | null>(null);
   const [status, setStatus] = useState<"idle"|"connecting"|"listening"|"speaking"|"error">("idle");
   const [items, setItems] = useState<OrderItem[]>([]);
@@ -50,12 +53,18 @@ function TalkContent() {
   }
 
   async function connect() {
+    if (!mountedRef.current) return;
     setStatus("connecting");
     try {
-      sessionRef.current = await startVoice(mode, handleEvent);
+      const s = await startVoice(mode, handleEvent);
+      if (!mountedRef.current) {
+        closeVoice(s);
+        return;
+      }
+      sessionRef.current = s;
       setStatus("listening");
     } catch {
-      setStatus("error");
+      if (mountedRef.current) setStatus("error");
     }
   }
 
