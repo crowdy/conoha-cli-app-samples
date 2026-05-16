@@ -85,3 +85,6 @@ class ConversationLoop:
         if content:
             emit({"type": "assistant_text", "text": content})
         return await self._tts.synthesize(content or "...", language=lang)
+
+    async def aclose(self) -> None:
+        await self._exec.aclose()

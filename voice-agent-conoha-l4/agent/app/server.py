@@ -60,7 +60,10 @@ def create_app(use_mock_services: bool = False) -> FastAPI:
         def services_factory():
             return app.state.stt, app.state.llm, app.state.tts
 
-        app.state.negotiator = WebRTCNegotiator(services_factory=services_factory)
+        app.state.negotiator = WebRTCNegotiator(
+            services_factory=services_factory,
+            release_cb=app.state.sessions.release,
+        )
         yield
         await app.state.negotiator.close_all()
 

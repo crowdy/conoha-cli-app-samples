@@ -28,11 +28,21 @@ class _OutboundTrack(AudioStreamTrack):
 
     def __init__(self) -> None:
         super().__init__()
-        self._queue: asyncio.Queue[np.ndarray] = asyncio.Queue()
+        self._queue: asyncio.Queue[np.ndarray] = asyncio.Queue(maxsize=512)
         self._pts = 0
 
     async def push(self, pcm48k_int16: np.ndarray) -> None:
-        await self._queue.put(pcm48k_int16)
+        try:
+            self._queue.put_nowait(pcm48k_int16)
+        except asyncio.QueueFull:
+            try:
+                self._queue.get_nowait()  # drop oldest
+            except asyncio.QueueEmpty:
+                pass
+            try:
+                self._queue.put_nowait(pcm48k_int16)
+            except asyncio.QueueFull:
+                pass  # impossibly tight race; just drop new
 
     async def recv(self):
         try:
@@ -79,6 +89,11 @@ class VoicePipeline:
 
     def outbound_track(self) -> _OutboundTrack:
         return self._out_track
+
+    async def aclose(self) -> None:
+        for t in list(self.bg_tasks):
+            t.cancel()
+        await self._loop.aclose()
 
     async def handle_inbound_track(self, track) -> None:
         try:

@@ -3,7 +3,7 @@ import type { Mode } from "@/lib/types";
 
 export interface VoiceSession {
   pc: RTCPeerConnection;
-  dc: RTCDataChannel | null;
+  dc: RTCDataChannel;
   audioEl: HTMLAudioElement;
   micTrack: MediaStreamTrack;
   sessionId: string;
@@ -39,22 +39,18 @@ export async function startVoice(
     micTrack = mic.getAudioTracks()[0];
     pc.addTrack(micTrack, mic);
 
-    // CONTRACT: The server creates the "ui-events" DataChannel before sending
-    // the answer SDP, so the channel arrives via ondatachannel during the
-    // offer/answer exchange. The client must NOT call createDataChannel() —
-    // doing so creates a second, independent channel that the server never
-    // writes to, causing all server events to be silently dropped.
-    let dc: RTCDataChannel | null = null;
-    pc.ondatachannel = (e) => {
-      dc = e.channel;
-      e.channel.addEventListener("message", (m) => {
-        try {
-          onEvent(JSON.parse(m.data) as AgentEvent);
-        } catch {
-          // ignore malformed
-        }
-      });
-    };
+    // I-6: The client (offerer) creates the DataChannel so the m-section
+    // appears in the offer SDP. RFC 8829 requires the offerer to include
+    // application m-sections; the answerer (server) picks it up via
+    // pc.on("datachannel") and writes events back through the same channel.
+    const dc: RTCDataChannel = pc.createDataChannel("ui-events");
+    dc.addEventListener("message", (m) => {
+      try {
+        onEvent(JSON.parse(m.data) as AgentEvent);
+      } catch {
+        // ignore malformed
+      }
+    });
 
     const offer = await pc.createOffer();
     await pc.setLocalDescription(offer);
@@ -78,8 +74,6 @@ export async function startVoice(
 
 export function closeVoice(s: VoiceSession): void {
   s.micTrack.stop();
-  if (s.dc) {
-    try { s.dc.close(); } catch {}
-  }
+  try { s.dc.close(); } catch {}
   s.pc.close();
 }

@@ -1,4 +1,9 @@
-import threading
+"""Session concurrency registry.
+
+Single-event-loop discipline; no thread safety guarantees. All callers
+run on the asyncio event loop, so a threading.Lock would be redundant
+and misleading.
+"""
 
 
 class SessionRegistry:
@@ -6,30 +11,26 @@ class SessionRegistry:
 
     def __init__(self, max_sessions: int) -> None:
         self._max = max_sessions
-        self._lock = threading.Lock()
         self._ids: set[str] = set()
 
     def acquire(self, session_id: str) -> bool:
-        with self._lock:
-            if session_id in self._ids:
-                return True
-            if len(self._ids) >= self._max:
-                return False
-            self._ids.add(session_id)
+        if session_id in self._ids:
             return True
+        if len(self._ids) >= self._max:
+            return False
+        self._ids.add(session_id)
+        return True
 
     def release(self, session_id: str) -> None:
-        with self._lock:
-            self._ids.discard(session_id)
+        self._ids.discard(session_id)
 
     def rename(self, old: str, new: str) -> bool:
         """Atomically rename a session slot. Returns False if `old` doesn't exist."""
-        with self._lock:
-            if old not in self._ids:
-                return False
-            self._ids.discard(old)
-            self._ids.add(new)
-            return True
+        if old not in self._ids:
+            return False
+        self._ids.discard(old)
+        self._ids.add(new)
+        return True
 
     def count(self) -> int:
         return len(self._ids)
