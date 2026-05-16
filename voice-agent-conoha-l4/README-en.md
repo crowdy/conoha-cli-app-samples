@@ -57,15 +57,17 @@ conoha proxy boot --acme-email you@example.com voice-agent-l4
 
 # 4. Replace `hosts:` in conoha.yml with your own FQDN
 
-# 5. Pre-stage SBV2 weights (first time only)
-ssh root@<vps> 'bash -s' < voice-agent-conoha-l4/scripts/fetch-sbv2-weights.sh
-
-# 6. Deploy (first run takes 10-15 min for GPU image pull + model download)
+# 5. Initialize the app (creates Docker volume)
 cd voice-agent-conoha-l4
 conoha app init voice-agent-l4
+
+# 6. Pre-stage SBV2 weights (first time only, after volume creation)
+ssh root@<vps> 'bash -s' < voice-agent-conoha-l4/scripts/fetch-sbv2-weights.sh
+
+# 7. Deploy (first run takes 10-15 min for GPU image pull + model download)
 conoha app deploy voice-agent-l4
 
-# 7. When /healthz returns 200 the service is ready (model warmup 90-120s)
+# 8. When /healthz returns 200 the service is ready (model warmup 90-120s)
 curl https://voice-agent.example.com/healthz
 ```
 
