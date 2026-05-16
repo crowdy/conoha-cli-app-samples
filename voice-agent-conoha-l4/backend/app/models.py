@@ -1,5 +1,4 @@
 # voice-agent-conoha-l4/backend/app/models.py
-import json
 from typing import Literal
 
 from pydantic import BaseModel, Field

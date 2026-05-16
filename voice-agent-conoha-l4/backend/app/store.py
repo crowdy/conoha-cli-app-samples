@@ -53,4 +53,5 @@ class OrderStore:
             self._orders.pop(order_id, None)
 
     def recent(self, limit: int = 10) -> list[Order]:
-        return list(reversed(list(self._orders.values())))[:limit]
+        with self._lock:
+            return list(reversed(list(self._orders.values())))[:limit]

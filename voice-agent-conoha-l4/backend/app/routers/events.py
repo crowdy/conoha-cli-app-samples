@@ -51,7 +51,7 @@ class EventBroker:
         self._queues: set[_LoopQueue] = set()
 
     def add(self) -> _LoopQueue:
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         q = _LoopQueue(loop)
         self._queues.add(q)
         return q
