@@ -23,6 +23,14 @@ def client(monkeypatch):
     def fake_orders():
         return {"ok": True}
 
+    @app.get("/api/orders/recent")
+    def fake_recent():
+        return {"orders": []}
+
+    @app.get("/api/orders/{order_id}")
+    def fake_get_order(order_id: str):
+        return {"ok": True}
+
     @app.get("/")
     def root():
         return {"ok": True}
@@ -51,3 +59,19 @@ def test_orders_rate_limit(client):
     assert client.post("/api/orders", headers=h).status_code == 200
     assert client.post("/api/orders", headers=h).status_code == 200
     assert client.post("/api/orders", headers=h).status_code == 429
+
+
+def test_orders_recent_get_rate_limit(client):
+    """GET /api/orders/recent shares the same bucket — scrapers get throttled."""
+    h = {"origin": "https://allowed.example.com", "x-forwarded-for": "2.3.4.5"}
+    assert client.get("/api/orders/recent", headers=h).status_code == 200
+    assert client.get("/api/orders/recent", headers=h).status_code == 200
+    assert client.get("/api/orders/recent", headers=h).status_code == 200
+    assert client.get("/api/orders/recent", headers=h).status_code == 429
+
+
+def test_other_orders_get_not_rate_limited(client):
+    """GET on other /api/orders/* paths (e.g. /{id}) is NOT rate-limited."""
+    h = {"origin": "https://allowed.example.com", "x-forwarded-for": "3.4.5.6"}
+    for _ in range(5):
+        assert client.get("/api/orders/ord_abc123", headers=h).status_code == 200

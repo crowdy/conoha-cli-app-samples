@@ -17,10 +17,7 @@ def app():
 def test_ws_receives_broadcast(app):
     with TestClient(app) as client:
         with client.websocket_connect("/api/events") as ws:
-            # Give the server a tick to register
-            import asyncio
-            asyncio.run(
-                app.state.broker.broadcast({"type": "order_added", "order_id": "x"})
-            )
+            # broadcast is now synchronous — call it directly
+            app.state.broker.broadcast({"type": "order_added", "order_id": "x"})
             msg = ws.receive_json()
             assert msg == {"type": "order_added", "order_id": "x"}

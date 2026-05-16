@@ -1,5 +1,4 @@
 # voice-agent-conoha-l4/backend/app/routers/orders.py
-import asyncio
 import uuid
 from datetime import datetime, timezone
 
@@ -22,7 +21,7 @@ def _new_order_id() -> str:
 
 
 def _broadcast(request: Request, event: dict) -> None:
-    asyncio.create_task(request.app.state.broker.broadcast(event))
+    request.app.state.broker.broadcast(event)
 
 
 @router.post("", response_model=Order)

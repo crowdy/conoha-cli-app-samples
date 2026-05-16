@@ -3,6 +3,11 @@
 
 Both are intentionally small in-process gates. A production deploy should
 use a proper WAF / API gateway in front.
+
+Rate-limit coverage:
+  - POST/PATCH/etc. on /api/orders  → ORDERS_RATE_LIMIT_PER_MIN (default 30/min)
+  - GET /api/orders/recent           → same bucket (30/min) to block scrapers;
+                                       normal QR-landing GETs are well within this.
 """
 import time
 from collections import deque
@@ -69,7 +74,13 @@ def reset_orders_bucket() -> None:
 
 class OrdersRateLimitMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
-        if request.url.path.startswith("/api/orders") and request.method != "GET":
+        is_orders_write = (
+            request.url.path.startswith("/api/orders") and request.method != "GET"
+        )
+        is_orders_recent_get = (
+            request.url.path == "/api/orders/recent" and request.method == "GET"
+        )
+        if is_orders_write or is_orders_recent_get:
             if not _orders_bucket.check(_client_ip(request)):
                 return JSONResponse({"detail": "rate limit exceeded"}, status_code=429)
         return await call_next(request)

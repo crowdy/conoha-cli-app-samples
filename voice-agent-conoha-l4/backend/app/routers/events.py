@@ -59,7 +59,7 @@ class EventBroker:
     def remove(self, q: _LoopQueue) -> None:
         self._queues.discard(q)
 
-    async def broadcast(self, event: dict) -> None:
+    def broadcast(self, event: dict) -> None:
         for q in list(self._queues):
             q.put_threadsafe(event)
 
