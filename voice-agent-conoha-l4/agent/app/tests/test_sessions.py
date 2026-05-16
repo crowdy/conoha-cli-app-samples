@@ -17,3 +17,11 @@ def test_acquire_same_id_idempotent():
     assert reg.acquire("s1") is True
     assert reg.acquire("s1") is True  # same id, no new slot consumed
     assert reg.count() == 1
+
+
+def test_rename_swaps_ids():
+    reg = SessionRegistry(max_sessions=2)
+    reg.acquire("a")
+    assert reg.rename("a", "b") is True
+    assert reg.count() == 1
+    assert reg.acquire("a")  # original id is free

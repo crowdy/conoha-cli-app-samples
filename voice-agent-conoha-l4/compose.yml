@@ -1,7 +1,10 @@
 # voice-agent-conoha-l4/compose.yml
 services:
   frontend:
-    build: ./frontend
+    build:
+      context: ./frontend
+      args:
+        PUBLIC_BASE_URL: ${PUBLIC_BASE_URL}
     expose: ["3000"]
     environment:
       - PUBLIC_BASE_URL

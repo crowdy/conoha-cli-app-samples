@@ -3,7 +3,7 @@ import type { Mode } from "@/lib/types";
 
 export interface VoiceSession {
   pc: RTCPeerConnection;
-  dc: RTCDataChannel;
+  dc: RTCDataChannel | null;
   audioEl: HTMLAudioElement;
   micTrack: MediaStreamTrack;
   sessionId: string;
@@ -39,15 +39,22 @@ export async function startVoice(
     micTrack = mic.getAudioTracks()[0];
     pc.addTrack(micTrack, mic);
 
-    const dc = pc.createDataChannel("ui-events");
-
-    dc.addEventListener("message", (e) => {
-      try {
-        onEvent(JSON.parse(e.data) as AgentEvent);
-      } catch {
-        // ignore malformed
-      }
-    });
+    // CONTRACT: The server creates the "ui-events" DataChannel before sending
+    // the answer SDP, so the channel arrives via ondatachannel during the
+    // offer/answer exchange. The client must NOT call createDataChannel() —
+    // doing so creates a second, independent channel that the server never
+    // writes to, causing all server events to be silently dropped.
+    let dc: RTCDataChannel | null = null;
+    pc.ondatachannel = (e) => {
+      dc = e.channel;
+      e.channel.addEventListener("message", (m) => {
+        try {
+          onEvent(JSON.parse(m.data) as AgentEvent);
+        } catch {
+          // ignore malformed
+        }
+      });
+    };
 
     const offer = await pc.createOffer();
     await pc.setLocalDescription(offer);
@@ -71,6 +78,8 @@ export async function startVoice(
 
 export function closeVoice(s: VoiceSession): void {
   s.micTrack.stop();
-  try { s.dc.close(); } catch {}
+  if (s.dc) {
+    try { s.dc.close(); } catch {}
+  }
   s.pc.close();
 }

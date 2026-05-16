@@ -22,5 +22,14 @@ class SessionRegistry:
         with self._lock:
             self._ids.discard(session_id)
 
+    def rename(self, old: str, new: str) -> bool:
+        """Atomically rename a session slot. Returns False if `old` doesn't exist."""
+        with self._lock:
+            if old not in self._ids:
+                return False
+            self._ids.discard(old)
+            self._ids.add(new)
+            return True
+
     def count(self) -> int:
         return len(self._ids)

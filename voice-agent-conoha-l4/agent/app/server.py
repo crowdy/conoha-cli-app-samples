@@ -82,16 +82,18 @@ def create_app(use_mock_services: bool = False) -> FastAPI:
     async def offer(req: OfferRequest):
         if not app.state.ready:
             raise HTTPException(status_code=503, detail="warming up")
-        if not app.state.sessions.acquire(req_id := uuid.uuid4().hex):
+        _provisional_id = uuid.uuid4().hex
+        if not app.state.sessions.acquire(_provisional_id):
             raise HTTPException(status_code=503, detail="too many sessions")
         try:
             result = await app.state.negotiator.handle_offer(req.sdp, req.type, req.mode)
         except Exception:
-            app.state.sessions.release(req_id)
+            app.state.sessions.release(_provisional_id)
             raise
-        # Replace the provisional reservation with the real session id.
-        app.state.sessions.release(req_id)
-        app.state.sessions.acquire(result.session_id)
+        if not app.state.sessions.rename(_provisional_id, result.session_id):
+            # Slot was released externally — extremely unlikely. Bail out cleanly.
+            await app.state.negotiator.close(result.session_id)
+            raise HTTPException(status_code=500, detail="session registry race")
         return OfferResponse(sdp=result.sdp, type=result.type,
                              session_id=result.session_id)
 

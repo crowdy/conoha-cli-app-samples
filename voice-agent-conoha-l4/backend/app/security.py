@@ -27,7 +27,8 @@ def _origin_allowed(request: Request) -> bool:
     origin = request.headers.get("origin") or request.headers.get("referer", "")
     if not origin:
         return False
-    return any(origin.startswith(allowed) for allowed in settings.ALLOWED_ORIGINS)
+    return any(origin == allowed or origin.startswith(allowed + "/")
+               for allowed in settings.ALLOWED_ORIGINS)
 
 
 class OriginGuardMiddleware(BaseHTTPMiddleware):
