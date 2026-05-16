@@ -32,14 +32,35 @@ def create_app(use_mock_services: bool = False) -> FastAPI:
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         app.state.sessions = SessionRegistry(max_sessions=settings.MAX_CONCURRENT_SESSIONS)
-        app.state.negotiator = WebRTCNegotiator()
+        app.state.ready = False
         if use_mock_services:
             app.state.stt, app.state.llm, app.state.tts = MockSTT(), MockLLM(), MockTTS()
             app.state.ready = True
         else:
-            # Real services wired in Phase D
-            app.state.stt = app.state.llm = app.state.tts = None
-            app.state.ready = False
+            from app.services.llm import VLLMService
+            from app.services.stt import WhisperSTTService
+            from app.services.tts import SBV2TTSService
+            app.state.stt = WhisperSTTService(model_size=settings.WHISPER_MODEL_SIZE)
+            app.state.llm = VLLMService(base_url=settings.LLM_URL, model=settings.LLM_MODEL)
+            app.state.tts = SBV2TTSService(model_dir=settings.SBV2_MODEL_DIR)
+            # Best-effort warmup. /healthz remains 503 if any of these throws.
+            try:
+                await app.state.stt.transcribe(b"\x00" * 1600)  # 100ms silence @16k
+                await app.state.llm.chat(
+                    messages=[{"role": "user", "content": "warmup"}],
+                    tools=[], tool_choice="none",
+                )
+                await app.state.tts.synthesize("起動完了", language="ja")
+                app.state.ready = True
+            except Exception:
+                import logging
+                logging.exception("warmup failed")
+                app.state.ready = False
+
+        def services_factory():
+            return app.state.stt, app.state.llm, app.state.tts
+
+        app.state.negotiator = WebRTCNegotiator(services_factory=services_factory)
         yield
         await app.state.negotiator.close_all()
 
@@ -59,16 +80,17 @@ def create_app(use_mock_services: bool = False) -> FastAPI:
 
     @app.post("/offer", response_model=OfferResponse)
     async def offer(req: OfferRequest):
-        _provisional_id = uuid.uuid4().hex
-        if not app.state.sessions.acquire(_provisional_id):
+        if not app.state.ready:
+            raise HTTPException(status_code=503, detail="warming up")
+        if not app.state.sessions.acquire(req_id := uuid.uuid4().hex):
             raise HTTPException(status_code=503, detail="too many sessions")
         try:
-            result = await app.state.negotiator.handle_offer(req.sdp, req.type)
+            result = await app.state.negotiator.handle_offer(req.sdp, req.type, req.mode)
         except Exception:
-            app.state.sessions.release(_provisional_id)
+            app.state.sessions.release(req_id)
             raise
         # Replace the provisional reservation with the real session id.
-        app.state.sessions.release(_provisional_id)
+        app.state.sessions.release(req_id)
         app.state.sessions.acquire(result.session_id)
         return OfferResponse(sdp=result.sdp, type=result.type,
                              session_id=result.session_id)
