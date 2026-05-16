@@ -6,8 +6,8 @@ services:
       args:
         PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:?PUBLIC_BASE_URL must be set in .env}
     expose: ["3000"]
-    environment:
-      - PUBLIC_BASE_URL
+    env_file:
+      - .env
     depends_on:
       agent:
         condition: service_healthy
@@ -17,18 +17,8 @@ services:
   agent:
     build: ./agent
     expose: ["8080"]
-    environment:
-      - ALLOWED_ORIGINS
-      - OFFER_RATE_LIMIT_PER_MIN
-      - MAX_CONCURRENT_SESSIONS
-      - SESSION_MAX_DURATION_SEC
-      - LLM_URL
-      - LLM_MODEL
-      - WHISPER_MODEL_SIZE
-      - SBV2_MODEL_DIR
-      - BACKEND_URL
-      - RESTAURANT_NAME
-      - HF_TOKEN
+    env_file:
+      - .env
     volumes:
       - models-agent:/models
     deploy:
@@ -53,11 +43,8 @@ services:
   llm:
     build: ./llm
     expose: ["8000"]
-    environment:
-      - LLM_MODEL
-      - GPU_MEMORY_UTILIZATION
-      - MAX_MODEL_LEN
-      - HF_TOKEN
+    env_file:
+      - .env
     volumes:
       - models-llm:/root/.cache/huggingface
     deploy:
@@ -77,12 +64,8 @@ services:
   backend:
     build: ./backend
     expose: ["8000"]
-    environment:
-      - ALLOWED_ORIGINS
-      - ORDERS_RATE_LIMIT_PER_MIN
-      - GOOGLE_APPLICATION_CREDENTIALS_JSON
-      - SHEET_ID
-      - RESTAURANT_NAME
+    env_file:
+      - .env
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/healthz')"]
       interval: 5s
