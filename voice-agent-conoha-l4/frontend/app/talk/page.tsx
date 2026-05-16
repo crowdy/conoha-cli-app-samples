@@ -23,6 +23,7 @@ function TalkContent() {
 
   const sessionRef = useRef<VoiceSession | null>(null);
   const [status, setStatus] = useState<"idle"|"connecting"|"listening"|"speaking"|"error">("idle");
+  const [errorMsg, setErrorMsg] = useState<string>("");
   const [items, setItems] = useState<OrderItem[]>([]);
   const [orderId, setOrderId] = useState<string | null>(null);
   const [transcript, setTranscript] = useState<string>("");
@@ -63,8 +64,11 @@ function TalkContent() {
       }
       sessionRef.current = s;
       setStatus("listening");
-    } catch {
-      if (mountedRef.current) setStatus("error");
+    } catch (err) {
+      if (mountedRef.current) {
+        setStatus("error");
+        setErrorMsg(err instanceof Error ? err.message : String(err));
+      }
     }
   }
 
@@ -78,6 +82,10 @@ function TalkContent() {
         <h1 className="text-2xl">{MODE_LABEL[mode]}</h1>
         <span className="text-xs px-2 py-1 bg-zinc-800 rounded">{status}</span>
       </header>
+
+      {status === "error" && errorMsg && (
+        <p className="text-red-400 text-sm">{errorMsg}</p>
+      )}
 
       {status === "idle" && (
         <button onClick={connect} className="bg-emerald-600 rounded-xl py-3">

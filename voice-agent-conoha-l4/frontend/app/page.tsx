@@ -6,8 +6,19 @@ async function qrDataUrl(text: string): Promise<string> {
 }
 
 export default async function HomePage() {
-  // Use the request's host at build/runtime via headers().
   const base = process.env.PUBLIC_BASE_URL ?? "";
+  if (!base) {
+    return (
+      <main className="min-h-screen p-8 flex flex-col items-center gap-4">
+        <h1 className="text-2xl font-bold text-red-500">設定エラー</h1>
+        <p className="text-zinc-300 text-center max-w-xl">
+          <code>PUBLIC_BASE_URL</code> がビルド時に設定されていません。
+          QR コードを生成できません。 <code>.env</code> を確認し、
+          <code>docker compose build</code> をやり直してください。
+        </p>
+      </main>
+    );
+  }
   const cards = await Promise.all(
     MODES.map(async (m) => ({
       ...m,

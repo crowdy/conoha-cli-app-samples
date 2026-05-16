@@ -4,7 +4,7 @@ services:
     build:
       context: ./frontend
       args:
-        PUBLIC_BASE_URL: ${PUBLIC_BASE_URL}
+        PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:?PUBLIC_BASE_URL must be set in .env}
     expose: ["3000"]
     environment:
       - PUBLIC_BASE_URL
@@ -30,7 +30,7 @@ services:
       - RESTAURANT_NAME
       - HF_TOKEN
     volumes:
-      - models:/models
+      - models-agent:/models
     deploy:
       resources:
         reservations:
@@ -59,7 +59,7 @@ services:
       - MAX_MODEL_LEN
       - HF_TOKEN
     volumes:
-      - models:/root/.cache/huggingface
+      - models-llm:/root/.cache/huggingface
     deploy:
       resources:
         reservations:
@@ -91,4 +91,5 @@ services:
       start_period: 10s
 
 volumes:
-  models:
+  models-agent:
+  models-llm:

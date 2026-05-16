@@ -6,9 +6,9 @@
 # Run on the ConoHa host after `conoha app init` but before `conoha app deploy`.
 set -euo pipefail
 
-VOLUME=$(docker volume ls -qf name=voice-agent-conoha-l4_models | head -1)
+VOLUME=$(docker volume ls -qf name=voice-agent-conoha-l4_models-agent | head -1)
 if [ -z "$VOLUME" ]; then
-  echo "Models volume not found. Run 'docker compose up backend' once to create it." >&2
+  echo "models-agent volume not found. Run 'docker compose up backend' once to create it." >&2
   exit 1
 fi
 
