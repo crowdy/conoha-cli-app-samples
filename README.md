@@ -74,6 +74,7 @@ conoha app deploy myserver
 | [fish-speech-tts-gpu](fish-speech-tts-gpu/) | Fish Speech + Go CLI | GPU 音声合成（TTS）+ 音声クローニング + CLI クライアント | g2l-t-c20m128g1-l4 (L4 GPU) |
 | [hunyuan3d-gpu](hunyuan3d-gpu/) | Tencent Hunyuan3D-2 + Gradio | 画像→3D モデル (GLB) 生成 (Tencent Hunyuan3D-2, NVIDIA L4 GPU) | g2l-t-c20m128g1-l4 (L4 GPU) |
 | [vllm-gpu](vllm-gpu/) | vLLM + Caddy | OpenAI 互換 LLM 推論サーバー（Qwen2.5-7B AWQ、Caddy で HTTPS 終端 + SSE ストリーミング、`/docs` Swagger UI 付き） | g2l-t-c20m128g1-l4 (L4 GPU) |
+| [voice-agent-conoha-l4](voice-agent-conoha-l4/) | Next.js + Pipecat + vLLM + Style-BERT-VITS2 | 自己ホスト音声エージェント（WebRTC + faster-whisper STT + Qwen2.5 LLM + SBV2 TTS、外部 AI 依存なし、Google Sheets 連携） | g2l-t-c4m16g1-l4 (L4 GPU) |
 | [hydra-python-api](hydra-python-api/) | Ory Hydra + FastAPI | OAuth2 認可サーバー + API | g2l-t-2 (2GB) |
 | [quickwit-otel](quickwit-otel/) | Quickwit + OpenTelemetry + Grafana | ログ・トレース収集・検索基盤 | g2l-t-2 (2GB) |
 | [uptime-kuma](uptime-kuma/) | Uptime Kuma | セルフホスティング稼働監視 | g2l-t-1 (1GB) |
