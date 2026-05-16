@@ -12,15 +12,15 @@ def client(monkeypatch):
     from app import settings
     importlib.reload(settings)
     app = create_app(use_mock_services=True)
-    return TestClient(app)
+    with TestClient(app) as c:
+        yield c
 
 
-def test_healthz_starts_503(client):
-    # Mock services warm up instantly, but /healthz only flips after lifespan
-    # has run. TestClient's `with` form triggers lifespan; without it, state
-    # is uninitialised → 503.
+def test_healthz_after_lifespan_returns_200(client):
+    # Lifespan runs when TestClient is used as a context manager, so mock
+    # services are initialised and /healthz returns 200.
     resp = client.get("/healthz")
-    assert resp.status_code == 200  # mocks are ready immediately
+    assert resp.status_code == 200
     assert resp.json()["ok"] is True
 
 

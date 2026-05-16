@@ -64,10 +64,10 @@ class ConversationLoop:
                             "type": "order_persisted",
                             "order_id": result["order_id"],
                         })
-                except Exception as exc:
+                except Exception:
                     logger.exception("tool dispatch failed")
-                    result = {"ok": False, "error": str(exc)}
-                    emit({"type": "error", "detail": str(exc)})
+                    result = {"ok": False, "error": "tool execution failed"}
+                    emit({"type": "error", "detail": "tool execution failed"})
                 self._history.append({
                     "role": "tool",
                     "tool_call_id": call["id"],
@@ -75,7 +75,7 @@ class ConversationLoop:
                 })
 
             final = await self._llm.chat(
-                messages=self._history, tools=OPENAI_TOOLS, tool_choice="auto"
+                messages=self._history, tools=OPENAI_TOOLS, tool_choice="none"
             )
             self._history.append(final)
             content = final.get("content") or ""

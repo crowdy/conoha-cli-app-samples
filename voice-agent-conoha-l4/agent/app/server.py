@@ -1,3 +1,4 @@
+import uuid
 from contextlib import asynccontextmanager
 from typing import Literal
 
@@ -43,9 +44,6 @@ def create_app(use_mock_services: bool = False) -> FastAPI:
         await app.state.negotiator.close_all()
 
     app = FastAPI(title="voice-agent-conoha-l4-agent", lifespan=lifespan)
-    if use_mock_services:
-        app.state.stt, app.state.llm, app.state.tts = MockSTT(), MockLLM(), MockTTS()
-        app.state.ready = True
     app.add_middleware(OfferRateLimitMiddleware)
     app.add_middleware(OriginGuardMiddleware)
 
@@ -61,7 +59,8 @@ def create_app(use_mock_services: bool = False) -> FastAPI:
 
     @app.post("/offer", response_model=OfferResponse)
     async def offer(req: OfferRequest):
-        if not app.state.sessions.acquire(_provisional_id := "tmp"):
+        _provisional_id = uuid.uuid4().hex
+        if not app.state.sessions.acquire(_provisional_id):
             raise HTTPException(status_code=503, detail="too many sessions")
         try:
             result = await app.state.negotiator.handle_offer(req.sdp, req.type)
