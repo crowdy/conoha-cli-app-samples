@@ -10,8 +10,6 @@ slide: false
 
 この記事では、**1 つの画面で時計・天気・複数アカウントのカレンダー予定・自作カウントダウン・ショートカットを集約する個人ダッシュボード**を作り、`conoha-cli` で ConoHa VPS にデプロイし、Cloudflare で HTTPS 化した手順を紹介します。
 
-ライブ: <https://dashboard.crowdy.dev>
-ソース: <https://github.com/crowdy/dashboard.crowdy.dev>
 サンプル: <https://github.com/crowdy/conoha-cli-app-samples/tree/main/personal-dashboard>
 
 ### 何を作ったか
@@ -122,7 +120,7 @@ ENTRYPOINT ["/app/dashboard"]
 
 ### Cloudflare ドメインで HTTPS 化（ここが本題）
 
-ドメイン `dashboard.crowdy.dev` は Cloudflare にあります。普通に A レコードを VPS に向けて proxied=ON にすると、CF はオリジンに対しても HTTPS で接続します。オリジン (VPS) に証明書がないと `521 Web server is down` を返してしまうので、オリジンにも TLS 終端が必要です。
+公開ドメインが Cloudflare 配下にある場合、A レコードを VPS に向けて proxied=ON にすると、CF はオリジンに対しても HTTPS で接続します。オリジン (VPS) に証明書がないと `521 Web server is down` を返してしまうので、オリジンにも TLS 終端が必要です。
 
 選択肢は 3 つ:
 
@@ -236,7 +234,7 @@ Browser  ── HTTPS ──▶ Cloudflare edge (Universal SSL)
                        Go バイナリ → SQLite
 ```
 
-`https://dashboard.crowdy.dev/api/health` が `{"ok":true}` を返したら成功です。
+`https://<your-domain>/api/health` が `{"ok":true}` を返したら成功です。
 
 ### ハマりポイント
 
