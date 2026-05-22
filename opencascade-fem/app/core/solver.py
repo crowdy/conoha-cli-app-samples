@@ -64,27 +64,81 @@ def solve(msh_path: Path, material: Material, traction_MPa: float) -> tuple[Resu
                   walltime_s=time.perf_counter() - t0), mesh
 
 
+def _tri_indices_for_set(m_io, set_name: str) -> tuple[np.ndarray, np.ndarray]:
+    """Return (all_triangles, tri_indices) for the named surface cell_set.
+
+    meshio may split boundary triangles into multiple cell blocks (one per
+    physical group).  cell_sets[name] is a list indexed by cell-block position,
+    so we must find which block has non-empty entries for this set name.
+    """
+    set_entries = m_io.cell_sets[set_name]
+    # Build a concatenated triangle array, tracking per-block offsets
+    all_tri_blocks = [(i, c) for i, c in enumerate(m_io.cells) if c.type == "triangle"]
+    offset = 0
+    offsets = []
+    for (_, c) in all_tri_blocks:
+        offsets.append(offset)
+        offset += len(c.data)
+    all_triangles = np.vstack([c.data for (_, c) in all_tri_blocks])
+
+    # Find the block that owns the named set and collect absolute indices
+    abs_indices: list[np.ndarray] = []
+    for (block_i, _c), blk_offset in zip(all_tri_blocks, offsets):
+        entry = set_entries[block_i]
+        if len(entry) > 0:
+            abs_indices.append(np.asarray(entry, dtype=np.intp) + blk_offset)
+    if abs_indices:
+        tri_indices = np.concatenate(abs_indices)
+    else:
+        tri_indices = np.array([], dtype=np.intp)
+    return all_triangles, tri_indices
+
+
 def _nodes_in_set(m_io, mesh: MeshTet, set_name: str) -> np.ndarray:
     """Return unique node indices belonging to the named surface cell_set."""
-    triangles = np.vstack([c.data for c in m_io.cells if c.type == "triangle"])
-    sel = m_io.cell_sets[set_name]
-    # cell_sets is a dict keyed by name → list-per-block of cell indices
-    tri_block_idx = next(i for i, c in enumerate(m_io.cells) if c.type == "triangle")
-    tri_indices = sel[tri_block_idx]
+    triangles, tri_indices = _tri_indices_for_set(m_io, set_name)
     chosen = triangles[tri_indices]
     return np.unique(chosen.ravel())
 
 
 def _assemble_traction(m_io, mesh: MeshTet, set_name: str, traction_MPa: float) -> np.ndarray:
-    """Distribute a uniform +X traction over the named surface set as a load vector."""
-    # For demo simplicity, lump traction onto the boundary nodes equally.
-    nodes = _nodes_in_set(m_io, mesh, set_name)
-    F = np.zeros(mesh.p.shape[1] * 3)
-    if nodes.size:
-        per_node = traction_MPa / nodes.size  # crude lumping; Task 9 verifies tip deflection is in the right order
-        for n in nodes:
-            F[3 * n + 0] = per_node
-    return F
+    """Integrate t = traction_MPa * outward_normal over the named facet set.
+
+    The outward direction is inferred from the centroid offset of the loaded
+    facets vs the bulk centroid (the gallery loads on planar ±X / ±Y / ±Z
+    faces, so this is unambiguous).
+    """
+    from skfem import FacetBasis, LinearForm, ElementVector, ElementTetP1, asm
+    from skfem.helpers import dot as skdot
+
+    triangles, tri_indices = _tri_indices_for_set(m_io, set_name)
+    facet_nodes = triangles[tri_indices]
+
+    # Match skfem facets by their unordered triple of vertex indices
+    mesh_facets = mesh.facets.T  # (n_facets, 3)
+    target = {tuple(sorted(map(int, row))) for row in facet_nodes}
+    sel = np.array([tuple(sorted(map(int, f))) in target for f in mesh_facets])
+    facet_indices = np.where(sel)[0]
+    if facet_indices.size == 0:
+        return np.zeros(mesh.p.shape[1] * 3)
+
+    # Infer outward direction by comparing loaded-facet centroid vs bulk centroid.
+    p = mesh.p.T  # (n_nodes, 3)
+    bulk_c = p.mean(axis=0)
+    face_c = p[np.unique(facet_nodes.ravel())].mean(axis=0)
+    offset = face_c - bulk_c
+    axis = np.argmax(np.abs(offset))
+    direction = np.zeros(3)
+    direction[axis] = np.sign(offset[axis])
+    t = direction * traction_MPa
+
+    fbasis = FacetBasis(mesh, ElementVector(ElementTetP1()), facets=facet_indices)
+
+    @LinearForm
+    def f(v, _):
+        return skdot(t, v)
+
+    return asm(f, fbasis)
 
 
 def _von_mises_nodal(mesh: MeshTet, basis: Basis, u: np.ndarray,
