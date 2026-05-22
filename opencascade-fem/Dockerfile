@@ -1,7 +1,7 @@
 FROM mambaorg/micromamba:1.5-bookworm-slim AS base
 USER root
 RUN apt-get update && apt-get install -y --no-install-recommends \
-      libgl1 libglu1-mesa libxrender1 libxi6 libxkbcommon0 \
+      libgl1 libglu1-mesa libxrender1 libxi6 libxkbcommon0 libxft2 libxinerama1 \
     && rm -rf /var/lib/apt/lists/*
 USER mambauser
 COPY --chown=mambauser environment.yml /tmp/env.yml

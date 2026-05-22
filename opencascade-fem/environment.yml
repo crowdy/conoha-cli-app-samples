@@ -1,13 +1,14 @@
 name: base
 channels: [conda-forge]
 dependencies:
-  - python=3.12
-  - pythonocc-core=7.8.*
-  - gmsh=4.13.*
+  - python=3.11
+  - pythonocc-core
+  - gmsh
   - numpy=1.26.*
   - scipy=1.13.*
   - pip
   - pip:
+      - gmsh==4.15.*
       - fastapi==0.115.*
       - uvicorn[standard]==0.32.*
       - scikit-fem==10.*
