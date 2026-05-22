@@ -42,6 +42,17 @@ _META: dict[str, _ShapeMeta] = {
             "hole_radius": (1.0, 80.0),
         },
     ),
+    "cantilever_ibeam": _ShapeMeta(
+        defaults={"length": 200.0, "height": 40.0, "flange_w": 30.0,
+                  "flange_t": 5.0, "web_t": 4.0},
+        ranges={
+            "length": (80.0, 600.0),
+            "height": (20.0, 120.0),
+            "flange_w": (15.0, 100.0),
+            "flange_t": (2.0, 15.0),
+            "web_t": (2.0, 15.0),
+        },
+    ),
 }
 
 
@@ -62,6 +73,8 @@ def build(kind: str, params: dict) -> tuple[TopoDS_Shape, FaceTags]:
         return _build_bracket(params)
     if kind == "plate_hole":
         return _build_plate_hole(params)
+    if kind == "cantilever_ibeam":
+        return _build_ibeam(params)
     raise ValueError(f"unknown shape kind: {kind}")
 
 
@@ -91,6 +104,28 @@ def _build_plate_hole(p: dict) -> tuple[TopoDS_Shape, FaceTags]:
     shape = BRepAlgoAPI_Cut(plate, cyl).Shape()
 
     # short ends: X=0 (fixed), X=L (load)
+    fixed = _faces_with_normal(shape, axis=(-1, 0, 0), at_height=0.0)
+    load = _faces_with_normal(shape, axis=(1, 0, 0), at_height=L)
+    return shape, {"fixed": fixed, "load": load}
+
+
+def _build_ibeam(p: dict) -> tuple[TopoDS_Shape, FaceTags]:
+    L = float(p["length"])
+    H = float(p["height"])
+    bf, tf = float(p["flange_w"]), float(p["flange_t"])
+    tw = float(p["web_t"])
+    if tf * 2 >= H:
+        raise ValueError("flange_t*2 must be smaller than height")
+    if tw >= bf:
+        raise ValueError("web_t must be smaller than flange_w")
+
+    # bottom flange centered on Y=0; X along beam length
+    y_low = -bf / 2.0
+    bot = BRepPrimAPI_MakeBox(gp_Pnt(0, y_low, 0), L, bf, tf).Shape()
+    top = BRepPrimAPI_MakeBox(gp_Pnt(0, y_low, H - tf), L, bf, tf).Shape()
+    web = BRepPrimAPI_MakeBox(gp_Pnt(0, -tw / 2.0, tf), L, tw, H - 2.0 * tf).Shape()
+    shape = BRepAlgoAPI_Fuse(BRepAlgoAPI_Fuse(bot, web).Shape(), top).Shape()
+
     fixed = _faces_with_normal(shape, axis=(-1, 0, 0), at_height=0.0)
     load = _faces_with_normal(shape, axis=(1, 0, 0), at_height=L)
     return shape, {"fixed": fixed, "load": load}

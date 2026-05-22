@@ -32,3 +32,10 @@ def test_plate_hole_rejects_oversize_hole():
     p["hole_radius"] = p["width"]  # bigger than the plate
     with pytest.raises(ValueError):
         S.build("plate_hole", p)
+
+
+def test_cantilever_ibeam_builds_and_has_wall_and_tip_faces():
+    shape, tags = S.build("cantilever_ibeam", S.defaults("cantilever_ibeam"))
+    assert _volume(shape) > 0.0
+    assert tags["fixed"]  # wall face (X=0, normal -X)
+    assert tags["load"]   # tip face (X=L, normal +X)
