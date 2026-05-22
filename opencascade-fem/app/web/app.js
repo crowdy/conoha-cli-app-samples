@@ -1,11 +1,11 @@
 // opencascade-fem/app/web/app.js
-// ESM imports via esm.sh — vtk.js v30 is published as ES Module, not UMD.
+// ESM imports via jspm.io — vtk.js v30 is ES Module; jspm handles xmlbuilder2 named exports.
 
-import vtkFullScreenRenderWindow from "https://esm.sh/@kitware/vtk.js@30.10.0/Rendering/Misc/FullScreenRenderWindow";
-import vtkXMLPolyDataReader from "https://esm.sh/@kitware/vtk.js@30.10.0/IO/XML/XMLPolyDataReader";
-import vtkActor from "https://esm.sh/@kitware/vtk.js@30.10.0/Rendering/Core/Actor";
-import vtkMapper from "https://esm.sh/@kitware/vtk.js@30.10.0/Rendering/Core/Mapper";
-import vtkColorTransferFunction from "https://esm.sh/@kitware/vtk.js@30.10.0/Rendering/Core/ColorTransferFunction";
+import vtkFullScreenRenderWindow from "https://ga.jspm.io/npm:@kitware/vtk.js@30.10.0/Rendering/Misc/FullScreenRenderWindow.js";
+import vtkXMLPolyDataReader from "https://ga.jspm.io/npm:@kitware/vtk.js@30.10.0/IO/XML/XMLPolyDataReader.js";
+import vtkActor from "https://ga.jspm.io/npm:@kitware/vtk.js@30.10.0/Rendering/Core/Actor.js";
+import vtkMapper from "https://ga.jspm.io/npm:@kitware/vtk.js@30.10.0/Rendering/Core/Mapper.js";
+import vtkColorTransferFunction from "https://ga.jspm.io/npm:@kitware/vtk.js@30.10.0/Rendering/Core/ColorTransferFunction.js";
 
 const $ = (id) => document.getElementById(id);
 let catalog = [];
