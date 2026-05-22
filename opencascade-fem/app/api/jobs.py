@@ -67,10 +67,10 @@ async def submit_job(spec: JobSpec, request: Request) -> JobCreated:
         await emit("solve", "solved",
                    payload={"n_dofs": int(result.n_dofs), "walltime_s": float(result.walltime_s)})
 
-        out = work_dir / "result.vtu"
+        out = work_dir / "result.vtp"
         await loop.run_in_executor(None, V.write, result, mesh, out)
         await emit("postproc", "wrote",
-                   payload={"result_url": f"/jobs/{work_dir.name}/result.vtu"})
+                   payload={"result_url": f"/jobs/{work_dir.name}/result.vtp"})
 
     job_id = await mgr.submit_with_pipeline(spec.model_dump(), pipeline)
     return JobCreated(job_id=job_id)
@@ -93,7 +93,7 @@ async def stream_events(job_id: str, request: Request) -> StreamingResponse:
     return StreamingResponse(gen(), media_type="text/event-stream")
 
 
-@router.get("/jobs/{job_id}/result.vtu")
+@router.get("/jobs/{job_id}/result.vtp")
 async def get_result(job_id: str, request: Request) -> FileResponse:
     mgr: J.JobManager = request.app.state.jobs
     st = mgr.state(job_id)
@@ -105,5 +105,5 @@ async def get_result(job_id: str, request: Request) -> FileResponse:
         raise HTTPException(409, detail="job not ready")
 
     path = mgr.result_path(job_id)
-    return FileResponse(str(path), media_type="model/vnd.vtk",
-                        filename=f"{job_id}.vtu")
+    return FileResponse(str(path), media_type="application/xml",
+                        filename=f"{job_id}.vtp")

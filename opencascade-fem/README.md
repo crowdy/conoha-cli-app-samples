@@ -45,7 +45,7 @@ conoha app deploy myserver
 | GET | `/shapes` | ギャラリーカタログ |
 | POST | `/jobs` | ジョブ投入 (JobSpec を JSON で送信) |
 | GET | `/jobs/{id}/events` | SSE 進捗ストリーム |
-| GET | `/jobs/{id}/result.vtu` | 解析結果 (VTU バイナリ) |
+| GET | `/jobs/{id}/result.vtp` | 解析結果 (VTP 表面ポリデータ、von Mises 等のフィールドを保持) |
 
 SSE イベント:
 
@@ -66,6 +66,7 @@ SSE イベント:
 
 ## 既知の制限
 
+- **結果ファイルは表面 PolyData (VTP) のみ**：vtk.js には Unstructured Grid Reader が存在しないため、テト体積メッシュではなく境界三角形だけをエクスポートします。応力集中などの表面現象は十分可視化できますが、内部の体積場は表示されません。
 - 線形・小変形・等方性のみ。塑性・接触・動解析・モーダル・流体・熱は対象外。
 - 加重方向は形状ごとに固定 (荷重面の外向き法線方向)。
 - ジョブ状態はインメモリ。コンテナ再起動で消失。

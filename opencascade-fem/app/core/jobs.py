@@ -44,7 +44,7 @@ class JobManager:
         return self._states.get(job_id)
 
     def result_path(self, job_id: str) -> Path:
-        return self._root / job_id / "result.vtu"
+        return self._root / job_id / "result.vtp"
 
     async def submit_with_pipeline(self, spec: dict, pipeline: PipelineFn) -> str:
         job_id = uuid.uuid4().hex[:12]

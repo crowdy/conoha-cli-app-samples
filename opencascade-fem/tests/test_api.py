@@ -114,9 +114,9 @@ async def test_result_returns_vtu_after_done():
                     if line.startswith("data: ") and '"done"' in line:
                         break
 
-            r = await ac.get(f"/jobs/{job_id}/result.vtu")
+            r = await ac.get(f"/jobs/{job_id}/result.vtp")
             assert r.status_code == 200
-            # VTU is XML; either ASCII or binary-with-XML-header
+            # VTP is XML
             assert r.content.startswith(b"<?xml") or b"VTKFile" in r.content[:200]
 
 
@@ -125,5 +125,5 @@ async def test_result_404_for_unknown_job():
     transport = ASGITransport(app=app)
     async with LifespanManager(app):
         async with AsyncClient(transport=transport, base_url="http://test") as ac:
-            r = await ac.get("/jobs/unknown-id/result.vtu")
+            r = await ac.get("/jobs/unknown-id/result.vtp")
             assert r.status_code == 404

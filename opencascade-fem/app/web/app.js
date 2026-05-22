@@ -1,21 +1,21 @@
 // opencascade-fem/app/web/app.js
-// vtk.js exposed as window.vtk by the UMD bundle in index.html.
+// ESM imports via esm.sh — vtk.js v30 is published as ES Module, not UMD.
 
-const vtkNS = window.vtk;
-const vtkFullScreenRenderWindow = vtkNS.Rendering.Misc.vtkFullScreenRenderWindow;
-const vtkXMLUnstructuredGridReader = vtkNS.IO.XML.vtkXMLUnstructuredGridReader;
-const vtkActor = vtkNS.Rendering.Core.vtkActor;
-const vtkMapper = vtkNS.Rendering.Core.vtkMapper;
-const vtkColorTransferFunction = vtkNS.Rendering.Core.vtkColorTransferFunction;
-const vtkWarpVector = vtkNS.Filters.General.vtkWarpVector;
-const { ColorMode, ScalarMode } = vtkNS.Rendering.Core.Mapper.Constants;
+import vtkFullScreenRenderWindow from "https://esm.sh/@kitware/vtk.js@30.10.0/Rendering/Misc/FullScreenRenderWindow";
+import vtkXMLPolyDataReader from "https://esm.sh/@kitware/vtk.js@30.10.0/IO/XML/XMLPolyDataReader";
+import vtkActor from "https://esm.sh/@kitware/vtk.js@30.10.0/Rendering/Core/Actor";
+import vtkMapper from "https://esm.sh/@kitware/vtk.js@30.10.0/Rendering/Core/Mapper";
+import vtkColorTransferFunction from "https://esm.sh/@kitware/vtk.js@30.10.0/Rendering/Core/ColorTransferFunction";
 
 const $ = (id) => document.getElementById(id);
 let catalog = [];
-let warpFilter = null;
+let warpScale = 50;
+let actor = null;
 let mapper = null;
-let lut = null;
-let currentSource = null;  // tracks current EventSource so reruns can close it
+let polydata = null;
+let restPoints = null;  // original (unwarped) point coordinates
+let displacementArray = null;  // (n,3) array reference for warp computation
+let currentSource = null;
 
 async function loadCatalog() {
   catalog = await (await fetch("/shapes")).json();
@@ -111,57 +111,63 @@ async function runJob() {
 }
 
 async function loadResult(jobId) {
-  const buf = await (await fetch(`/jobs/${jobId}/result.vtu`)).arrayBuffer();
-  const reader = vtkXMLUnstructuredGridReader.newInstance();
+  const buf = await (await fetch(`/jobs/${jobId}/result.vtp`)).arrayBuffer();
+  const reader = vtkXMLPolyDataReader.newInstance();
   reader.parseAsArrayBuffer(buf);
-  const ds = reader.getOutputData(0);
+  polydata = reader.getOutputData(0);
 
-  warpFilter = vtkWarpVector.newInstance();
-  warpFilter.setInputData(ds);
-  warpFilter.setScaleFactor(parseFloat($("warp").value));
-  applyField();
+  // Save the unwarped point coordinates and grab the displacement array
+  restPoints = new Float32Array(polydata.getPoints().getData());
+  const dispArr = polydata.getPointData().getArrayByName("displacement");
+  displacementArray = dispArr ? dispArr.getData() : null;
 
-  if (!mapper) {
+  if (!actor) {
     mapper = vtkMapper.newInstance();
-    const actor = vtkActor.newInstance();
+    actor = vtkActor.newInstance();
     actor.setMapper(mapper);
     fsrw.getRenderer().addActor(actor);
   }
-  mapper.setInputConnection(warpFilter.getOutputPort());
+  mapper.setInputData(polydata);
+
+  applyField();
+  applyWarp(warpScale);
   fsrw.getRenderer().resetCamera();
   fsrw.getRenderWindow().render();
 }
 
+function applyWarp(scale) {
+  if (!polydata || !restPoints || !displacementArray) return;
+  const pts = polydata.getPoints();
+  const arr = pts.getData();
+  for (let i = 0; i < restPoints.length / 3; i++) {
+    arr[3 * i + 0] = restPoints[3 * i + 0] + scale * displacementArray[3 * i + 0];
+    arr[3 * i + 1] = restPoints[3 * i + 1] + scale * displacementArray[3 * i + 1];
+    arr[3 * i + 2] = restPoints[3 * i + 2] + scale * displacementArray[3 * i + 2];
+  }
+  pts.modified();
+  polydata.modified();
+}
+
 function applyField() {
-  if (!warpFilter) return;
+  if (!polydata) return;
   const fieldName = $("field").value;
-  const ds = warpFilter.getInputData();
-  const arr = ds.getPointData().getArrayByName(fieldName);
+  const arr = polydata.getPointData().getArrayByName(fieldName);
   if (!arr) return;
-  ds.getPointData().setActiveScalars(fieldName);
-  ds.getPointData().setActiveVectors("displacement");
+  polydata.getPointData().setActiveScalars(fieldName);
   const [low, high] = arr.getRange();
-  lut = vtkColorTransferFunction.newInstance();
+  const lut = vtkColorTransferFunction.newInstance();
   lut.addRGBPoint(low, 0.231, 0.298, 0.752);
   lut.addRGBPoint((low + high) / 2, 0.865, 0.865, 0.865);
   lut.addRGBPoint(high, 0.706, 0.016, 0.150);
-  if (mapper) {
-    mapper.setLookupTable(lut);
-    mapper.setColorMode(ColorMode.MAP_SCALARS);
-    mapper.setScalarMode(ScalarMode.USE_POINT_FIELD_DATA);
-    if (typeof mapper.setColorByArrayName === "function") {
-      mapper.setColorByArrayName(fieldName);
-    }
-    mapper.setScalarRange(low, high);
-  }
+  mapper.setLookupTable(lut);
+  mapper.setScalarRange(low, high);
 }
 
-$("field").addEventListener("change", applyField);
+$("field").addEventListener("change", () => { applyField(); fsrw.getRenderWindow().render(); });
 $("warp").addEventListener("input", () => {
-  if (warpFilter) {
-    warpFilter.setScaleFactor(parseFloat($("warp").value));
-    fsrw.getRenderWindow().render();
-  }
+  warpScale = parseFloat($("warp").value);
+  applyWarp(warpScale);
+  fsrw.getRenderWindow().render();
 });
 
 const fsrw = vtkFullScreenRenderWindow.newInstance({
