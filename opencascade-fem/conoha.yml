@@ -1,0 +1,6 @@
+name: opencascade-fem
+hosts:
+  - opencascade-fem.example.com
+web:
+  service: web
+  port: 8000

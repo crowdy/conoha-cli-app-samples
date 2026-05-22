@@ -1,0 +1,13 @@
+services:
+  web:
+    build: .
+    expose: ["8000"]
+    environment:
+      OCFEM_MAX_CONCURRENT: "2"
+      OCFEM_MAX_ELEMENTS: "200000"
+      OCFEM_SOLVER_TIMEOUT_SECONDS: "60"
+      OCFEM_JOB_TTL_SECONDS: "1800"
+    volumes:
+      - jobs:/tmp/jobs
+volumes:
+  jobs: {}
