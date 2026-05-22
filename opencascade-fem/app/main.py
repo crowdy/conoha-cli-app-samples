@@ -1,3 +1,4 @@
+import asyncio
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -17,7 +18,20 @@ async def lifespan(app: FastAPI):
     app.state.jobs = JobManager(
         work_root=settings.job_dir, max_concurrent=settings.max_concurrent
     )
-    yield
+
+    async def reaper():
+        while True:
+            await asyncio.sleep(60)
+            try:
+                await app.state.jobs.reap_expired(settings.job_ttl_seconds)
+            except Exception:
+                pass
+
+    task = asyncio.create_task(reaper())
+    try:
+        yield
+    finally:
+        task.cancel()
 
 
 app = FastAPI(title="opencascade-fem", lifespan=lifespan)

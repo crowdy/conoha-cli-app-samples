@@ -50,6 +50,25 @@ async def test_semaphore_runs_at_most_max_concurrent_jobs(tmp_path):
     assert in_flight["peak"] == 1
 
 
+@pytest.mark.anyio
+async def test_reap_expired_removes_old_jobs(tmp_path):
+    mgr = J.JobManager(work_root=tmp_path, max_concurrent=1)
+
+    async def fast(emit, work_dir):
+        await emit("done", "ok")
+
+    jid = await mgr.submit_with_pipeline({}, fast)
+    async for ev in mgr.events(jid):
+        if ev.stage == "done":
+            break
+
+    # simulate the job being old: shift its last_event_at back
+    mgr._states[jid].last_event_at -= 9999.0
+    gone = await mgr.reap_expired(ttl_seconds=10)
+    assert gone == 1
+    assert mgr.state(jid) is None
+
+
 @pytest.fixture
 def anyio_backend():
     return "asyncio"
