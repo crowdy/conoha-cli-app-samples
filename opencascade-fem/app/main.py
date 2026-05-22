@@ -40,8 +40,12 @@ app.include_router(jobs_router)
 
 
 @app.get("/health")
-@app.get("/up")
 def health() -> dict:
+    return {"ok": True}
+
+
+@app.get("/up")
+def up() -> dict:
     return {"ok": True}
 
 
