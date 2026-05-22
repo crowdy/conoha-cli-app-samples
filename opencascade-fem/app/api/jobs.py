@@ -57,9 +57,13 @@ async def submit_job(spec: JobSpec, request: Request) -> JobCreated:
 
         await emit("assemble", "assembling")
         mat = F.Material(E_GPa=spec.material.E_GPa, nu=spec.material.nu)
-        result, mesh = await loop.run_in_executor(
-            None, F.solve, msh, mat, spec.traction.magnitude_MPa
-        )
+        try:
+            result, mesh = await asyncio.wait_for(
+                loop.run_in_executor(None, F.solve, msh, mat, spec.traction.magnitude_MPa),
+                timeout=settings.solver_timeout_seconds,
+            )
+        except asyncio.TimeoutError:
+            raise RuntimeError(f"solver timeout after {settings.solver_timeout_seconds}s")
         await emit("solve", "solved",
                    payload={"n_dofs": int(result.n_dofs), "walltime_s": float(result.walltime_s)})
 
