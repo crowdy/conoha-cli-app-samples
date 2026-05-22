@@ -1,0 +1,14 @@
+.git
+.gitignore
+.env
+.env.*
+data/
+dist/
+docs/
+web/node_modules/
+web/.next/
+web/out/
+api/internal/webfs/embed/*
+!api/internal/webfs/embed/.placeholder
+api/server
+api/tmp/

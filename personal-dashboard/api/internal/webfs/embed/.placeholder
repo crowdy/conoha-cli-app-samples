@@ -1,0 +1,2 @@
+Placeholder so //go:embed all:embed compiles in fresh checkouts.
+make build replaces this directory's contents with web/out/.

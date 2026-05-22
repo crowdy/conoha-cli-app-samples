@@ -1,0 +1,11 @@
+<YOUR-DOMAIN> {
+    # Cloudflare Origin CA certificate (issued via scripts/issue-cf-origin-cert.sh).
+    # These paths are mounted from the host (/etc/caddy/certs/) into the Caddy container.
+    tls /etc/caddy/certs/<YOUR-DOMAIN>.crt /etc/caddy/certs/<YOUR-DOMAIN>.key
+    reverse_proxy web:8080
+    encode gzip zstd
+    log {
+        output stdout
+        format console
+    }
+}
