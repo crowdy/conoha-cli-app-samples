@@ -1,19 +1,21 @@
 // opencascade-fem/app/web/app.js
-import "@kitware/vtk.js/Rendering/Profiles/Geometry";
-import vtkFullScreenRenderWindow from "@kitware/vtk.js/Rendering/Misc/FullScreenRenderWindow";
-import vtkXMLUnstructuredGridReader from "@kitware/vtk.js/IO/XML/XMLUnstructuredGridReader";
-import vtkActor from "@kitware/vtk.js/Rendering/Core/Actor";
-import vtkMapper from "@kitware/vtk.js/Rendering/Core/Mapper";
-import vtkColorTransferFunction from "@kitware/vtk.js/Rendering/Core/ColorTransferFunction";
-import vtkWarpVector from "@kitware/vtk.js/Filters/General/WarpVector";
-import { ColorMode, ScalarMode } from "@kitware/vtk.js/Rendering/Core/Mapper/Constants";
+// vtk.js exposed as window.vtk by the UMD bundle in index.html.
+
+const vtkNS = window.vtk;
+const vtkFullScreenRenderWindow = vtkNS.Rendering.Misc.vtkFullScreenRenderWindow;
+const vtkXMLUnstructuredGridReader = vtkNS.IO.XML.vtkXMLUnstructuredGridReader;
+const vtkActor = vtkNS.Rendering.Core.vtkActor;
+const vtkMapper = vtkNS.Rendering.Core.vtkMapper;
+const vtkColorTransferFunction = vtkNS.Rendering.Core.vtkColorTransferFunction;
+const vtkWarpVector = vtkNS.Filters.General.vtkWarpVector;
+const { ColorMode, ScalarMode } = vtkNS.Rendering.Core.Mapper.Constants;
 
 const $ = (id) => document.getElementById(id);
 let catalog = [];
-let currentJob = null;
 let warpFilter = null;
 let mapper = null;
 let lut = null;
+let currentSource = null;  // tracks current EventSource so reruns can close it
 
 async function loadCatalog() {
   catalog = await (await fetch("/shapes")).json();
@@ -58,6 +60,10 @@ function readParams() {
 }
 
 async function runJob() {
+  if (currentSource) {
+    try { currentSource.close(); } catch (_) {}
+    currentSource = null;
+  }
   $("run").disabled = true;
   $("log").textContent = "";
   $("progress").value = 0;
@@ -75,29 +81,33 @@ async function runJob() {
     body: JSON.stringify(body),
   });
   if (!r.ok) {
-    $("log").textContent = `Error: ${r.status} ${JSON.stringify(await r.json())}`;
+    let detail;
+    try { detail = await r.json(); } catch (_) { detail = await r.text(); }
+    $("log").textContent = `Error: ${r.status} ${JSON.stringify(detail)}`;
     $("run").disabled = false;
     return;
   }
   const { job_id } = await r.json();
-  currentJob = job_id;
 
   const stages = ["queued", "shape", "mesh", "assemble", "solve", "postproc", "done"];
   const es = new EventSource(`/jobs/${job_id}/events`);
+  currentSource = es;
   es.onmessage = async (ev) => {
     const data = JSON.parse(ev.data);
     $("log").textContent += `${data.stage}\t${data.message}\n`;
     $("progress").value = stages.indexOf(data.stage);
     if (data.stage === "done") {
       es.close();
+      currentSource = null;
       await loadResult(job_id);
       $("run").disabled = false;
     } else if (data.stage === "error") {
       es.close();
+      currentSource = null;
       $("run").disabled = false;
     }
   };
-  es.onerror = () => { es.close(); $("run").disabled = false; };
+  es.onerror = () => { es.close(); currentSource = null; $("run").disabled = false; };
 }
 
 async function loadResult(jobId) {
@@ -127,6 +137,7 @@ function applyField() {
   const fieldName = $("field").value;
   const ds = warpFilter.getInputData();
   const arr = ds.getPointData().getArrayByName(fieldName);
+  if (!arr) return;
   ds.getPointData().setActiveScalars(fieldName);
   ds.getPointData().setActiveVectors("displacement");
   const [low, high] = arr.getRange();
@@ -138,7 +149,6 @@ function applyField() {
     mapper.setLookupTable(lut);
     mapper.setColorMode(ColorMode.MAP_SCALARS);
     mapper.setScalarMode(ScalarMode.USE_POINT_FIELD_DATA);
-    // setColorByArrayName may not exist in vtk.js v30; omit if browser shows an error
     if (typeof mapper.setColorByArrayName === "function") {
       mapper.setColorByArrayName(fieldName);
     }
