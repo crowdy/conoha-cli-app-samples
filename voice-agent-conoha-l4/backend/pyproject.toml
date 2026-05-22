@@ -1,0 +1,12 @@
+[project]
+name = "voice-agent-backend"
+version = "0.1.0"
+requires-python = ">=3.12"
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+markers = ["gpu: requires GPU runtime (skipped in CI)"]
