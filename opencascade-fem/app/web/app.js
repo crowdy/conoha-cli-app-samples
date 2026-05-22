@@ -1,6 +1,8 @@
 // opencascade-fem/app/web/app.js
 // Bare-specifier imports resolved by the importmap in index.html (jspm.io).
 
+// Side-effect import: registers the WebGL backend so the renderer can build OpenGL passes.
+import "@kitware/vtk.js/Rendering/Profiles/Geometry.js";
 import vtkFullScreenRenderWindow from "@kitware/vtk.js/Rendering/Misc/FullScreenRenderWindow.js";
 import vtkXMLPolyDataReader from "@kitware/vtk.js/IO/XML/XMLPolyDataReader.js";
 import vtkActor from "@kitware/vtk.js/Rendering/Core/Actor.js";
