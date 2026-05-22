@@ -1,11 +1,11 @@
 // opencascade-fem/app/web/app.js
-// ESM imports via jspm.io — vtk.js v30 is ES Module; jspm handles xmlbuilder2 named exports.
+// Bare-specifier imports resolved by the importmap in index.html (jspm.io).
 
-import vtkFullScreenRenderWindow from "https://ga.jspm.io/npm:@kitware/vtk.js@30.10.0/Rendering/Misc/FullScreenRenderWindow.js";
-import vtkXMLPolyDataReader from "https://ga.jspm.io/npm:@kitware/vtk.js@30.10.0/IO/XML/XMLPolyDataReader.js";
-import vtkActor from "https://ga.jspm.io/npm:@kitware/vtk.js@30.10.0/Rendering/Core/Actor.js";
-import vtkMapper from "https://ga.jspm.io/npm:@kitware/vtk.js@30.10.0/Rendering/Core/Mapper.js";
-import vtkColorTransferFunction from "https://ga.jspm.io/npm:@kitware/vtk.js@30.10.0/Rendering/Core/ColorTransferFunction.js";
+import vtkFullScreenRenderWindow from "@kitware/vtk.js/Rendering/Misc/FullScreenRenderWindow.js";
+import vtkXMLPolyDataReader from "@kitware/vtk.js/IO/XML/XMLPolyDataReader.js";
+import vtkActor from "@kitware/vtk.js/Rendering/Core/Actor.js";
+import vtkMapper from "@kitware/vtk.js/Rendering/Core/Mapper.js";
+import vtkColorTransferFunction from "@kitware/vtk.js/Rendering/Core/ColorTransferFunction.js";
 
 const $ = (id) => document.getElementById(id);
 let catalog = [];
