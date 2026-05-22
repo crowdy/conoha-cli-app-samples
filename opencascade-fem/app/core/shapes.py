@@ -3,9 +3,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from OCC.Core.BRepPrimAPI import BRepPrimAPI_MakeBox
-from OCC.Core.BRepAlgoAPI import BRepAlgoAPI_Fuse
-from OCC.Core.gp import gp_Pnt
+from OCC.Core.BRepPrimAPI import BRepPrimAPI_MakeBox, BRepPrimAPI_MakeCylinder
+from OCC.Core.BRepAlgoAPI import BRepAlgoAPI_Fuse, BRepAlgoAPI_Cut
+from OCC.Core.gp import gp_Pnt, gp_Ax2, gp_Dir
 from OCC.Core.TopoDS import TopoDS_Shape, topods
 from OCC.Core.TopAbs import TopAbs_FACE, TopAbs_REVERSED
 from OCC.Core.TopExp import TopExp_Explorer
@@ -33,6 +33,15 @@ _META: dict[str, _ShapeMeta] = {
             "width": (20.0, 120.0),
         },
     ),
+    "plate_hole": _ShapeMeta(
+        defaults={"length": 120.0, "width": 60.0, "thickness": 5.0, "hole_radius": 8.0},
+        ranges={
+            "length": (40.0, 300.0),
+            "width": (20.0, 200.0),
+            "thickness": (2.0, 20.0),
+            "hole_radius": (1.0, 80.0),
+        },
+    ),
 }
 
 
@@ -51,6 +60,8 @@ def kinds() -> list[str]:
 def build(kind: str, params: dict) -> tuple[TopoDS_Shape, FaceTags]:
     if kind == "bracket":
         return _build_bracket(params)
+    if kind == "plate_hole":
+        return _build_plate_hole(params)
     raise ValueError(f"unknown shape kind: {kind}")
 
 
@@ -66,6 +77,22 @@ def _build_bracket(p: dict) -> tuple[TopoDS_Shape, FaceTags]:
 
     fixed = _faces_with_normal(shape, axis=(0, 0, -1), at_height=0.0)
     load = _faces_with_normal(shape, axis=(0, 0, 1), at_height=base_thk + wall_h)
+    return shape, {"fixed": fixed, "load": load}
+
+
+def _build_plate_hole(p: dict) -> tuple[TopoDS_Shape, FaceTags]:
+    L, W, T, R = float(p["length"]), float(p["width"]), float(p["thickness"]), float(p["hole_radius"])
+    if R >= min(L, W) / 2.0:
+        raise ValueError("hole_radius must be smaller than half the plate's shortest side")
+
+    plate = BRepPrimAPI_MakeBox(gp_Pnt(0, 0, 0), L, W, T).Shape()
+    axis = gp_Ax2(gp_Pnt(L / 2.0, W / 2.0, -T), gp_Dir(0, 0, 1))
+    cyl = BRepPrimAPI_MakeCylinder(axis, R, 3.0 * T).Shape()
+    shape = BRepAlgoAPI_Cut(plate, cyl).Shape()
+
+    # short ends: X=0 (fixed), X=L (load)
+    fixed = _faces_with_normal(shape, axis=(-1, 0, 0), at_height=0.0)
+    load = _faces_with_normal(shape, axis=(1, 0, 0), at_height=L)
     return shape, {"fixed": fixed, "load": load}
 
 
