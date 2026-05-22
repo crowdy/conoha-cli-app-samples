@@ -82,14 +82,13 @@ async function runJob() {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
+  const rawText = await r.text();
   if (!r.ok) {
-    let detail;
-    try { detail = await r.json(); } catch (_) { detail = await r.text(); }
-    $("log").textContent = `Error: ${r.status} ${JSON.stringify(detail)}`;
+    $("log").textContent = `Error: ${r.status} ${rawText}`;
     $("run").disabled = false;
     return;
   }
-  const { job_id } = await r.json();
+  const { job_id } = JSON.parse(rawText);
 
   const stages = ["queued", "shape", "mesh", "assemble", "solve", "postproc", "done"];
   const es = new EventSource(`/jobs/${job_id}/events`);

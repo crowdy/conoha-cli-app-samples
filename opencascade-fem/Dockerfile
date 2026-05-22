@@ -12,9 +12,10 @@ RUN pip cache purge
 WORKDIR /app
 COPY --chown=mambauser app/ ./app/
 COPY --chown=mambauser pyproject.toml ./
+RUN mkdir -p /app/jobs
 ENV PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1 \
-    OCFEM_JOB_DIR=/tmp/jobs \
+    OCFEM_JOB_DIR=/app/jobs \
     OCFEM_MAX_CONCURRENT=2 \
     OCFEM_MAX_ELEMENTS=200000 \
     OCFEM_SOLVER_TIMEOUT_SECONDS=60 \

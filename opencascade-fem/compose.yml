@@ -8,6 +8,6 @@ services:
       OCFEM_SOLVER_TIMEOUT_SECONDS: "60"
       OCFEM_JOB_TTL_SECONDS: "1800"
     volumes:
-      - jobs:/tmp/jobs
+      - jobs:/app/jobs
 volumes:
   jobs: {}
