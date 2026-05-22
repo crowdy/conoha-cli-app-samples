@@ -38,11 +38,12 @@ app = FastAPI(title="opencascade-fem", lifespan=lifespan)
 app.include_router(shapes_router)
 app.include_router(jobs_router)
 
-WEB_DIR = Path(__file__).parent / "web"
-if WEB_DIR.exists():
-    app.mount("/", StaticFiles(directory=WEB_DIR, html=True), name="web")
-
 
 @app.get("/health")
 def health() -> dict:
     return {"ok": True}
+
+
+WEB_DIR = Path(__file__).parent / "web"
+if WEB_DIR.exists():
+    app.mount("/", StaticFiles(directory=WEB_DIR, html=True), name="web")
