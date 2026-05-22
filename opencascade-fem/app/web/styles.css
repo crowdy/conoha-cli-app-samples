@@ -1,0 +1,15 @@
+* { box-sizing: border-box; }
+body { margin: 0; font: 14px system-ui, sans-serif; color: #222; }
+header { padding: 0.5rem 1rem; background: #1d3557; color: #fff; }
+header h1 { margin: 0; font-size: 1.1rem; }
+header p { margin: 0; opacity: 0.8; font-size: 0.85rem; }
+main { display: grid; grid-template-columns: 320px 1fr; height: calc(100vh - 64px); }
+#controls { padding: 1rem; overflow-y: auto; border-right: 1px solid #ddd; }
+#controls label { display: block; margin: 0.4rem 0; }
+#controls input, #controls select { width: 100%; padding: 0.25rem; }
+#controls fieldset { margin: 0.6rem 0; padding: 0.4rem 0.6rem; }
+#run { width: 100%; padding: 0.5rem; background: #2a9d8f; color: #fff; border: 0; font-weight: 600; cursor: pointer; }
+#run:disabled { background: #888; cursor: not-allowed; }
+#progress { width: 100%; margin-top: 0.5rem; }
+#log { font: 11px monospace; max-height: 8rem; overflow-y: auto; background: #f4f4f4; padding: 0.4rem; }
+#canvas { position: relative; }
