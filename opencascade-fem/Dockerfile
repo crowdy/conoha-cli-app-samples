@@ -7,11 +7,13 @@ USER mambauser
 COPY --chown=mambauser environment.yml /tmp/env.yml
 RUN micromamba install -y -n base -f /tmp/env.yml && micromamba clean -afy
 ARG MAMBA_DOCKERFILE_ACTIVATE=1
+RUN pip cache purge
 
 WORKDIR /app
 COPY --chown=mambauser app/ ./app/
 COPY --chown=mambauser pyproject.toml ./
 ENV PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
     OCFEM_JOB_DIR=/tmp/jobs \
     OCFEM_MAX_CONCURRENT=2 \
     OCFEM_MAX_ELEMENTS=200000 \

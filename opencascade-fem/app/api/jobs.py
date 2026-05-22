@@ -36,14 +36,14 @@ async def submit_job(spec: JobSpec, request: Request) -> JobCreated:
 
     est = _estimate_elements(spec.shape, spec.params, spec.mesh_size)
     if est > settings.max_elements:
-        advice = (settings.max_elements / max(est, 1)) ** (1 / 3) * spec.mesh_size
+        recommended = spec.mesh_size * (est / settings.max_elements) ** (1 / 3)
         raise HTTPException(
             400,
             detail={
                 "error": "mesh_too_large",
                 "estimated_elements": est,
                 "limit": settings.max_elements,
-                "advice": {"mesh_size": round(spec.mesh_size / advice, 2)},
+                "advice": {"mesh_size": round(recommended, 2)},
             },
         )
 

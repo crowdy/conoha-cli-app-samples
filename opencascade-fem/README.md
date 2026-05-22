@@ -70,6 +70,7 @@ SSE イベント:
 - 加重方向は形状ごとに固定 (荷重面の外向き法線方向)。
 - ジョブ状態はインメモリ。コンテナ再起動で消失。
 - メッシュ要素数の上限は安全側でかなり保守的。
+- **ソルバータイムアウト (`OCFEM_SOLVER_TIMEOUT_SECONDS`, default 60s) は HTTP 応答だけ打ち切る**：内部的に `asyncio.wait_for` で executor Future を cancel しますが、CPython の `ThreadPoolExecutor` スレッドは中断不可能で、実際の計算はバックグラウンドで継続します。タイムアウトしたジョブが連続すると CPU を占有したままになる可能性があります。実運用では `OCFEM_MAX_ELEMENTS` を保守的に保ち、`mesh_size` の事前検証で長時間ジョブを未然に弾く方針を採用しています。
 
 ## References
 

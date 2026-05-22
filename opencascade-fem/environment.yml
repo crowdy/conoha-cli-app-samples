@@ -3,7 +3,6 @@ channels: [conda-forge]
 dependencies:
   - python=3.11
   - pythonocc-core
-  - gmsh
   - numpy=1.26.*
   - scipy=1.13.*
   - pip
@@ -14,7 +13,3 @@ dependencies:
       - scikit-fem==10.*
       - meshio==5.*
       - pydantic==2.*
-      - pytest>=8
-      - httpx>=0.27
-      - asgi-lifespan>=2
-      - anyio>=4
