@@ -27,7 +27,7 @@ def mesh(shape, face_tags: dict, mesh_size: float, work_dir: Path) -> Path:
 
     _write_step(shape, step_path)
 
-    gmsh.initialize()
+    gmsh.initialize(interruptible=False)
     try:
         gmsh.option.setNumber("General.Terminal", 0)
         gmsh.option.setNumber("Mesh.CharacteristicLengthMin", mesh_size * 0.3)

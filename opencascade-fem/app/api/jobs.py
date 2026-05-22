@@ -61,7 +61,7 @@ async def submit_job(spec: JobSpec, request: Request) -> JobCreated:
             None, F.solve, msh, mat, spec.traction.magnitude_MPa
         )
         await emit("solve", "solved",
-                   payload={"n_dofs": result.n_dofs, "walltime_s": result.walltime_s})
+                   payload={"n_dofs": int(result.n_dofs), "walltime_s": float(result.walltime_s)})
 
         out = work_dir / "result.vtu"
         await loop.run_in_executor(None, V.write, result, mesh, out)
