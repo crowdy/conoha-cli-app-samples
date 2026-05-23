@@ -3,6 +3,8 @@
 OpenCascade (pythonocc-core) でパラメトリック形状を組み、gmsh でメッシュ化し、
 scikit-fem で線形弾性解析を行い、結果を vtk.js でブラウザに表示するサンプル。
 
+![screenshot](docs/screenshot.png)
+
 ## Stack
 
 - **CAD**: pythonocc-core 7.9 (conda-forge)
