@@ -1,4 +1,4 @@
-from app.k8s import rewrite_kubeconfig_server
+from app.k8s import prepare_kubeconfig, rewrite_kubeconfig_server
 
 SAMPLE = """\
 apiVersion: v1
@@ -21,3 +21,12 @@ def test_rewrite_is_idempotent():
     once = rewrite_kubeconfig_server(SAMPLE, "https://k3s:6443")
     twice = rewrite_kubeconfig_server(once, "https://k3s:6443")
     assert once == twice
+
+
+def test_prepare_kubeconfig_writes_rewritten_copy(tmp_path):
+    src = tmp_path / "src.yaml"
+    src.write_text(SAMPLE)
+    dst = tmp_path / "out.yaml"
+    prepare_kubeconfig(str(src), str(dst), "https://k3s:6443")
+    text = dst.read_text()
+    assert "server: https://k3s:6443" in text
