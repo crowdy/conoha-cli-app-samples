@@ -19,7 +19,7 @@
 - All Python: Python 3.12, type hints, `pytest`, `ruff` (line length 100).
 - All commits: conventional commits (`feat(scope): ...`, `test(scope): ...`, `chore(scope): ...`). Scope = `kubevirt-provisioner`.
 - "Sample dir" = `kubevirt-provisioner/`. "App package" = `kubevirt-provisioner/app/`.
-- Run pytest from inside the sample dir: `cd kubevirt-provisioner && python -m pytest`.
+- **Python interpreter:** use the existing shared venv at `~/dev/.venv/bin/python3` (Python 3.12, already has fastapi/uvicorn/kubernetes/aiohttp/PyYAML/pytest/pytest-asyncio/httpx/ruff). Do NOT create a new venv. Run tests as `cd kubevirt-provisioner && ~/dev/.venv/bin/python3 -m pytest`. (The pinned `requirements.txt` still exists for the Docker image build.)
 - Pinned versions: KubeVirt `v1.4.0`, k3s `rancher/k3s:v1.31.5-k3s1`, guest image `quay.io/containerdisks/ubuntu:24.04`. If the spike (Phase A) finds a version doesn't work, update these everywhere and note it.
 - Phase A is a **validation gate**: it is exploratory (not TDD). Its outputs — the exact working k3s container flags, the KubeVirt CR, and emulated boot timings — feed the infra tasks in Phase E. Do not start Phase E until Phase A succeeds.
 
@@ -277,14 +277,14 @@ mkdir -p kubevirt-provisioner/app kubevirt-provisioner/tests
 touch kubevirt-provisioner/app/__init__.py kubevirt-provisioner/tests/__init__.py
 ```
 
-- [ ] **Step 4: Create and activate a venv, install dev deps**
+- [ ] **Step 4: Verify the shared venv can collect tests**
+
+Do NOT create a new venv — use `~/dev/.venv/bin/python3` (deps already installed).
 
 ```bash
-cd kubevirt-provisioner
-python3.12 -m venv .venv && . .venv/bin/activate
-pip install -r requirements-dev.txt
+cd kubevirt-provisioner && ~/dev/.venv/bin/python3 -m pytest -q
 ```
-Expected: clean install. (`.venv` is git-ignored.)
+Expected: `no tests ran` (no test files yet) and exit 0 / exit 5 — both fine. This confirms the interpreter and pytest config work.
 
 - [ ] **Step 5: Commit**
 
