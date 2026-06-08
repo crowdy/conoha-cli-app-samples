@@ -1,4 +1,5 @@
-from app.console import console_ws_url, SUBPROTOCOL
+import pytest
+from app.console import console_ws_url, pump, SUBPROTOCOL
 
 
 def test_console_ws_url():
@@ -11,3 +12,28 @@ def test_console_ws_url():
 
 def test_subprotocol_constant():
     assert SUBPROTOCOL == "plain.kubevirt.io"
+
+
+class FakeSource:
+    def __init__(self, chunks):
+        self._chunks = list(chunks)
+
+    async def __aiter__(self):
+        for c in self._chunks:
+            yield c
+
+
+class FakeSink:
+    def __init__(self):
+        self.received = []
+
+    async def send(self, data):
+        self.received.append(data)
+
+
+@pytest.mark.asyncio
+async def test_pump_forwards_all_chunks():
+    src = FakeSource([b"hello", b"world"])
+    sink = FakeSink()
+    await pump(src, sink.send)
+    assert sink.received == [b"hello", b"world"]
