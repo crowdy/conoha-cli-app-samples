@@ -149,10 +149,10 @@ KubeVirt のマニフェストは GitHub Release への実行時依存を避け�
 
 | メソッド | パス | 役割 |
 |----------|------|------|
-| GET | `/health` | **クラスター API に到達できれば 200**（KubeVirt 完全起動前でも proxy probe を通す）。 |
+| GET | `/health` | **API プロセスが起動していれば 200**（クラスター/KubeVirt の準備は待たない＝ proxy probe を確実に通す。準備状況は `/api/status`）。 |
 | GET | `/api/status` | KubeVirt の Available 状態・バージョン・エミュレーション有無を返す（UI が「初期化中」を表示する用）。 |
 | GET | `/` | ミニ Web UI（静的 HTML/JS）。 |
-| GET | `/api/vms` | VM 一覧（name / phase / ready / ゲスト IP）。 |
+| GET | `/api/vms` | VM 一覧（name / status / running）。※ゲスト IP 列は持たない: masquerade だと VMI が報告する IP は非ルータブルな NAT 固定 IP のため無意味。spike で実 VMI IP を確認し Phase E で再検討。 |
 | POST | `/api/vms` | VM 作成。body: `{name, memory?, cpu?, sshKey?/password?}`。Ubuntu containerDisk + cloudInitNoCloud + masquerade で `VirtualMachine`(running:true) を作成。**キャップ超過時 409**。 |
 | GET | `/api/vms/{name}` | 1 件詳細。 |
 | POST | `/api/vms/{name}/start` | `spec.running=true`（または start サブリソース）。 |
@@ -161,16 +161,17 @@ KubeVirt のマニフェストは GitHub Release への実行時依存を避け�
 | WS | `/api/vms/{name}/console` | KubeVirt シリアルコンソール WS をブラウザ WS へブリッジ。 |
 
 - VM 名は `[a-z0-9-]{1,40}` で検証（k8s 名前規則）。
-- `/health` は KubeVirt 準備を要求しない（KubeVirt 起動は数分かかるため、proxy のタイムアウトを避ける）。機能エンドポイントは KubeVirt 未準備なら **503 + 明確なメッセージ**。
+- `/health` は **クラスター到達も KubeVirt 準備も要求せず、API プロセスが起動していれば 200**（KubeVirt 起動は数分かかるため proxy タイムアウトを避ける）。クラスター/KubeVirt 未準備なら機能エンドポイントが **503 + 明確なメッセージ**を返し、準備状況は `/api/status` が報告する。
 
 ## 6. VM テンプレート（manifest.py）
 
-純関数 `build_vm(name, memory, cpu, cloud_init) -> dict` が `kubevirt.io/v1 VirtualMachine` を生成：
+純関数 `build_vm(name, *, namespace, image, memory, cpu, password, ssh_key) -> dict` が `kubevirt.io/v1 VirtualMachine` を生成：
 
 - `spec.template.spec.domain.devices.disks`: containerDisk（Ubuntu cloud イメージ）+ cloudInitNoCloud ディスク。
-- `spec.template.spec.domain.resources.requests.memory`: `GUEST_MEMORY`（既定 2Gi）。
+- `spec.running: true`。※KubeVirt v1.4.0 では `running` は deprecated（`runStrategy` 推奨）だが依然サポートされ、start/stop が最も単純なためデモではこれを使う（コードに注記）。
+- メモリ: 当面 `spec.template.spec.domain.resources.requests.memory` = `GUEST_MEMORY`（既定 2Gi）。**spike で `domain.memory.guest`（ゲストが見る量）併用と limit の要否を確定**（emulation での OOM 回避）。
 - `spec.template.spec.domain.cpu.cores`: `GUEST_CPU`。
-- network: `masquerade` + default pod network（ポッドネットワーク IP を取得。外部直アクセスはしない）。
+- network: `masquerade` + default pod network。外部直アクセスはしない（到達は Web シリアルコンソールのみ）。masquerade の IP は NAT 固定 IP でポッド IP ではない点に注意。
 - `volumes`: containerDisk = `quay.io/containerdisks/ubuntu:24.04`、cloudInitNoCloud = userData（ユーザー作成・パスワード/SSH 公開鍵・確認用マーカー書込み）。
 - ディスクは **エフェメラル containerDisk**（CDI/PVC 不要）。停止・再起動で初期化される（デモ前提、§13 で明示）。
 
@@ -194,9 +195,11 @@ web:
   blue_green: false
 health:
   path: /health
-  # 60 × 5s = 300s。k3s 起動 + KubeVirt operator のイメージ pull を吸収。
-  # /health はクラスター到達のみ要求するので KubeVirt 完全起動は待たない。
-  unhealthy_threshold: 60
+  # 120 × 5s = 600s。初回デプロイの k3s イメージ pull + 起動を吸収するため余裕を取る。
+  # /health は API プロセス起動で 200 を返す（クラスター待ちしない）。
+  # 併せて compose 側で api の depends_on を service_healthy → service_started にし、
+  # k3s 健康化を待たずに api が起動して /health に応答できるようにする（§E 参照）。
+  unhealthy_threshold: 120
 accessories:
   - k3s
   - kubevirt-bootstrap
@@ -219,10 +222,10 @@ accessories:
 
 ## 10. エラー処理
 
-- k3s 未到達: `/health` は到達できるまで非 200（proxy が待つ）。到達後は 200。
-- KubeVirt 未準備: 機能エンドポイントは 503 + メッセージ。UI は `/api/status` を見て「初期化中」を表示。
+- `/health`: API プロセス起動で常に 200（クラスター待ちしない）。クラスター/KubeVirt の状態は `/api/status` で報告。
+- クラスター/KubeVirt 未準備: 機能エンドポイントは 503 + メッセージ。UI は `/api/status` を見て「初期化中」を表示。
 - VM 数キャップ超過: 409。
-- コンソール WS で VMI 未起動: 409 もしくは即時クローズ（理由付き）。
+- コンソール WS: クラスター未準備なら accept 後 1011 クローズ（実装済み・単体テスト済み）。接続/ブリッジ失敗はログに記録し、一方向が閉じたら他方も片付ける（finally で browser ws を close）。VMI 未起動時の明示的クローズ理由は spike/Phase F で確定。
 - kubeconfig server 書換失敗 / TLS SAN 不一致: api が起動時にリトライ（k3s の `--tls-san k3s` で SAN を担保）。
 - bootstrap の apply 失敗: バックオフ再試行。
 
@@ -247,15 +250,15 @@ conoha app deploy kubevirt
 
 最大の不確実性は「**コンテナ化された単一ノード k3s 上で KubeVirt がエミュレーションで正しく起動するか**」。実装の前に、実 VPS 上で次を検証するスパイクを置く：
 
-1. `rancher/k3s` を `--privileged` + 必要な cgroup/tmpfs マウントで起動し、ノードが Ready になる（k3s コンテナの正確なフラグ群を確定）。
-2. KubeVirt operator + CR（`useEmulation:true`）を apply し、`kubevirt` が Available になる（virt-handler が単一ノードで動くか、必要な featureGate の有無を確定）。
-3. Ubuntu containerDisk の VMI を作成し、`Running` に到達 → シリアルコンソールが応答する。
-4. api コンテナから `https://k3s:6443`（`--tls-san k3s`）で接続でき、コンソール WS をブリッジできる。
-5. エミュレーションでの Ubuntu 起動所要時間を計測し、UI/タイムアウトの目安を決める。
+1. `rancher/k3s` を `--privileged` + 必要な cgroup/tmpfs マウントで起動し、ノードが Ready になる（k3s コンテナの正確なフラグ群を確定。cgroup v2 では `cgroupns: host` + 書込み可能な cgroup マウントが要ることが多い）。
+2. KubeVirt operator + CR（`useEmulation:true`）を apply し、`kubevirt` が Available になる。**virt-handler/virt-launcher が cgroup v2 下で健全に動くか**（`kubectl -n kubevirt logs ds/virt-handler` clean）と、**emulation で VMI が `devices.kubevirt.io/kvm` 要求のため Pending にならないか**、必要な featureGate の有無を確定。
+3. **出荷形態に合わせた `VirtualMachine`（`spec.running:true`）** を作成（bare VMI ではなく）し、`Running` 到達 + start/stop 切替が効くことを確認。containerDisk の pull 時間も記録。
+4. **コンソール WS をアプリと同じ方式で実証する（最重要・最も未検証）**: api コンテナ相当から、k3s admin kubeconfig の**クライアント証明書**で組んだ SSL コンテキストを使い、`wss://k3s:6443`（`--tls-san k3s`）の subresource console（subprotocol `plain.kubevirt.io`）に接続して**双方向にバイトが流れる**ことを確認する。`kubectl --raw` の 400/426 では認証経路（aggregated virt-api 経由）を検証できない点に注意。subprotocol が異なれば確定。
+5. エミュレーションでの Ubuntu 起動所要時間を計測し、UI/タイムアウトの目安を決める（TCG では数分〜10 分超もあり得る）。
 
-スパイクで判明した k3s フラグ・KubeVirt 設定・タイムアウトをこの設計に反映してから本実装に入る。
+スパイクで判明した k3s フラグ・KubeVirt 設定・コンソール認証経路・タイムアウトをこの設計に反映してから本実装（Phase E）に入る。
 
-その他のリスク: kubeconfig server 書換 + TLS SAN（→ `--tls-san k3s`）／エミュレーション起動の遅さ（→ 余裕あるタイムアウト + 「booting」表示）／RAM 圧迫（→ 同時 VM キャップ）。
+その他のリスク: コンソールのクライアント証明書認証が aggregated virt-api を通るか（→ spike 4 で実証）／kubeconfig server 書換 + TLS SAN（→ `--tls-san k3s`）／エミュレーション起動の遅さ（→ 余裕あるタイムアウト + 「booting」表示）／RAM 圧迫（→ 同時 VM キャップ + `domain.memory.guest`/limit）。
 
 ## 14. Out of Scope
 

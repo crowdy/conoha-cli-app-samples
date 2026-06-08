@@ -57,11 +57,15 @@ cat > kubevirt-provisioner/SPIKE_NOTES.md <<'EOF'
 
 Record the CONFIRMED working values here. These feed compose.yml / manifests / README.
 
-- [ ] k3s container flags that produce a Ready node (privileged, cgroup, tmpfs mounts)
+- [ ] k3s container flags that produce a Ready node (privileged, cgroup v2: cgroupns host + writable cgroup mount, tmpfs mounts)
 - [ ] KubeVirt version that reaches `Available` on this k3s
+- [ ] virt-handler/virt-launcher healthy under cgroup v2 (`kubectl -n kubevirt logs ds/virt-handler` clean)
 - [ ] Whether any KubeVirt featureGates are required
-- [ ] Ubuntu containerDisk VMI reaches `Running` under emulation
+- [ ] Under emulation the VMI is NOT stuck Pending on a `devices.kubevirt.io/kvm` request
+- [ ] A `VirtualMachine` (spec.running:true — the SHIPPED shape, not a bare VMI) reaches `Running`, and start/stop toggling works
+- [ ] containerDisk image pull time (large) recorded
 - [ ] Serial console WebSocket subprotocol that works (expected: plain.kubevirt.io)
+- [ ] **Console WS works with the admin CLIENT CERTIFICATE** over `wss://k3s:6443` (same SSLContext the app builds) — bytes flow both ways. (kubectl --raw only proves the path exists, not client-cert auth through aggregated virt-api.)
 - [ ] Measured emulated boot time (cloud-init done) — sets UI/timeout expectations
 - [ ] `--tls-san k3s` lets a second container connect via https://k3s:6443
 EOF
@@ -205,21 +209,40 @@ spec:
 ```
 Expected success: the VMI reaches `Ready`. **Time this step** and record it.
 
-- [ ] **Step 3: Confirm the serial console responds**
+> Note: `vmi-ubuntu.yaml` above is a bare VMI for the quickest Running check. Before finishing the spike, ALSO apply a `VirtualMachine` with `spec.running: true` (the shape the app ships in `manifest.build_vm`) and confirm it reaches Running and that patching `spec.running` false/true stops/starts it — otherwise the spike doesn't validate the shipped manifest or start/stop. Also capture `kubectl get vmi <name> -o jsonpath='{.status.interfaces}'` to see what IP (if any) masquerade reports.
+
+- [ ] **Step 3: Confirm the serial console responds — including CLIENT-CERT auth (the critical, least-proven path)**
 
 ```bash
 "${K[@]}" get vmi spike-ubuntu -n default -o jsonpath='{.status.phase}'   # -> Running
-# virtctl may not be present; the API path is what `api` will use:
+# The --raw GET only proves the endpoint exists (console is a WebSocket, not GET):
 "${K[@]}" get --raw "/apis/subresources.kubevirt.io/v1/namespaces/default/virtualmachineinstances/spike-ubuntu/console" || true
 ```
-The `--raw` GET will fail (console is a WebSocket, not GET) but a 400/426 "upgrade required" style response confirms the endpoint exists. Record the exact path and any subprotocol hints in SPIKE_NOTES.md.
+A 400/426 "upgrade required" confirms the path exists — but it does NOT prove the app's auth path works. The console is served by the aggregated `virt-api`; the app authenticates to k3s with the admin **client certificate** and bridges a WebSocket. **Verify that exact path:** extract the client cert/key/CA from the kubeconfig and open the console WebSocket with subprotocol `plain.kubevirt.io`, e.g. a throwaway script using the same `app/console.py` helpers:
+```bash
+~/dev/.venv/bin/python3 - <<'PY'
+import asyncio, ssl, aiohttp, base64, yaml, tempfile, os
+kc = yaml.safe_load(open("/var/lib/.../kubeconfig.yaml"))  # the k3s --write-kubeconfig output
+cl = kc["clusters"][0]["cluster"]; us = kc["users"][0]["user"]
+def f(b): t=tempfile.NamedTemporaryFile(delete=False); t.write(base64.b64decode(b)); t.close(); return t.name
+ca, crt, key = f(cl["certificate-authority-data"]), f(us["client-certificate-data"]), f(us["client-key-data"])
+ctx = ssl.create_default_context(cafile=ca); ctx.load_cert_chain(crt, key)
+url = "wss://<k3s-host>:6443/apis/subresources.kubevirt.io/v1/namespaces/default/virtualmachineinstances/spike-ubuntu/console"
+async def main():
+    async with aiohttp.ClientSession() as s, s.ws_connect(url, protocols=("plain.kubevirt.io",), ssl=ctx) as ws:
+        await ws.send_bytes(b"\n")
+        print("RECV:", (await ws.receive()).type)
+asyncio.run(main())
+PY
+```
+Record in SPIKE_NOTES.md: the working subprotocol, that client-cert auth succeeded, and any RBAC/SAN adjustment needed. If this fails, the console feature is blocked — resolve before Phase E.
 
-- [ ] **Step 4: Tear down spike VMI, finalize notes, commit**
+- [ ] **Step 4: Tear down spike VMI/VM, finalize notes, commit**
 
 ```bash
 "${K[@]}" delete -f vmi-ubuntu.yaml
-git add kubevirt-provisioner/spike/vmi-ubuntu.yaml kubevirt-provisioner/SPIKE_NOTES.md
-git commit -m "chore(kubevirt-provisioner): spike — KubeVirt emulation + Ubuntu VMI confirmed"
+git add kubevirt-provisioner/spike/ kubevirt-provisioner/SPIKE_NOTES.md
+git commit -m "chore(kubevirt-provisioner): spike — KubeVirt emulation + VM Running + client-cert console confirmed"
 ```
 
 > **Gate:** All SPIKE_NOTES.md checkboxes must be filled before Phase E. Phases B–D (pure Python + UI) can proceed in parallel and do not depend on the spike.
@@ -1637,6 +1660,8 @@ async def lifespan(app: FastAPI):
     yield
 ```
 
+> **Review note (validate in the Phase A spike before relying on this):** the console SSLContext is built from `Configuration.get_default_copy()` — this only carries the admin client cert/key/CA if `load_kube_config` populated the *default* Configuration (it does here, since `load_clients` doesn't pass a custom client config), and it depends on the Python client having materialised inline `client-certificate-data`/`client-key-data` into temp files that `cert_file`/`key_file` point at. This is implicit and fragile. The spike's client-cert console check (Phase A, Task 3 Step 3) must prove this exact path works; if it's flaky, build the SSLContext explicitly from the kubeconfig's CA/cert/key (decode the base64 yourself, as the spike script does) instead of reaching into `get_default_copy()`.
+
 Change the app constructor line to: `app = FastAPI(title="kubevirt-provisioner", lifespan=lifespan)`.
 Also change the placeholder `_store` declaration so the lifespan can reassign module globals — it already uses `global`, and `_kubevirt_status_fn` / `_console_cfg` are module-level defs, so reassigning them as module globals works.
 
@@ -1882,7 +1907,12 @@ services:
       - kubeconfig:/output:ro
     depends_on:
       k3s:
-        condition: service_healthy
+        # service_started (NOT service_healthy): the api should boot and answer
+        # /health (200) as soon as it's up, without waiting for k3s to go healthy
+        # — that's what makes the conoha-proxy probe pass within the window on a
+        # cold first boot. The entrypoint waits for the kubeconfig file, and the
+        # routes return 503 cleanly until the cluster is reachable.
+        condition: service_started
     restart: unless-stopped
 
 volumes:
@@ -1935,9 +1965,10 @@ web:
   blue_green: false
 health:
   path: /health
-  # 60 x 5s = 300s. Covers k3s boot + KubeVirt operator image pulls. /health
-  # returns 200 as soon as the api process is up; KubeVirt readiness is /api/status.
-  unhealthy_threshold: 60
+  # 120 x 5s = 600s. Headroom for the cold first-boot k3s image pull + start.
+  # /health returns 200 as soon as the api process is up (api uses
+  # depends_on service_started, not service_healthy); KubeVirt readiness is /api/status.
+  unhealthy_threshold: 120
 accessories:
   - k3s
   - kubevirt-bootstrap
