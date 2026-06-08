@@ -1073,6 +1073,8 @@ def delete_vm(name: str, store: VMStore = Depends(get_store)) -> Response:
 
 > Note: `/`, `/api/status`, the static mount, and the console WebSocket are added in later tasks (12, 14, 16). Keep this task focused on the REST lifecycle so its tests stay isolated.
 
+> Follow-up applied after review (commit `fix(kubevirt-provisioner): 404 for missing VM ...`): `start_vm`/`stop_vm`/`delete_vm` and `get_vm` all route their store calls through a shared `_translate_404()` context manager (kube `ApiException` status 404 → HTTP 404, instead of a 500), and `CreateVM._check_name` was simplified to call `validate_name(v)` directly. Tests cover the missing-VM 404 on each route.
+
 - [ ] **Step 4: Run test to verify it passes**
 
 Run: `cd kubevirt-provisioner && python -m pytest tests/test_api.py -v`
