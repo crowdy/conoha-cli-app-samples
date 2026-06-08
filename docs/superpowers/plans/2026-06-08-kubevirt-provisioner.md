@@ -1333,17 +1333,27 @@ Expected: PASS.
 
 - [ ] **Step 5: Wire the WebSocket route, static files, and index in `main.py`**
 
-This route is integration-level (exercised in the Phase F e2e smoke, not unit-tested). Add `aiohttp` import and the console bridge. `_console_cfg()` is replaced at startup (Task 16) with real cert/host values.
+This route is integration-level (exercised in the Phase F e2e smoke, not unit-tested). It bridges the two directions with the unit-tested `pump` helper fed by tiny adapter async-generators, and tears down the other direction as soon as one side closes (so a stopped VM closing the cluster side also closes the browser side — no hang). `_console_cfg()` is replaced at startup (Task 16) with real cert/host values. Note: do NOT import `build_ssl_context` here — it is only used by the Task 16 lifespan, so importing it now would be an unused import (ruff F401).
+
+Modify the existing import lines and add the new ones:
 
 ```python
-# add to kubevirt-provisioner/app/main.py
+# top of kubevirt-provisioner/app/main.py — ADD these imports
 import asyncio
+import contextlib
 
 import aiohttp
-from fastapi import WebSocket, WebSocketDisconnect
-from fastapi.responses import FileResponse
+# extend the existing fastapi import to include WebSocket, WebSocketDisconnect:
+from fastapi import Depends, FastAPI, HTTPException, WebSocket, WebSocketDisconnect
+# extend the existing responses import to include FileResponse:
+from fastapi.responses import FileResponse, Response
+from fastapi.staticfiles import StaticFiles
 
-from app.console import SUBPROTOCOL, build_ssl_context, console_ws_url, pump
+from app.console import SUBPROTOCOL, console_ws_url, pump
+```
+
+```python
+# add to kubevirt-provisioner/app/main.py (with the other routes)
 
 # Replaced at startup (Task 16): returns (api_server, ssl_context, namespace).
 def _console_cfg():
@@ -1359,26 +1369,34 @@ async def console(ws: WebSocket, name: str):
         await ws.close(code=1011, reason="cluster not ready")
         return
     url = console_ws_url(api_server, namespace, name)
-    session = aiohttp.ClientSession()
-    try:
-        async with session.ws_connect(url, protocols=(SUBPROTOCOL,), ssl=ssl_ctx) as up:
-            async def up_to_browser():
-                async for msg in up:
-                    if msg.type == aiohttp.WSMsgType.BINARY:
-                        await ws.send_bytes(msg.data)
-                    elif msg.type == aiohttp.WSMsgType.TEXT:
-                        await ws.send_text(msg.data)
+    async with aiohttp.ClientSession() as session:
+        try:
+            async with session.ws_connect(url, protocols=(SUBPROTOCOL,), ssl=ssl_ctx) as up:
+                async def cluster_to_browser():
+                    async for msg in up:
+                        if msg.type == aiohttp.WSMsgType.BINARY:
+                            yield msg.data
+                        elif msg.type == aiohttp.WSMsgType.TEXT:
+                            yield msg.data.encode()
 
-            async def browser_to_up():
-                while True:
-                    data = await ws.receive_bytes()
-                    await up.send_bytes(data)
+                async def browser_to_cluster():
+                    while True:
+                        yield await ws.receive_bytes()
 
-            await asyncio.gather(up_to_browser(), browser_to_up())
-    except WebSocketDisconnect:
-        pass
-    finally:
-        await session.close()
+                tasks = [
+                    asyncio.create_task(pump(cluster_to_browser(), ws.send_bytes)),
+                    asyncio.create_task(pump(browser_to_cluster(), up.send_bytes)),
+                ]
+                done, pending = await asyncio.wait(
+                    tasks, return_when=asyncio.FIRST_COMPLETED
+                )
+                for t in pending:
+                    t.cancel()
+                for t in done:
+                    with contextlib.suppress(Exception):
+                        t.result()
+        except WebSocketDisconnect:
+            pass
 
 
 @app.get("/")
