@@ -2,10 +2,9 @@ import pytest
 from app.vms import running_count, summarize, VMStore, CapExceeded, kubevirt_status
 
 
-def _vm(name, running=True, status="Running", ip=None):
-    obj = {"metadata": {"name": name}, "spec": {"running": running},
-           "status": {"printableStatus": status}}
-    return obj
+def _vm(name, running=True, status="Running"):
+    return {"metadata": {"name": name}, "spec": {"running": running},
+            "status": {"printableStatus": status}}
 
 
 def test_running_count_counts_spec_running():
@@ -15,7 +14,7 @@ def test_running_count_counts_spec_running():
 
 def test_summarize_extracts_fields():
     s = summarize(_vm("a", running=True, status="Running"))
-    assert s == {"name": "a", "running": True, "status": "Running", "ip": None}
+    assert s == {"name": "a", "running": True, "status": "Running"}
 
 
 class FakeCustom:

@@ -6,7 +6,7 @@ from app.vms import CapExceeded
 
 class FakeStore:
     def __init__(self):
-        self.vms = [{"name": "a", "running": True, "status": "Running", "ip": "10.0.0.5"}]
+        self.vms = [{"name": "a", "running": True, "status": "Running"}]
         self.cap = False
 
     def list(self):
@@ -22,7 +22,7 @@ class FakeStore:
     def create(self, name, password=None, ssh_key=None):
         if self.cap:
             raise CapExceeded("cap")
-        self.vms.append({"name": name, "running": True, "status": "Starting", "ip": None})
+        self.vms.append({"name": name, "running": True, "status": "Starting"})
         return {}
 
     def set_running(self, name, running):

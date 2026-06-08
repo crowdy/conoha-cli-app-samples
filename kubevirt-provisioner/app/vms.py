@@ -5,7 +5,6 @@ from app.manifest import build_vm
 GROUP = "kubevirt.io"
 VERSION = "v1"
 VM_PLURAL = "virtualmachines"
-VMI_PLURAL = "virtualmachineinstances"
 
 
 class CapExceeded(Exception):
@@ -18,16 +17,10 @@ def running_count(vms: list[dict]) -> int:
 
 def summarize(vm: dict) -> dict:
     status = vm.get("status", {})
-    ip = None
-    for iface in status.get("interfaces", []) or []:
-        if iface.get("ipAddress"):
-            ip = iface["ipAddress"]
-            break
     return {
         "name": vm["metadata"]["name"],
         "running": bool(vm.get("spec", {}).get("running")),
         "status": status.get("printableStatus", "Unknown"),
-        "ip": ip,
     }
 
 

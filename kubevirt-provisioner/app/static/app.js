@@ -14,7 +14,7 @@ async function refreshVMs() {
       ? `<button data-act="stop" data-name="${vm.name}">Stop</button>`
       : `<button data-act="start" data-name="${vm.name}">Start</button>`;
     return `<tr>
-      <td>${vm.name}</td><td>${vm.status}</td><td>${vm.ip || "—"}</td>
+      <td>${vm.name}</td><td>${vm.status}</td>
       <td>
         ${toggle}
         <button data-act="console" data-name="${vm.name}">Console</button>
