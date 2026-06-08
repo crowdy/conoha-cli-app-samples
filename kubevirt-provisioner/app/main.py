@@ -1,5 +1,7 @@
 import asyncio
 import contextlib
+import logging
+from pathlib import Path
 
 import aiohttp
 from fastapi import Depends, FastAPI, HTTPException, WebSocket, WebSocketDisconnect
@@ -13,6 +15,9 @@ from app.manifest import validate_name
 from app.vms import CapExceeded, VMStore
 
 app = FastAPI(title="kubevirt-provisioner")
+
+logger = logging.getLogger("kubevirt_provisioner.console")
+_STATIC_DIR = Path(__file__).parent / "static"
 
 # Populated at startup in a later task. Tests override get_store().
 _store: VMStore | None = None
@@ -119,8 +124,8 @@ async def console(ws: WebSocket, name: str):
         await ws.close(code=1011, reason="cluster not ready")
         return
     url = console_ws_url(api_server, namespace, name)
-    async with aiohttp.ClientSession() as session:
-        try:
+    try:
+        async with aiohttp.ClientSession() as session:
             async with session.ws_connect(url, protocols=(SUBPROTOCOL,), ssl=ssl_ctx) as up:
                 async def cluster_to_browser():
                     async for msg in up:
@@ -143,15 +148,23 @@ async def console(ws: WebSocket, name: str):
                 for t in pending:
                     t.cancel()
                 for t in done:
-                    with contextlib.suppress(Exception):
-                        t.result()
-        except WebSocketDisconnect:
-            pass
+                    exc = t.exception()
+                    # WebSocketDisconnect is the normal browser-close signal; anything
+                    # else is a real bridge failure worth surfacing.
+                    if exc and not isinstance(exc, WebSocketDisconnect):
+                        logger.warning("console bridge for %s ended: %r", name, exc)
+    except WebSocketDisconnect:
+        pass
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("console connect for %s failed: %r", name, exc)
+    finally:
+        with contextlib.suppress(RuntimeError):
+            await ws.close()
 
 
 @app.get("/")
 def index() -> FileResponse:
-    return FileResponse("app/static/index.html")
+    return FileResponse(_STATIC_DIR / "index.html")
 
 
-app.mount("/static", StaticFiles(directory="app/static"), name="static")
+app.mount("/static", StaticFiles(directory=_STATIC_DIR), name="static")

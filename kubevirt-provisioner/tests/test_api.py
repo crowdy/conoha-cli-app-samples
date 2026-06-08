@@ -118,3 +118,13 @@ def test_stop_missing_404(client):
 
 def test_delete_missing_404(client):
     assert client.delete("/api/vms/nope").status_code == 404
+
+
+def test_console_closes_when_cluster_not_ready(client):
+    from starlette.websockets import WebSocketDisconnect
+    with pytest.raises(WebSocketDisconnect) as exc:
+        with client.websocket_connect(
+            "/api/vms/x/console", subprotocols=["plain.kubevirt.io"]
+        ) as wsc:
+            wsc.receive_bytes()
+    assert exc.value.code == 1011

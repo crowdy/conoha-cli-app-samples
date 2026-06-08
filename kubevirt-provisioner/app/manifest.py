@@ -53,6 +53,8 @@ def build_vm(
             "labels": {"app.kubernetes.io/managed-by": MANAGED_BY},
         },
         "spec": {
+            # `running` is deprecated in favour of `runStrategy` in recent KubeVirt
+            # but still supported in v1.4.0 and simplest for this demo's start/stop.
             "running": True,
             "template": {
                 "metadata": {"labels": {"kubevirt.io/vm": name}},
