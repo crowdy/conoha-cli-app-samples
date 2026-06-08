@@ -18,6 +18,12 @@ def get_store() -> VMStore:
     return _store
 
 
+# Replaced at startup with a real cluster-backed callable in a later task. Default
+# returns "not ready" so the route is safe before the cluster is wired up.
+def _kubevirt_status_fn() -> dict:
+    return {"available": False, "phase": "Unknown"}
+
+
 class CreateVM(BaseModel):
     name: str
     password: str | None = None
@@ -31,6 +37,11 @@ class CreateVM(BaseModel):
         except ValueError as e:
             raise ValueError(str(e))
         return v
+
+
+@app.get("/api/status")
+def status() -> dict:
+    return _kubevirt_status_fn()
 
 
 @app.get("/health")

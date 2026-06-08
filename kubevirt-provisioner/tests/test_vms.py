@@ -1,5 +1,5 @@
 import pytest
-from app.vms import running_count, summarize, VMStore, CapExceeded
+from app.vms import running_count, summarize, VMStore, CapExceeded, kubevirt_status
 
 
 def _vm(name, running=True, status="Running", ip=None):
@@ -71,3 +71,24 @@ def test_set_running_patches():
     store, fake = _store([_vm("a")], max_running=2)
     store.set_running("a", False)
     assert fake.patched[0] == ("a", {"spec": {"running": False}})
+
+
+class FakeKvCustom:
+    def __init__(self, obj):
+        self.obj = obj
+
+    def get_namespaced_custom_object(self, group, version, namespace, plural, name):
+        if self.obj is None:
+            from kubernetes.client.exceptions import ApiException
+            raise ApiException(status=404)
+        return self.obj
+
+
+def test_kubevirt_status_available():
+    obj = {"status": {"phase": "Deployed",
+                      "conditions": [{"type": "Available", "status": "True"}]}}
+    assert kubevirt_status(FakeKvCustom(obj)) == {"available": True, "phase": "Deployed"}
+
+
+def test_kubevirt_status_absent():
+    assert kubevirt_status(FakeKvCustom(None)) == {"available": False, "phase": "NotFound"}

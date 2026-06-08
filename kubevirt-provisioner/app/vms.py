@@ -1,3 +1,5 @@
+from kubernetes.client.exceptions import ApiException
+
 from app.manifest import build_vm
 
 GROUP = "kubevirt.io"
@@ -74,3 +76,21 @@ class VMStore:
                 GROUP, VERSION, self.namespace, VM_PLURAL, name
             )
         )
+
+
+def kubevirt_status(custom_api) -> dict:
+    """Return {'available': bool, 'phase': str} for the kubevirt CR."""
+    try:
+        obj = custom_api.get_namespaced_custom_object(
+            GROUP, VERSION, "kubevirt", "kubevirts", "kubevirt"
+        )
+    except ApiException as e:
+        if e.status == 404:
+            return {"available": False, "phase": "NotFound"}
+        raise
+    status = obj.get("status", {})
+    available = any(
+        c.get("type") == "Available" and c.get("status") == "True"
+        for c in status.get("conditions", [])
+    )
+    return {"available": available, "phase": status.get("phase", "Unknown")}

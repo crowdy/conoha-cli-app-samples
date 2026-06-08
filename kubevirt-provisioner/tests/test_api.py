@@ -92,3 +92,11 @@ def test_delete_vm(client):
     r = client.delete("/api/vms/a")
     assert r.status_code == 204
     assert not any(v["name"] == "a" for v in client.store.vms)
+
+
+def test_status_endpoint(client, monkeypatch):
+    import app.main as m
+    monkeypatch.setattr(m, "_kubevirt_status_fn", lambda: {"available": True, "phase": "Deployed"})
+    r = client.get("/api/status")
+    assert r.status_code == 200
+    assert r.json()["available"] is True
