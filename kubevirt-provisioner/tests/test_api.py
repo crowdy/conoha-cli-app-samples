@@ -29,8 +29,14 @@ class FakeStore:
         for vm in self.vms:
             if vm["name"] == name:
                 vm["running"] = running
+                return
+        from kubernetes.client.exceptions import ApiException
+        raise ApiException(status=404)
 
     def delete(self, name):
+        if not any(v["name"] == name for v in self.vms):
+            from kubernetes.client.exceptions import ApiException
+            raise ApiException(status=404)
         self.vms = [v for v in self.vms if v["name"] != name]
 
 
@@ -100,3 +106,15 @@ def test_status_endpoint(client, monkeypatch):
     r = client.get("/api/status")
     assert r.status_code == 200
     assert r.json()["available"] is True
+
+
+def test_start_missing_404(client):
+    assert client.post("/api/vms/nope/start").status_code == 404
+
+
+def test_stop_missing_404(client):
+    assert client.post("/api/vms/nope/stop").status_code == 404
+
+
+def test_delete_missing_404(client):
+    assert client.delete("/api/vms/nope").status_code == 404

@@ -24,6 +24,17 @@ def get_store() -> VMStore:
     return _store
 
 
+@contextlib.contextmanager
+def _translate_404():
+    """Map a kube 404 ApiException to an HTTP 404."""
+    try:
+        yield
+    except ApiException as e:
+        if e.status == 404:
+            raise HTTPException(status_code=404, detail="not found")
+        raise
+
+
 # Replaced at startup with a real cluster-backed callable in a later task. Default
 # returns "not ready" so the route is safe before the cluster is wired up.
 def _kubevirt_status_fn() -> dict:
@@ -38,10 +49,7 @@ class CreateVM(BaseModel):
     @field_validator("name")
     @classmethod
     def _check_name(cls, v: str) -> str:
-        try:
-            validate_name(v)
-        except ValueError as e:
-            raise ValueError(str(e))
+        validate_name(v)
         return v
 
 
@@ -63,12 +71,8 @@ def list_vms(store: VMStore = Depends(get_store)) -> list[dict]:
 
 @app.get("/api/vms/{name}")
 def get_vm(name: str, store: VMStore = Depends(get_store)) -> dict:
-    try:
+    with _translate_404():
         return store.get(name)
-    except ApiException as e:
-        if e.status == 404:
-            raise HTTPException(status_code=404, detail="not found")
-        raise
 
 
 @app.post("/api/vms", status_code=201)
@@ -82,19 +86,22 @@ def create_vm(body: CreateVM, store: VMStore = Depends(get_store)) -> dict:
 
 @app.post("/api/vms/{name}/start")
 def start_vm(name: str, store: VMStore = Depends(get_store)) -> dict:
-    store.set_running(name, True)
+    with _translate_404():
+        store.set_running(name, True)
     return {"name": name, "running": True}
 
 
 @app.post("/api/vms/{name}/stop")
 def stop_vm(name: str, store: VMStore = Depends(get_store)) -> dict:
-    store.set_running(name, False)
+    with _translate_404():
+        store.set_running(name, False)
     return {"name": name, "running": False}
 
 
 @app.delete("/api/vms/{name}", status_code=204)
 def delete_vm(name: str, store: VMStore = Depends(get_store)) -> Response:
-    store.delete(name)
+    with _translate_404():
+        store.delete(name)
     return Response(status_code=204)
 
 
