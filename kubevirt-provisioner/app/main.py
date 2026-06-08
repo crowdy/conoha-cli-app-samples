@@ -1,8 +1,14 @@
-from fastapi import Depends, FastAPI, HTTPException
-from fastapi.responses import Response
+import asyncio
+import contextlib
+
+import aiohttp
+from fastapi import Depends, FastAPI, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi.responses import FileResponse, Response
+from fastapi.staticfiles import StaticFiles
 from kubernetes.client.exceptions import ApiException
 from pydantic import BaseModel, field_validator
 
+from app.console import SUBPROTOCOL, console_ws_url, pump
 from app.manifest import validate_name
 from app.vms import CapExceeded, VMStore
 
@@ -90,3 +96,55 @@ def stop_vm(name: str, store: VMStore = Depends(get_store)) -> dict:
 def delete_vm(name: str, store: VMStore = Depends(get_store)) -> Response:
     store.delete(name)
     return Response(status_code=204)
+
+
+# Replaced at startup (later task): returns (api_server, ssl_context, namespace).
+def _console_cfg():
+    raise RuntimeError("cluster not ready")
+
+
+@app.websocket("/api/vms/{name}/console")
+async def console(ws: WebSocket, name: str):
+    await ws.accept(subprotocol=SUBPROTOCOL)
+    try:
+        api_server, ssl_ctx, namespace = _console_cfg()
+    except RuntimeError:
+        await ws.close(code=1011, reason="cluster not ready")
+        return
+    url = console_ws_url(api_server, namespace, name)
+    async with aiohttp.ClientSession() as session:
+        try:
+            async with session.ws_connect(url, protocols=(SUBPROTOCOL,), ssl=ssl_ctx) as up:
+                async def cluster_to_browser():
+                    async for msg in up:
+                        if msg.type == aiohttp.WSMsgType.BINARY:
+                            yield msg.data
+                        elif msg.type == aiohttp.WSMsgType.TEXT:
+                            yield msg.data.encode()
+
+                async def browser_to_cluster():
+                    while True:
+                        yield await ws.receive_bytes()
+
+                tasks = [
+                    asyncio.create_task(pump(cluster_to_browser(), ws.send_bytes)),
+                    asyncio.create_task(pump(browser_to_cluster(), up.send_bytes)),
+                ]
+                done, pending = await asyncio.wait(
+                    tasks, return_when=asyncio.FIRST_COMPLETED
+                )
+                for t in pending:
+                    t.cancel()
+                for t in done:
+                    with contextlib.suppress(Exception):
+                        t.result()
+        except WebSocketDisconnect:
+            pass
+
+
+@app.get("/")
+def index() -> FileResponse:
+    return FileResponse("app/static/index.html")
+
+
+app.mount("/static", StaticFiles(directory="app/static"), name="static")
