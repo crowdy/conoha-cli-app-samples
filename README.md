@@ -92,6 +92,7 @@ conoha app deploy myserver
 | [meilisearch](meilisearch/) | Meilisearch | セルフホスティング全文検索エンジン | g2l-t-1 (1GB) |
 | [opencascade-fem](opencascade-fem/) | OpenCascade + gmsh + scikit-fem (FastAPI + vtk.js) | パラメトリック CAD → メッシュ → 線形弾性 FEM → ブラウザ 3D 可視化 | g2l-t-2 (2GB) |
 | [slurm-rest-api](slurm-rest-api/) | Slurm + slurmrestd + slurmdbd + MariaDB | Slurm 単一ノードクラスター + REST API (JWT 認証、Python CLI + NumPy/sklearn ワークロード例) | g2l-t-2 (2GB) |
+| [kubevirt-provisioner](kubevirt-provisioner/) | k3s + KubeVirt + FastAPI | KubeVirt API で Ubuntu VM をプロビジョニング (Web シリアルコンソール付き、ハードウェア KVM) | g2l-t-c6m8 (8GB) |
 
 ## 自分のアプリをデプロイするには
 
