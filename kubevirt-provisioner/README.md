@@ -4,6 +4,10 @@
 
 > **ハードウェア KVM で動きます。** ConoHa VPS3 は `/dev/kvm` を露出するため（実機検証済み、`SPIKE_NOTES.md` 参照）、KubeVirt はソフトウェアエミュレーションではなく**ハードウェア仮想化**でゲストを動かします。ゲスト起動は実測で初回 ~80 秒（イメージ pull 込み）/ 再起動 ~15 秒。
 
+![screenshot](https://raw.githubusercontent.com/crowdy/conoha-cli-app-samples/main/kubevirt-provisioner/docs/screenshot.png)
+
+ブラウザから VM を作成・起動・停止・削除し、シリアルコンソール（xterm.js）でゲスト Ubuntu に入ったところ。
+
 ## アーキテクチャ
 
 ```
