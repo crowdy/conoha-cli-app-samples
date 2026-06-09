@@ -11,7 +11,7 @@
 
 このサンプルの目的：
 
-1. 1 台の ConoHa VPS3 の中に、**k3s（単一特権コンテナ）+ KubeVirt（ソフトウェアエミュレーション）+ FastAPI provisioner** を Docker Compose だけで立ち上げる。
+1. 1 台の ConoHa VPS3 の中に、**k3s（単一特権コンテナ）+ KubeVirt（ハードウェア KVM）+ FastAPI provisioner** を Docker Compose だけで立ち上げる。
 2. FastAPI から Kubernetes/KubeVirt API 経由で Ubuntu ゲスト VM を **作成 / 一覧 / 起動 / 停止 / 削除** できる（フルライフサイクル）。
 3. 生成した VM の **シリアルコンソール**を、ブラウザの Web ターミナル（xterm.js）から触れる。FastAPI が KubeVirt のコンソール WebSocket をブリッジする。
 4. cloud-init でログインユーザー・マーカーを注入し、「VM が起きて cloud-init が走った」ことを確認できる。
@@ -20,9 +20,9 @@
 
 ### 1.1 前提となる事実（調査済み）
 
-- KubeVirt は `/dev/kvm` が無い環境向けに **ソフトウェアエミュレーション**（`spec.configuration.developerConfiguration.useEmulation: true`）をサポートする。QEMU(TCG) で動くため **10〜100 倍遅い**が、デモ用途では十分。([software-emulation.md](https://github.com/kubevirt/kubevirt/blob/main/docs/software-emulation.md))
-- ConoHa VPS3 の入れ子仮想化（`/dev/kvm` のゲスト露出）は公開ドキュメントで確証できない。多くのパブリック VPS は入れ子仮想化を無効化しているため、**エミュレーションを既定**とし、`/dev/kvm` があれば自動的に使う方針とする。
-- これにより「k3s コンテナ上の KubeVirt をエミュレーションで動かす」構成は実現可能。kind/k3s 上で動かす事例も文書化されている。
+- **【2026-06-09 spike で確定】ConoHa VPS3 は `/dev/kvm` を露出する**（入れ子仮想化が有効）。k3s コンテナに `/dev/kvm` を渡すとノードが `devices.kubevirt.io/kvm` を広告し、KubeVirt は **ハードウェア KVM 加速**で動く（エミュレーション不要）。ゲスト起動は実測 **~80s（初回・containerDisk pull 込み）/ 再起動 ~15s** と高速。→ `useEmulation` は未設定（KVM）で出荷。`/dev/kvm` が無い環境向けの `useEmulation: true` は fallback として文書化のみ。
+- **重要な k3s 落とし穴**: virt-handler は `/var/run/kubevirt` を Bidirectional 伝播で bind-mount するため、`/var/run` が **shared mount** である必要がある。tmpfs の `/var/run` は private なので、k3s コンテナの **entrypoint で `mount --make-rshared / /run /var/run` を k3s 起動前に実行**しないと virt-handler が `CreateContainerError`（"not a shared mount"）で起動せず KubeVirt が Available にならない。spike で entrypoint ラッパー方式を検証済み（virt-handler が手動介入なしで Ready）。
+- 検証の全結果は `kubevirt-provisioner/SPIKE_NOTES.md` を参照。
 
 ## 2. アーキテクチャ概要
 
@@ -113,18 +113,16 @@ KubeVirt のマニフェストは GitHub Release への実行時依存を避け�
 
 ### 4.1 `k3s`（クラスター）
 
-- イメージ: `rancher/k3s:<pinned>`（例 `v1.31.x-k3s1`）。
-- `privileged: true`、`command: server` に以下のフラグ：
-  - `--disable traefik --disable servicelb --disable metrics-server`（RAM 節約。Web 入口は FastAPI、外部公開は conoha-proxy が担うため traefik 不要）
-  - `--tls-san k3s`（**重要**: api コンテナが kubeconfig の `server` を `https://k3s:6443` に書き換えて接続するため、サーバ証明書 SAN に `k3s` を含める必要がある。無いと TLS 検証に失敗する）
-  - `--write-kubeconfig /output/kubeconfig.yaml --write-kubeconfig-mode 644`
-- ボリューム:
-  - `k3s-data:/var/lib/rancher/k3s`（クラスター状態・containerd イメージを永続化）
-  - `kubeconfig:/output`（api と共有）
-  - tmpfs `/run`, `/var/run`（k3d 同等の要件）
-- cgroup v2 環境で動かすためのマウント/設定（`cgroupns: host` 等）は **§13 のスパイクで確定**する。
-- `/dev/kvm`: 存在すれば `devices` で渡す（無い場合はエミュレーション）。VPS で保証されないため必須にはしない。compose ではコメントで案内、もしくは起動スクリプトで存在検出。
-- healthcheck: `k3s kubectl get --raw=/readyz`（ノード Ready 判定）。
+- イメージ: `rancher/k3s:v1.31.5-k3s1`（spike 検証版）。
+- `privileged: true`。**entrypoint ラッパー**で k3s 起動前にマウントを shared 化（spike 必須事項）:
+  `entrypoint: ["/bin/sh","-c"]` → `mount --make-rshared / ; mount --make-rshared /run ; mount --make-rshared /var/run ; exec /bin/k3s server <flags>`。これが無いと virt-handler が起動しない（§1.1 参照）。
+- k3s server フラグ:
+  - `--disable=traefik --disable=servicelb --disable=metrics-server`（RAM 節約。Web 入口は FastAPI、外部公開は conoha-proxy）
+  - `--tls-san=k3s`（**重要**: api が kubeconfig の `server` を `https://k3s:6443` に書き換えて接続するため、サーバ証明書 SAN に `k3s` が必要）
+  - `--write-kubeconfig=/output/kubeconfig.yaml --write-kubeconfig-mode=644`
+- `devices: ["/dev/kvm:/dev/kvm"]`（**ハードウェア KVM**。spike で VPS に存在を確認。無い環境では KubeVirt が自動でエミュレーションに落ちる）。
+- ボリューム: `k3s-data:/var/lib/rancher/k3s`（状態・containerd 永続化）、`kubeconfig:/output`（api と共有）、`/lib/modules:/lib/modules:ro`。tmpfs `/run`, `/var/run`。
+- healthcheck: `kubectl get --raw=/readyz`（k3s 同梱の kubectl シンボリックリンク。`k3s kubectl` ではなく `kubectl` を使う）。
 
 ### 4.2 `kubevirt-bootstrap`（one-shot）
 
@@ -212,12 +210,11 @@ accessories:
 | k3s（スリム化） | ~1.0 GB |
 | KubeVirt control plane（operator/api/controller/handler） | ~1.0 GB |
 | FastAPI | ~0.15 GB |
-| Ubuntu ゲスト 1 台（エミュレーション） | ~2.0 GB |
+| Ubuntu ゲスト 1 台（KVM, 2Gi） | ~2.0 GB |
 | イメージ pull/展開 + ページキャッシュ + OOM 回避マージン | ~2.0 GB |
 | **合計目安** | **~6 GB → 8GB 推奨** |
 
-- **推奨 `g2l-t-8` (8GB)**。`g2l-t-4` は Ubuntu エミュレーションには逼迫（リスク最小値としてのみ記載）。
-- エミュレーションは CPU バウンド → vCPU が多いほどゲスト起動が速い。
+- **推奨 `g2l-t-c6m8`（6 vCPU / 8GB）**（spike 実機）。KVM 加速なのでゲストは高速（起動 ~15s〜80s）。8GB で 1〜2 VM 快適。
 - 同時起動 VM は `MAX_RUNNING_VMS`（既定 1）でキャップし RAM 圧迫を防ぐ。
 
 ## 10. エラー処理
@@ -248,7 +245,9 @@ conoha app deploy kubevirt
 
 ## 13. リスクと検証スパイク（実装計画の 1 番目）
 
-最大の不確実性は「**コンテナ化された単一ノード k3s 上で KubeVirt がエミュレーションで正しく起動するか**」。実装の前に、実 VPS 上で次を検証するスパイクを置く：
+> **【2026-06-09 完了】このスパイクは実 VPS で実施・全項目 PASS。結果は `kubevirt-provisioner/SPIKE_NOTES.md`。要点: ハードウェア KVM が動作（エミュレーション不要）／virt-handler は `/var/run` の shared mount を要し entrypoint の `mount --make-rshared` で解決／コンソールはクライアント証明書 + `plain.kubevirt.io` で動作。以下は当初の検証計画（履歴）。**
+
+最大の不確実性は「**コンテナ化された単一ノード k3s 上で KubeVirt が正しく起動し、ゲストとコンソールが動くか**」。実装の前に、実 VPS 上で次を検証するスパイクを置いた：
 
 1. `rancher/k3s` を `--privileged` + 必要な cgroup/tmpfs マウントで起動し、ノードが Ready になる（k3s コンテナの正確なフラグ群を確定。cgroup v2 では `cgroupns: host` + 書込み可能な cgroup マウントが要ることが多い）。
 2. KubeVirt operator + CR（`useEmulation:true`）を apply し、`kubevirt` が Available になる。**virt-handler/virt-launcher が cgroup v2 下で健全に動くか**（`kubectl -n kubevirt logs ds/virt-handler` clean）と、**emulation で VMI が `devices.kubevirt.io/kvm` 要求のため Pending にならないか**、必要な featureGate の有無を確定。
