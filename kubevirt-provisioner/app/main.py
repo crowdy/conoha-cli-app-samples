@@ -1,6 +1,8 @@
 import asyncio
 import contextlib
 import logging
+import os
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 import aiohttp
@@ -10,11 +12,46 @@ from fastapi.staticfiles import StaticFiles
 from kubernetes.client.exceptions import ApiException
 from pydantic import BaseModel, field_validator
 
-from app.console import SUBPROTOCOL, console_ws_url, pump
+from app import vms as vms_mod
+from app.console import SUBPROTOCOL, build_ssl_context, console_ws_url, pump
+from app.k8s import extract_cluster_tls, load_clients, prepare_kubeconfig
 from app.manifest import validate_name
 from app.vms import CapExceeded, VMStore
 
-app = FastAPI(title="kubevirt-provisioner")
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Wire cluster-backed implementations when env vars are present. Tests don't set
+    # SOURCE_KUBECONFIG, so startup is a no-op under pytest.
+    src = os.environ.get("SOURCE_KUBECONFIG")
+    if src:
+        server = os.environ.get("K3S_SERVER", "https://k3s:6443")
+        path = prepare_kubeconfig(src, "/tmp/kubeconfig.yaml", server)
+        _, custom = load_clients(path)
+        ns = os.environ.get("VM_NAMESPACE", "vms")
+
+        global _store, _kubevirt_status_fn, _console_cfg
+        _store = VMStore(
+            custom,
+            namespace=ns,
+            image=os.environ.get("GUEST_IMAGE", "quay.io/containerdisks/ubuntu:24.04"),
+            max_running=int(os.environ.get("MAX_RUNNING_VMS", "1")),
+            memory=os.environ.get("GUEST_MEMORY", "2Gi"),
+            cpu=int(os.environ.get("GUEST_CPU", "1")),
+        )
+        _kubevirt_status_fn = lambda: vms_mod.kubevirt_status(custom)  # noqa: E731
+
+        ca, cert, key = extract_cluster_tls(Path(path).read_text(), "/tmp")
+        ssl_ctx = build_ssl_context(ca, cert, key)
+
+        def _cfg():
+            return (server, ssl_ctx, ns)
+
+        _console_cfg = _cfg
+    yield
+
+
+app = FastAPI(title="kubevirt-provisioner", lifespan=lifespan)
 
 logger = logging.getLogger("kubevirt_provisioner.console")
 _STATIC_DIR = Path(__file__).parent / "static"

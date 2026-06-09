@@ -1,4 +1,6 @@
-from app.k8s import prepare_kubeconfig, rewrite_kubeconfig_server
+import base64
+
+from app.k8s import extract_cluster_tls, prepare_kubeconfig, rewrite_kubeconfig_server
 
 SAMPLE = """\
 apiVersion: v1
@@ -30,3 +32,26 @@ def test_prepare_kubeconfig_writes_rewritten_copy(tmp_path):
     prepare_kubeconfig(str(src), str(dst), "https://k3s:6443")
     text = dst.read_text()
     assert "server: https://k3s:6443" in text
+
+
+def test_extract_cluster_tls(tmp_path):
+    def b(s):
+        return base64.b64encode(s.encode()).decode()
+
+    kc = f"""
+apiVersion: v1
+clusters:
+- cluster:
+    certificate-authority-data: {b("CA-PEM")}
+    server: https://k3s:6443
+  name: default
+users:
+- name: default
+  user:
+    client-certificate-data: {b("CERT-PEM")}
+    client-key-data: {b("KEY-PEM")}
+"""
+    ca, cert, key = extract_cluster_tls(kc, str(tmp_path))
+    assert open(ca).read() == "CA-PEM"
+    assert open(cert).read() == "CERT-PEM"
+    assert open(key).read() == "KEY-PEM"

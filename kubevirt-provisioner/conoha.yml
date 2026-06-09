@@ -1,0 +1,19 @@
+name: kubevirt-provisioner
+# Replace with your own FQDN before running `conoha app init`.
+hosts:
+  - kubevirt.example.com
+web:
+  service: api
+  port: 8080
+  # k3s is a privileged, stateful single instance (cluster state + containerd
+  # images live in the k3s-data volume); slots cannot be duplicated.
+  blue_green: false
+health:
+  path: /health
+  # 120 x 5s = 600s. Headroom for the cold first-boot k3s image pull + start.
+  # /health returns 200 as soon as the api process is up (api uses
+  # depends_on service_started); KubeVirt readiness is /api/status.
+  unhealthy_threshold: 120
+accessories:
+  - k3s
+  - kubevirt-bootstrap
