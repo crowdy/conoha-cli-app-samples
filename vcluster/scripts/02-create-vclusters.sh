@@ -17,10 +17,16 @@ create_vcluster() {
     vcluster create "${name}" --namespace "${ns}" --connect=false
   fi
   echo "==> Waiting for '${name}' control plane to be ready"
-  for i in $(seq 1 60); do
-    if kubectl get pods -n "${ns}" 2>/dev/null | grep -E "^${name}-0" | grep -q 'Running'; then break; fi
+  local ready=0
+  for _ in $(seq 1 60); do
+    if kubectl get pods -n "${ns}" 2>/dev/null | grep -E "^${name}-0" | grep -q 'Running'; then ready=1; break; fi
     sleep 5
   done
+  if [ "${ready}" != 1 ]; then
+    echo "ERROR: '${name}' control plane did not reach Running after timeout" >&2
+    kubectl get pods -n "${ns}" || true
+    exit 1
+  fi
 }
 
 deploy_demo() {
