@@ -18,15 +18,24 @@ sudo ln -sf "$(command -v k3s)" /usr/local/bin/kubectl
 export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
 
 echo "==> Waiting for the host cluster node to be Ready"
-for i in $(seq 1 60); do
-  if kubectl get nodes 2>/dev/null | grep -q ' Ready '; then break; fi
+node_ready=0
+for _ in $(seq 1 60); do
+  if kubectl get nodes 2>/dev/null | grep -q ' Ready '; then
+    node_ready=1
+    break
+  fi
   sleep 5
 done
+if [ "$node_ready" != 1 ]; then
+  echo "host cluster node not Ready after timeout" >&2
+  kubectl get nodes || true
+  exit 1
+fi
 kubectl get nodes
 
 echo "==> Installing vcluster CLI ${VCLUSTER_VERSION}"
-if ! command -v vcluster >/dev/null 2>&1 || \
-   [ "$(vcluster --version 2>/dev/null | grep -o "${VCLUSTER_VERSION#v}" || true)" = "" ]; then
+installed_ver="$(vcluster --version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1 || true)"
+if ! command -v vcluster >/dev/null 2>&1 || [ "${installed_ver}" != "${VCLUSTER_VERSION#v}" ]; then
   arch="$(uname -m)"
   case "$arch" in
     x86_64) vc_arch=amd64 ;;
