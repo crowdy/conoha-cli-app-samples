@@ -1,3 +1,5 @@
+> 日本語 | [English](README-en.md) | [한국어](README-ko.md)
+
 # vcluster — ConoHa VPS 上で仮想 Kubernetes クラスタをマルチテナントで動かす
 
 [vCluster](https://github.com/loft-sh/vcluster)（loft-sh, Apache-2.0）は、ホスト Kubernetes クラスタの **1 つの namespace の中に「独自 API サーバを持つ仮想 k8s クラスタ」** を立てる OSS です。コントロールプレーンはテナントごとに隔離しつつ、ノード（データプレーン）はホストと共有するため、
