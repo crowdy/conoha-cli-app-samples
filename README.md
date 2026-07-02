@@ -36,7 +36,7 @@ conoha app deploy myserver
 # 6. ブラウザで https://<あなたの FQDN> にアクセス
 ```
 
-サンプルはすべて `conoha.yml` を備えています（移行は完了済み — 経緯は crowdy/conoha-cli#97、サブドメイン分離は #54 を参照）。GPU 系の一部サンプル（`vllm-gpu` のように Caddy などが直接 80/443 を握るもの）は `conoha.yml` を持たないため、`conoha app deploy --no-proxy` を付けてデプロイしてください。
+サンプルはすべて `conoha.yml` を備えています（移行は完了済み — 経緯は crowdy/conoha-cli#97、サブドメイン分離は #54 を参照）。GPU 系の一部サンプル（`vllm-gpu` のように Caddy などが直接 80/443 を握るもの）や `dokploy`、`vcluster` のように install スクリプト / scripts 主体のサンプルは `conoha.yml` を持たないため、`conoha app deploy --no-proxy` を付けてデプロイするか、README の手順に従って手動でセットアップしてください。
 
 ## サンプル一覧
 
@@ -89,6 +89,7 @@ conoha app deploy myserver
 | [plausible-analytics](plausible-analytics/) | Plausible CE + PostgreSQL + ClickHouse | プライバシー重視 Web アナリティクス | g2l-t-2 (2GB) |
 | [outline](outline/) | Outline + PostgreSQL + Redis + Dex | セルフホスティングチーム Wiki（OIDC認証付き） | g2l-t-2 (2GB) |
 | [meilisearch](meilisearch/) | Meilisearch | セルフホスティング全文検索エンジン | g2l-t-1 (1GB) |
+| [vcluster](vcluster/) | k3s + vCluster (loft-sh) | 1 台の VPS 上で 2 つの隔離された仮想 Kubernetes クラスタをマルチテナントで動かす（`conoha app deploy` 非使用の scripts 主体サンプル） | g2l-t-4 (4GB) |
 
 ## 自分のアプリをデプロイするには
 
