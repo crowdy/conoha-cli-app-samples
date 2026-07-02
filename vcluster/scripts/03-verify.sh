@@ -22,6 +22,9 @@ echo "=== [1/3] CRD isolation ==="
 vk tenant-a "${TENANT_A_NS}" get crd "${CRD}" >/dev/null 2>&1 \
   || fail "CRD ${CRD} should exist in tenant-a but does not"
 ok "CRD present in tenant-a"
+# Probe tenant-b reachability first, so a connect failure can't be misread as "CRD absent".
+vk tenant-b "${TENANT_B_NS}" get ns default >/dev/null 2>&1 \
+  || fail "cannot reach tenant-b vcluster to verify CRD isolation"
 if vk tenant-b "${TENANT_B_NS}" get crd "${CRD}" >/dev/null 2>&1; then
   fail "CRD ${CRD} leaked into tenant-b"
 fi
@@ -41,7 +44,9 @@ fi
 ok "tenant-a cannot see host namespace ${HOST_ONLY_NS}"
 # And tenant-a must not see the host's real node-level daemonsets etc. Check kube-system differs:
 # the host has traefik/local-path-provisioner from k3s; tenant-a's kube-system does not.
-if vk tenant-a "${TENANT_A_NS}" get pods -n kube-system 2>/dev/null | grep -q 'local-path-provisioner'; then
+pods_a="$(vk tenant-a "${TENANT_A_NS}" get pods -n kube-system 2>/dev/null)" \
+  || fail "could not list pods in tenant-a kube-system (vcluster connect failed?)"
+if echo "${pods_a}" | grep -q 'local-path-provisioner'; then
   fail "tenant-a can see host k3s system pod (local-path-provisioner) — isolation broken"
 fi
 ok "tenant-a's kube-system is virtual (no host k3s system pods)"
