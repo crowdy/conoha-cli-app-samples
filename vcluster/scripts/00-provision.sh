@@ -19,13 +19,18 @@ else
 fi
 
 echo "==> Waiting for ACTIVE"
+active=0
 for i in $(seq 1 40); do
   status="$(conoha server show "${SERVER_NAME}" --format json 2>/dev/null \
     | python3 -c 'import json,sys; print(json.load(sys.stdin).get("status",""))' 2>/dev/null || true)"
   echo "  status=${status:-<unknown>}"
-  [ "${status}" = "ACTIVE" ] && break
+  if [ "${status}" = "ACTIVE" ]; then active=1; break; fi
   sleep 15
 done
+if [ "${active}" != 1 ]; then
+  echo "ERROR: server ${SERVER_NAME} did not reach ACTIVE after $((40*15))s" >&2
+  exit 1
+fi
 
 echo "==> Waiting for SSH"
 until conoha server ssh "${SERVER_NAME}" -- echo ok 2>/dev/null; do sleep 5; done
