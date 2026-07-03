@@ -15,7 +15,7 @@ DELETE_SERVER=0
 [ "${1:-}" = "--delete-server" ] && DELETE_SERVER=1
 
 echo "==> Deleting virtual clusters + uninstalling k3s on ${SERVER_NAME}"
-conoha server ssh "${SERVER_NAME}" -- bash -lc "
+conoha server ssh --insecure "${SERVER_NAME}" -- bash -lc "
 set -uo pipefail
 export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
 if command -v vcluster >/dev/null 2>&1; then

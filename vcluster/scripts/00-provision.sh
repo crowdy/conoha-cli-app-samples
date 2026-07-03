@@ -7,13 +7,19 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"   # vcluster/
 [ -f "${HERE}/.env" ] && { set -a; . "${HERE}/.env"; set +a; }
 
 SERVER_NAME="${SERVER_NAME:-vcluster-host}"
-FLAVOR="${FLAVOR:-g2l-t-4}"
-IMAGE="${IMAGE:-ubuntu-24.04}"
+FLAVOR="${FLAVOR:-g2l-t-c4m4}"      # 4 vCPU / 4GB. Confirm names with: conoha flavor list
+IMAGE="${IMAGE:-ubuntu-24.04}"      # image ID or name; confirm with: conoha image list
 KEY_NAME="${KEY_NAME:?set KEY_NAME (conoha keypair list) in .env or the environment}"
+# Space-separated security group names. SSH access is required for `conoha server ssh`.
+# Confirm names with: conoha network security-group list
+SECURITY_GROUPS="${SECURITY_GROUPS:-default IPv4v6-SSH}"
 
 if ! conoha server list 2>/dev/null | grep -q "${SERVER_NAME}"; then
   echo "==> Creating server ${SERVER_NAME} (${FLAVOR}, ${IMAGE})"
-  conoha server create --name "${SERVER_NAME}" --flavor "${FLAVOR}" --image "${IMAGE}" --key "${KEY_NAME}"
+  sg_args=()
+  for sg in ${SECURITY_GROUPS}; do sg_args+=(--security-group "${sg}"); done
+  conoha server create --name "${SERVER_NAME}" --flavor "${FLAVOR}" --image "${IMAGE}" \
+    --key-name "${KEY_NAME}" "${sg_args[@]}" --no-input --yes
 else
   echo "==> Server ${SERVER_NAME} already exists, skipping create"
 fi
@@ -33,7 +39,8 @@ if [ "${active}" != 1 ]; then
 fi
 
 echo "==> Waiting for SSH"
-until conoha server ssh "${SERVER_NAME}" -- echo ok 2>/dev/null; do sleep 5; done
+# --insecure: skip host-key prompt for a fresh throwaway lab VPS (no TTY in automation).
+until conoha server ssh --insecure "${SERVER_NAME}" -- echo ok 2>/dev/null; do sleep 5; done
 
 SERVER_IP="$(conoha server show "${SERVER_NAME}" --format json \
   | python3 -c 'import json,sys; d=json.load(sys.stdin); print(d["addresses"][0]["addr"])')"
