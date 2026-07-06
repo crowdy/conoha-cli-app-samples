@@ -36,3 +36,6 @@ build/
 
 # Worktrees
 .worktrees/
+
+# Build artifacts
+.artifacts/

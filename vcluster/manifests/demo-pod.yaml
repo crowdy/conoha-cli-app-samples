@@ -1,0 +1,15 @@
+# vcluster/manifests/demo-pod.yaml
+# A workload deployed into each virtual cluster. Used to prove that pods
+# from both tenants are synced to the SAME host node via the vcluster syncer.
+apiVersion: v1
+kind: Pod
+metadata:
+  name: demo
+  labels:
+    app: demo
+spec:
+  containers:
+    - name: nginx
+      image: nginx:1.27-alpine
+      ports:
+        - containerPort: 80

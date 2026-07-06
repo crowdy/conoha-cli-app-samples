@@ -1,0 +1,8 @@
+# vcluster/manifests/tenant-a-cr.yaml
+apiVersion: stable.example.com/v1
+kind: CronTab
+metadata:
+  name: demo-crontab
+spec:
+  cronSpec: "* * * * */5"
+  image: busybox
