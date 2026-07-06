@@ -37,6 +37,9 @@ ok "CRD absent on host"
 echo "=== [2/3] cluster-admin isolation (tenant cannot see host resources) ==="
 # Create a namespace directly on the HOST.
 kubectl create namespace "${HOST_ONLY_NS}" --dry-run=client -o yaml | kubectl apply -f - >/dev/null
+# Probe tenant-a reachability first, so a connect failure can't be misread as "not visible".
+vk tenant-a "${TENANT_A_NS}" get ns default >/dev/null 2>&1 \
+  || fail "cannot reach tenant-a vcluster to verify host-namespace isolation"
 # A cluster-admin INSIDE tenant-a must not be able to see the host-only namespace.
 if vk tenant-a "${TENANT_A_NS}" get namespace "${HOST_ONLY_NS}" >/dev/null 2>&1; then
   fail "tenant-a can see host namespace ${HOST_ONLY_NS} — isolation broken"
@@ -58,7 +61,7 @@ node_a="$(kubectl get pods -n "${TENANT_A_NS}" -l vcluster.loft.sh/label-app=dem
 if [ -z "${node_a}" ]; then
   # Fallback: match the synced demo pod by name prefix.
   node_a="$(kubectl get pods -n "${TENANT_A_NS}" -o jsonpath='{range .items[*]}{.metadata.name}{" "}{.spec.nodeName}{"\n"}{end}' \
-    | grep '^demo' | awk '{print $2}' | head -1)"
+    | grep '^demo' | awk '{print $2}' | head -1 || true)"
 fi
 node_b="$(kubectl get pods -n "${TENANT_B_NS}" -o jsonpath='{range .items[*]}{.metadata.name}{" "}{.spec.nodeName}{"\n"}{end}' \
   | grep '^demo' | awk '{print $2}' | head -1)"

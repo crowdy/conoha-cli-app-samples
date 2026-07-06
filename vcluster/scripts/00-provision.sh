@@ -14,7 +14,9 @@ KEY_NAME="${KEY_NAME:?set KEY_NAME (conoha keypair list) in .env or the environm
 # Confirm names with: conoha network security-group list
 SECURITY_GROUPS="${SECURITY_GROUPS:-default IPv4v6-SSH}"
 
-if ! conoha server list 2>/dev/null | grep -q "${SERVER_NAME}"; then
+# Exact-match the server NAME (a substring grep would match e.g. "vcluster-host-old").
+if ! conoha server list --format json 2>/dev/null \
+  | SN="${SERVER_NAME}" python3 -c 'import json,os,sys; sys.exit(0 if os.environ["SN"] in [s.get("name","") for s in json.load(sys.stdin)] else 1)'; then
   echo "==> Creating server ${SERVER_NAME} (${FLAVOR}, ${IMAGE})"
   sg_args=()
   for sg in ${SECURITY_GROUPS}; do sg_args+=(--security-group "${sg}"); done
@@ -46,9 +48,25 @@ echo "==> Waiting for SSH on ${SERVER_IP} (registering host key)"
 # conoha's --insecure does not reliably disable host-key checks (CLI v0.7.1), so we
 # pre-seed known_hosts. Drop any stale entry first (public IPs get reused across VPS).
 ssh-keygen -R "${SERVER_IP}" >/dev/null 2>&1 || true
-until ssh-keyscan "${SERVER_IP}" 2>/dev/null | grep -q .; do sleep 5; done
+sshd_up=0
+for _ in $(seq 1 60); do
+  if ssh-keyscan "${SERVER_IP}" 2>/dev/null | grep -q .; then sshd_up=1; break; fi
+  sleep 5
+done
+if [ "${sshd_up}" != 1 ]; then
+  echo "ERROR: sshd on ${SERVER_IP} did not open within timeout (check the security group / port 22)" >&2
+  exit 1
+fi
 ssh-keyscan -H "${SERVER_IP}" >> ~/.ssh/known_hosts 2>/dev/null
-until conoha server ssh "${SERVER_NAME}" -- echo ok 2>/dev/null; do sleep 5; done
+ssh_ok=0
+for _ in $(seq 1 60); do
+  if conoha server ssh "${SERVER_NAME}" -- echo ok >/dev/null 2>&1; then ssh_ok=1; break; fi
+  sleep 5
+done
+if [ "${ssh_ok}" != 1 ]; then
+  echo "ERROR: SSH to ${SERVER_NAME} not reachable within timeout" >&2
+  exit 1
+fi
 
 echo "SERVER_IP=${SERVER_IP}"
 echo "==> Provision complete: ${SERVER_NAME} (${SERVER_IP})"

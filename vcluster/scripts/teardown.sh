@@ -39,7 +39,13 @@ if [ "${DELETE_SERVER}" -eq 1 ]; then
   echo "==> Destroying VPS ${SERVER_NAME} (and boot volume)"
   conoha server delete "${SERVER_NAME}" --delete-boot-volume --yes
   echo "==> Verifying"
-  conoha server list | grep -q "${SERVER_NAME}" && echo "WARNING: server still listed" || echo "destroyed cleanly"
+  # Exact-match the NAME so a differently-named server is not mistaken for this one.
+  if conoha server list --format json 2>/dev/null \
+    | SN="${SERVER_NAME}" python3 -c 'import json,os,sys; sys.exit(0 if os.environ["SN"] in [s.get("name","") for s in json.load(sys.stdin)] else 1)'; then
+    echo "WARNING: server still listed"
+  else
+    echo "destroyed cleanly"
+  fi
 else
   echo "==> Kept the VPS. Re-run with --delete-server to destroy it."
 fi
