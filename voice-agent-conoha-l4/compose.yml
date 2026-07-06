@@ -1,0 +1,78 @@
+# voice-agent-conoha-l4/compose.yml
+services:
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:?PUBLIC_BASE_URL must be set in .env}
+    expose: ["3000"]
+    env_file:
+      - .env
+    depends_on:
+      agent:
+        condition: service_healthy
+      backend:
+        condition: service_healthy
+
+  agent:
+    build: ./agent
+    expose: ["8080"]
+    env_file:
+      - .env
+    volumes:
+      - models-agent:/models
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD", "python3.12", "-c", "import urllib.request, sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8080/healthz').status==200 else 1)"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 180s
+    depends_on:
+      backend:
+        condition: service_healthy
+      llm:
+        condition: service_healthy
+
+  llm:
+    build: ./llm
+    expose: ["8000"]
+    env_file:
+      - .env
+    volumes:
+      - models-llm:/root/.cache/huggingface
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8000/v1/models || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 60
+      start_period: 240s
+
+  backend:
+    build: ./backend
+    expose: ["8000"]
+    env_file:
+      - .env
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/healthz')"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+volumes:
+  models-agent:
+  models-llm:

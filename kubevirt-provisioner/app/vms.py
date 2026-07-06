@@ -1,0 +1,89 @@
+from kubernetes.client.exceptions import ApiException
+
+from app.manifest import build_vm
+
+GROUP = "kubevirt.io"
+VERSION = "v1"
+VM_PLURAL = "virtualmachines"
+
+
+class CapExceeded(Exception):
+    """Raised when creating a VM would exceed the running-VM cap."""
+
+
+def running_count(vms: list[dict]) -> int:
+    return sum(1 for vm in vms if vm.get("spec", {}).get("running"))
+
+
+def summarize(vm: dict) -> dict:
+    status = vm.get("status", {})
+    return {
+        "name": vm["metadata"]["name"],
+        "running": bool(vm.get("spec", {}).get("running")),
+        "status": status.get("printableStatus", "Unknown"),
+    }
+
+
+class VMStore:
+    def __init__(self, custom_api, *, namespace, image, max_running, memory="2Gi", cpu=1):
+        self.api = custom_api
+        self.namespace = namespace
+        self.image = image
+        self.max_running = max_running
+        self.memory = memory
+        self.cpu = cpu
+
+    def _list_raw(self) -> list[dict]:
+        return self.api.list_namespaced_custom_object(
+            GROUP, VERSION, self.namespace, VM_PLURAL
+        )["items"]
+
+    def list(self) -> list[dict]:
+        return [summarize(vm) for vm in self._list_raw()]
+
+    def create(self, name: str, *, password=None, ssh_key=None) -> dict:
+        if running_count(self._list_raw()) >= self.max_running:
+            raise CapExceeded(f"running VM cap reached ({self.max_running})")
+        body = build_vm(
+            name, namespace=self.namespace, image=self.image,
+            memory=self.memory, cpu=self.cpu, password=password, ssh_key=ssh_key,
+        )
+        return self.api.create_namespaced_custom_object(
+            GROUP, VERSION, self.namespace, VM_PLURAL, body
+        )
+
+    def set_running(self, name: str, running: bool) -> None:
+        self.api.patch_namespaced_custom_object(
+            GROUP, VERSION, self.namespace, VM_PLURAL, name,
+            {"spec": {"running": running}},
+        )
+
+    def delete(self, name: str) -> None:
+        self.api.delete_namespaced_custom_object(
+            GROUP, VERSION, self.namespace, VM_PLURAL, name
+        )
+
+    def get(self, name: str) -> dict:
+        return summarize(
+            self.api.get_namespaced_custom_object(
+                GROUP, VERSION, self.namespace, VM_PLURAL, name
+            )
+        )
+
+
+def kubevirt_status(custom_api) -> dict:
+    """Return {'available': bool, 'phase': str} for the kubevirt CR."""
+    try:
+        obj = custom_api.get_namespaced_custom_object(
+            GROUP, VERSION, "kubevirt", "kubevirts", "kubevirt"
+        )
+    except ApiException as e:
+        if e.status == 404:
+            return {"available": False, "phase": "NotFound"}
+        raise
+    status = obj.get("status", {})
+    available = any(
+        c.get("type") == "Available" and c.get("status") == "True"
+        for c in status.get("conditions", [])
+    )
+    return {"available": available, "phase": status.get("phase", "Unknown")}

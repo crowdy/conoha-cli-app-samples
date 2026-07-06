@@ -1,0 +1,12 @@
+fastapi==0.115.5
+uvicorn[standard]==0.32.1
+pydantic==2.10.3
+httpx==0.27.2
+aiortc==1.9.0
+faster-whisper==1.0.3
+requests>=2.30  # faster-whisper 1.0.3 imports `requests` but doesn't declare it
+openai==1.57.0
+numpy==1.26.4
+soundfile==0.12.1
+style-bert-vits2==2.5.0
+torchaudio  # needed by torch.hub.load for Silero VAD weights

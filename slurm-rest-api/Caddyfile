@@ -1,0 +1,19 @@
+# Tiny edge in front of slurmrestd.
+#
+# Why a sidecar at all: conoha-proxy probes its upstream at GET /openapi/v3
+# (per conoha.yml) and only accepts 2xx as healthy. slurmrestd itself
+# requires JWT auth on every endpoint including /openapi/v3, so the
+# probe never reaches 2xx without per-request tokens. Caddy here answers
+# /healthz with a plain 200 so the proxy can decide health, while
+# reverse-proxying everything else to slurmrestd:6820 untouched (the
+# JWT-aware client passes X-SLURM-USER-* headers through).
+:6820 {
+	# Probe endpoint for conoha-proxy.
+	@probe path /healthz
+	handle @probe {
+		respond "ok" 200
+	}
+	# Everything else (the real API surface) goes through to slurmrestd
+	# with all headers preserved.
+	reverse_proxy slurmrestd:6820
+}

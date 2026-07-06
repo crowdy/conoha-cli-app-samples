@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>KubeVirt Provisioner</title>
+  <link rel="stylesheet" href="/static/vendor/xterm.css" />
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 2rem; max-width: 960px; }
+    table { border-collapse: collapse; width: 100%; margin: 1rem 0; }
+    th, td { border: 1px solid #ccc; padding: .4rem .6rem; text-align: left; }
+    button { margin-right: .3rem; }
+    #term { height: 360px; background: #000; margin-top: 1rem; }
+    .banner { padding: .5rem; background: #fffae6; border: 1px solid #e6d600; }
+  </style>
+</head>
+<body>
+  <h1>KubeVirt Provisioner</h1>
+  <div id="status" class="banner">checking KubeVirt status…</div>
+
+  <h2>Create VM</h2>
+  <form id="create-form">
+    <input id="vm-name" placeholder="vm name (a-z0-9-)" required />
+    <input id="vm-pass" placeholder="login password" value="ubuntu" />
+    <button type="submit">Create</button>
+  </form>
+
+  <h2>VMs</h2>
+  <table>
+    <thead><tr><th>name</th><th>status</th><th>actions</th></tr></thead>
+    <tbody id="vm-rows"></tbody>
+  </table>
+
+  <h2>Console</h2>
+  <div>Connected to: <span id="console-vm">—</span></div>
+  <div id="term"></div>
+
+  <script src="/static/vendor/xterm.js"></script>
+  <script src="/static/app.js"></script>
+</body>
+</html>

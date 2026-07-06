@@ -1,0 +1,31 @@
+name: slurm-rest-api
+# Replace with your own FQDN before running `conoha app init`.
+hosts:
+  - slurm.example.com
+web:
+  # `slurm-edge` is a tiny Caddy sidecar that fronts slurmrestd: it answers
+  # GET /healthz with 200 (so the proxy's strict 2xx probe passes) and
+  # reverse-proxies everything else to the slurmrestd accessory. slurmrestd
+  # itself requires JWT on /openapi/v3, so it can't serve the probe directly.
+  service: slurm-edge
+  port: 6820
+  # The cluster behind the edge is stateful (running jobs, queues, munge
+  # key, accounting DB). Pin to a single slot so the volumes don't race —
+  # same pattern as outline / gitea / hydra-python-api.
+  blue_green: false
+health:
+  path: /healthz
+  # 24 × 5s = 120s, covers: mariadb → slurmdbd → slurmctld → cpu-worker
+  # → slurmrestd → slurm-edge.
+  unhealthy_threshold: 24
+# All Slurm services live in the accessories project so they share the
+# named volumes (etc_munge, etc_slurm, var_log_slurm, slurm_jobdir).
+# Compose can't share named volumes across projects, which is why
+# slurmrestd is NOT the web service here — only the thin caddy edge is.
+accessories:
+  - mariadb
+  - slurmdbd
+  - slurmctld
+  - cpu-worker
+  - gpu-worker
+  - slurmrestd

@@ -1,0 +1,27 @@
+# Go
+/dist/
+/api/dist/
+/api/tmp/
+/api/server
+/api/data/
+api/internal/webfs/embed/*
+!api/internal/webfs/embed/.placeholder
+
+# Node
+/web/node_modules/
+/web/.next/
+/web/out/
+
+# Runtime
+/data/*
+!/data/.gitkeep
+.env
+.env.*.local
+
+# Cloudflare Origin CA cert output (issued via scripts/issue-cf-origin-cert.sh)
+/certs/
+
+# Editors
+.DS_Store
+.idea/
+.vscode/

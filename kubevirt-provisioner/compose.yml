@@ -1,0 +1,82 @@
+services:
+  # The whole Kubernetes cluster in one privileged container. Runs the KubeVirt
+  # control plane and the guest virt-launcher pods (with hardware KVM). Stateful +
+  # privileged single instance — cannot be duplicated per blue/green slot.
+  k3s:
+    image: rancher/k3s:v1.31.5-k3s1
+    privileged: true
+    # virt-handler bind-mounts /var/run/kubevirt with Bidirectional propagation,
+    # which requires /var/run (a tmpfs here) to be a SHARED mount. Make the tmpfs
+    # mounts rshared BEFORE k3s starts, or virt-handler fails CreateContainerError
+    # ("not a shared mount") and KubeVirt never goes Available. (See SPIKE_NOTES.md.)
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        mount --make-rshared / 2>/dev/null || true
+        mount --make-rshared /run 2>/dev/null || true
+        mount --make-rshared /var/run 2>/dev/null || true
+        exec /bin/k3s server \
+          --disable=traefik \
+          --disable=servicelb \
+          --disable=metrics-server \
+          --tls-san=k3s \
+          --write-kubeconfig=/output/kubeconfig.yaml \
+          --write-kubeconfig-mode=644
+    tmpfs:
+      - /run
+      - /var/run
+    devices:
+      # Hardware KVM. Present on ConoHa VPS3. On a host without /dev/kvm, remove
+      # this line and apply manifests/kubevirt-cr-emulation.yaml (slow emulation).
+      - /dev/kvm:/dev/kvm
+    volumes:
+      - k3s-data:/var/lib/rancher/k3s
+      - kubeconfig:/output
+      - /lib/modules:/lib/modules:ro
+    healthcheck:
+      test: ["CMD", "kubectl", "get", "--raw=/readyz"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 20s
+    restart: unless-stopped
+
+  # One-shot: applies pinned KubeVirt and exits. Re-running is idempotent.
+  kubevirt-bootstrap:
+    build: ./bootstrap
+    environment:
+      - VM_NAMESPACE=${VM_NAMESPACE:-vms}
+    volumes:
+      - kubeconfig:/output
+      - ./manifests:/manifests:ro
+    depends_on:
+      k3s:
+        condition: service_healthy
+    restart: "no"
+
+  # FastAPI provisioner = the conoha `web` service.
+  api:
+    build: .
+    environment:
+      - SOURCE_KUBECONFIG=/output/kubeconfig.yaml
+      - K3S_SERVER=https://k3s:6443
+      - VM_NAMESPACE=${VM_NAMESPACE:-vms}
+      - GUEST_IMAGE=${GUEST_IMAGE:-quay.io/containerdisks/ubuntu:24.04}
+      - GUEST_MEMORY=${GUEST_MEMORY:-2Gi}
+      - GUEST_CPU=${GUEST_CPU:-1}
+      - MAX_RUNNING_VMS=${MAX_RUNNING_VMS:-1}
+    expose:
+      - "8080"
+    volumes:
+      - kubeconfig:/output:ro
+    depends_on:
+      # service_started (NOT service_healthy): api boots and answers /health (200)
+      # immediately so the conoha-proxy probe passes; the entrypoint waits for the
+      # kubeconfig file and routes return 503 until the cluster is reachable.
+      k3s:
+        condition: service_started
+    restart: unless-stopped
+
+volumes:
+  k3s-data:
+  kubeconfig:

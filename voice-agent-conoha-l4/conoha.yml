@@ -1,0 +1,19 @@
+# voice-agent-conoha-l4/conoha.yml
+name: voice-agent-conoha-l4
+
+# Replace with your own FQDN before running `conoha app init`.
+hosts:
+  - voice-agent.example.com
+
+# Required GPU flavor — the agent and llm services need an L4.
+flavor: g2l-t-c4m16g1-l4
+
+web:
+  service: frontend
+  port: 3000
+
+# These stay alive across blue/green swaps (only frontend is duplicated).
+accessories:
+  - backend
+  - llm
+  - agent

@@ -1,0 +1,43 @@
+services:
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"   # HTTP/3
+    volumes:
+      - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - /etc/caddy/certs:/etc/caddy/certs:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - web
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    expose:
+      - "8080"
+    volumes:
+      - ./data:/app/data
+    environment:
+      PORT: "8080"
+      DB_PATH: /app/data/dashboard.db
+      JMA_OFFICE_CODE: "130000"
+      JMA_CITY_LABEL: "渋谷区"
+      GOOGLE_ACCOUNTS: "[]"
+      SHORTCUTS: "[]"
+      MS_TENANT_ID: ""
+      MS_CLIENT_ID: ""
+      MS_CLIENT_SECRET: ""
+      MS_REFRESH_TOKEN: ""
+      SCHEDULE_TTL_SECONDS: "300"
+      WEATHER_TTL_SECONDS: "1800"
+      BRAND_NAME: "My Dashboard"
+
+volumes:
+  caddy_data:
+  caddy_config:
