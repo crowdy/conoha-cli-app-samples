@@ -36,7 +36,7 @@ conoha app deploy myserver
 # 6. ブラウザで https://<あなたの FQDN> にアクセス
 ```
 
-サンプルはすべて `conoha.yml` を備えています（移行は完了済み — 経緯は crowdy/conoha-cli#97、サブドメイン分離は #54 を参照）。GPU 系の一部サンプル（`vllm-gpu` のように Caddy などが直接 80/443 を握るもの）や `dokploy`、`vcluster` のように install スクリプト / scripts 主体のサンプルは `conoha.yml` を持たないため、`conoha app deploy --no-proxy` を付けてデプロイするか、README の手順に従って手動でセットアップしてください。
+サンプルはすべて `conoha.yml` を備えています（移行は完了済み — 経緯は crowdy/conoha-cli#97、サブドメイン分離は #54 を参照）。GPU 系の一部サンプル（`vllm-gpu` や `personal-dashboard` のように Caddy などが直接 80/443 を握るもの）や `dokploy`、`vcluster` のように install スクリプト / scripts 主体のサンプルは `conoha.yml` を持たないため、`conoha app deploy --no-proxy` を付けてデプロイするか、README の手順に従って手動でセットアップしてください。
 
 ## サンプル一覧
 
@@ -94,6 +94,12 @@ conoha app deploy myserver
 | [opencascade-fem](opencascade-fem/) | OpenCascade + gmsh + scikit-fem (FastAPI + vtk.js) | パラメトリック CAD → メッシュ → 線形弾性 FEM → ブラウザ 3D 可視化 | g2l-t-2 (2GB) |
 | [slurm-rest-api](slurm-rest-api/) | Slurm + slurmrestd + slurmdbd + MariaDB | Slurm 単一ノードクラスター + REST API (JWT 認証、Python CLI + NumPy/sklearn ワークロード例) | g2l-t-2 (2GB) |
 | [kubevirt-provisioner](kubevirt-provisioner/) | k3s + KubeVirt + FastAPI | KubeVirt API で Ubuntu VM をプロビジョニング (Web シリアルコンソール付き、ハードウェア KVM) | g2l-t-c6m8 (8GB) |
+| [chatops-deploy](chatops-deploy/) | GitHub Actions (self-hosted) + conoha-cli | PR コメント `/deploy` で staging/production へ自動デプロイ | g2l-t-2 (2GB) |
+| [gitops-pipeline](gitops-pipeline/) | Next.js 15 + GitHub Actions (self-hosted) | main マージで自動デプロイ（シングル環境の GitOps） | g2l-t-2 (2GB) |
+| [multi-env-deploy](multi-env-deploy/) | Next.js 15 + GitHub Actions (self-hosted) | develop → staging / main → production（Environment 承認付き） | g2l-t-4 (4GB) |
+| [hermes-agent](hermes-agent/) | Hermes Agent + nginx + FastAPI | 自己ホスト DevOps アシスタント（OpenAI 互換 API） | g2l-t-4 (4GB) |
+| [nextjs-fastapi-clerk-stripe](nextjs-fastapi-clerk-stripe/) | Next.js 16 + FastAPI + PostgreSQL + Clerk + Stripe | SaaS デモ（Clerk 認証 + Stripe サブスク、複数サブドメイン） | g2l-t-2 (2GB) |
+| [personal-dashboard](personal-dashboard/) | Go + Next.js (静的SPA) + SQLite + Caddy | 個人ダッシュボード（時計・天気・カレンダー、Cloudflare Origin CA + no-proxy） | g2l-t-2 (2GB) |
 
 ## 自分のアプリをデプロイするには
 
