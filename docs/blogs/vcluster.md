@@ -299,3 +299,11 @@ vCluster は「テナントに cluster-admin と独自 CRD を安全に渡した
 | **サンプルリンク** | https://github.com/crowdy/conoha-cli-app-samples/tree/main/vcluster |
 
 vCluster は「Kubernetes を作るための Kubernetes」とも言え、1 台の VPS 上で本物の隔離された k8s 体験ができます。conoha-cli と組み合わせれば、`bash scripts/smoke-test.sh` の 1 コマンドでゼロからマルチテナント環境が立ち上がる様子をすぐに確かめられます。ぜひ試してみてください。
+
+---
+
+## 参考
+
+- [vCluster docs](https://www.vcluster.com/docs)
+- [crowdy/conoha-cli - GitHub](https://github.com/crowdy/conoha-cli)
+- [CLIひとつでVPSデプロイ完了 — conoha-cliとClaude Code Skillで変わるインフラ構築（note.com）](https://note.com/kim_tonghyun/n/n77b464a61dc0)
