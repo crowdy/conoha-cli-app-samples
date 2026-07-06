@@ -95,7 +95,7 @@ cp .env.example .env
 bash scripts/smoke-test.sh
 ```
 
-内部では以下の 3 フェーズを順番に SSH で実行します。
+内部では以下の 4 フェーズを順番に SSH で実行します。
 
 | フェーズ | スクリプト | 実行場所 |
 |----------|-----------|---------|
@@ -214,27 +214,33 @@ FLAVOR=g2l-t-c4m4
 
 `conoha flavor list` で確認すると、vCPU と RAM を明示した `c4m4` のような命名規則になっています。
 
-### 3. `ubuntu-24.04` は見つからない → `ubuntu-26.04` を使用
+### 3. プレーンな `ubuntu-24.04` がカタログに無い場合がある
+
+`conoha image list` で確認し、`.env` の `IMAGE` に利用可能なイメージ名または ID を設定してください。今回の検証では `ubuntu-24.04` ベースイメージがカタログに存在しなかったため、`ubuntu-26.04` を使用しました。サンプルの既定値（`.env.example`）は `IMAGE=ubuntu-24.04` のままですが、環境によって差し替えが必要です。
 
 ```bash
-# NG（リージョン・時期によっては存在しない）
-IMAGE=ubuntu-24.04
+# カタログにあるイメージ名を確認する
+conoha image list
 
-# OK（2026年時点で確認済み）
+# .env に利用可能なイメージ名／ID を設定する（例: 今回の検証環境）
 IMAGE=ubuntu-26.04
 ```
-
-`conoha image list` で最新イメージを確認してください。
 
 ### 4. `--security-group` が必須
 
 セキュリティグループを省略するとデフォルトが何もアタッチされず、SSH に繋がりません。
 
+スクリプトでは `SECURITY_GROUPS` をスペース区切りで列挙し、それを `--security-group` フラグに展開しています。
+
 ```bash
-conoha server create ... --security-group "default IPv4v6-SSH"
+# .env での設定例
+SECURITY_GROUPS="default IPv4v6-SSH"
+
+# スクリプト内での展開イメージ（スペース区切りをフラグに変換）
+conoha server create ... --security-group default --security-group IPv4v6-SSH
 ```
 
-SSH を許可したセキュリティグループ名を明示的に渡す必要があります。
+`"default IPv4v6-SSH"` という名前の単一グループではなく、`default` と `IPv4v6-SSH` の **2 つのグループ** をそれぞれ指定しています。SSH を許可したセキュリティグループ名を明示的に渡す必要があります。
 
 ### 5. `--insecure` は SSH ホストキーチェックを無効にしない
 
