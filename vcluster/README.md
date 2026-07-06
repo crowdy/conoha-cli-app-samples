@@ -22,13 +22,16 @@
 
 ## 推奨フレーバー
 
-- **`g2l-t-4` (4GB) 推奨** / 最小 `g2l-t-2` (2GB)。k3s + vcluster 2〜3 個なら 2〜4GB で足ります。**GPU 不要**。
+- **`g2l-t-c4m4` (4 vCPU / 4GB) 推奨** / 最小 `g2l-t-c3m2` (3 vCPU / 2GB)。k3s + vcluster 2〜3 個なら 2〜4GB で足ります。**GPU 不要**。
+- フレーバー名・イメージ名はリージョンや時期により異なります。`conoha flavor list` および `conoha image list` で確認してください。
 
 ## 前提
 
 - `conoha` CLI がセットアップ済み（[conoha-cli](https://github.com/crowdy/conoha-cli)）。
 - ConoHa に SSH キーペアを登録済み（`conoha keypair list` で確認できる名前を控える）。
 - 手元に `git` / `bash` / `python3`。
+- SSH (ポート 22) を開けたセキュリティグループが必要です。`00-provision.sh` はデフォルトで `default IPv4v6-SSH` をアタッチします（`SECURITY_GROUPS` 環境変数で変更可能）。
+- 新規 VPS のホストキーは `00-provision.sh` が `ssh-keyscan` で自動登録するため、`conoha server ssh` による非対話 SSH が動作します。
 
 ## クイックスタート（自動 e2e）
 

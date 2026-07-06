@@ -22,13 +22,16 @@
 
 ## 권장 플레이버
 
-- **`g2l-t-4` (4GB) 권장** / 최소 `g2l-t-2` (2GB). k3s + vcluster 2~3개라면 2~4GB로 충분합니다. **GPU 불필요**.
+- **`g2l-t-c4m4` (4 vCPU / 4GB) 권장** / 최소 `g2l-t-c3m2` (3 vCPU / 2GB). k3s + vcluster 2~3개라면 2~4GB로 충분합니다. **GPU 불필요**.
+- 플레이버 이름과 이미지 이름은 리전 및 시기에 따라 다를 수 있습니다. `conoha flavor list` 및 `conoha image list`로 확인하세요.
 
 ## 사전 준비
 
 - `conoha` CLI 설정 완료 ([conoha-cli](https://github.com/crowdy/conoha-cli)).
 - ConoHa에 SSH 키페어 등록 완료 (`conoha keypair list`에서 확인 가능한 이름을 메모해두기).
 - 로컬에 `git` / `bash` / `python3` 설치.
+- SSH (포트 22)를 허용하는 보안 그룹이 필요합니다. `00-provision.sh`는 기본값으로 `default IPv4v6-SSH`를 연결합니다 (`SECURITY_GROUPS` 환경변수로 변경 가능).
+- 새 VPS의 호스트 키는 `00-provision.sh`가 `ssh-keyscan`으로 자동 등록하므로, `conoha server ssh`를 통한 비대화형 SSH가 동작합니다.
 
 ## 퀵 스타트 (자동 e2e)
 

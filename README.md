@@ -89,7 +89,7 @@ conoha app deploy myserver
 | [plausible-analytics](plausible-analytics/) | Plausible CE + PostgreSQL + ClickHouse | プライバシー重視 Web アナリティクス | g2l-t-2 (2GB) |
 | [outline](outline/) | Outline + PostgreSQL + Redis + Dex | セルフホスティングチーム Wiki（OIDC認証付き） | g2l-t-2 (2GB) |
 | [meilisearch](meilisearch/) | Meilisearch | セルフホスティング全文検索エンジン | g2l-t-1 (1GB) |
-| [vcluster](vcluster/) | k3s + vCluster (loft-sh) | 1 台の VPS 上で 2 つの隔離された仮想 Kubernetes クラスタをマルチテナントで動かす（`conoha app deploy` 非使用の scripts 主体サンプル） | g2l-t-4 (4GB) |
+| [vcluster](vcluster/) | k3s + vCluster (loft-sh) | 1 台の VPS 上で 2 つの隔離された仮想 Kubernetes クラスタをマルチテナントで動かす（`conoha app deploy` 非使用の scripts 主体サンプル） | g2l-t-c4m4 (4GB) |
 
 ## 自分のアプリをデプロイするには
 

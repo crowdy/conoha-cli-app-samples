@@ -22,13 +22,16 @@ This sample installs **k3s (lightweight single-node k8s)** on a ConoHa VPS (a ba
 
 ## Recommended Flavor
 
-- **`g2l-t-4` (4GB) recommended** / minimum `g2l-t-2` (2GB). 2–4 GB is sufficient for k3s + 2–3 vcluster instances. **No GPU required**.
+- **`g2l-t-c4m4` (4 vCPU / 4GB) recommended** / minimum `g2l-t-c3m2` (3 vCPU / 2GB). 2–4 GB is sufficient for k3s + 2–3 vcluster instances. **No GPU required**.
+- Flavor and image names vary by region and time — confirm available names with `conoha flavor list` and `conoha image list`.
 
 ## Prerequisites
 
 - `conoha` CLI is set up ([conoha-cli](https://github.com/crowdy/conoha-cli)).
 - An SSH key pair is registered in ConoHa (note the name visible in `conoha keypair list`).
 - `git` / `bash` / `python3` available locally.
+- A security group opening SSH (port 22) is required; `00-provision.sh` attaches `default IPv4v6-SSH` by default (override via the `SECURITY_GROUPS` env var).
+- The fresh VPS host key is registered automatically by `00-provision.sh` via `ssh-keyscan` (so non-interactive `conoha server ssh` works).
 
 ## Quick Start (Automated e2e)
 
