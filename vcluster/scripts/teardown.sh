@@ -17,7 +17,7 @@ DELETE_SERVER=0
 echo "==> Deleting virtual clusters + uninstalling k3s on ${SERVER_NAME}"
 # Ensure the host key is known for a non-interactive SSH (see 00-provision.sh).
 SERVER_IP="$(conoha server show "${SERVER_NAME}" --format json 2>/dev/null \
-  | python3 -c 'import json,sys; d=json.load(sys.stdin); print(d["addresses"][0]["addr"])' 2>/dev/null || true)"
+  | python3 -c 'import json,sys; d=json.load(sys.stdin); ips=[a["addr"] for net in d["addresses"].values() for a in net if a.get("version")==4]; print(ips[0] if ips else "")' 2>/dev/null || true)"
 if [ -n "${SERVER_IP}" ]; then
   ssh-keygen -R "${SERVER_IP}" >/dev/null 2>&1 || true
   ssh-keyscan -H "${SERVER_IP}" >> ~/.ssh/known_hosts 2>/dev/null || true

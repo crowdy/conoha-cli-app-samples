@@ -39,7 +39,8 @@ if [ "${active}" != 1 ]; then
 fi
 
 SERVER_IP="$(conoha server show "${SERVER_NAME}" --format json \
-  | python3 -c 'import json,sys; d=json.load(sys.stdin); print(d["addresses"][0]["addr"])')"
+  | python3 -c 'import json,sys; d=json.load(sys.stdin); ips=[a["addr"] for net in d["addresses"].values() for a in net if a.get("version")==4]; print(ips[0] if ips else "")')"
+[ -n "${SERVER_IP}" ] || { echo "ERROR: could not determine IPv4 address for ${SERVER_NAME}" >&2; exit 1; }
 
 echo "==> Waiting for SSH on ${SERVER_IP} (registering host key)"
 # conoha's --insecure does not reliably disable host-key checks (CLI v0.7.1), so we
