@@ -15,7 +15,14 @@ DELETE_SERVER=0
 [ "${1:-}" = "--delete-server" ] && DELETE_SERVER=1
 
 echo "==> Deleting virtual clusters + uninstalling k3s on ${SERVER_NAME}"
-conoha server ssh --insecure "${SERVER_NAME}" -- bash -lc "
+# Ensure the host key is known for a non-interactive SSH (see 00-provision.sh).
+SERVER_IP="$(conoha server show "${SERVER_NAME}" --format json 2>/dev/null \
+  | python3 -c 'import json,sys; d=json.load(sys.stdin); print(d["addresses"][0]["addr"])' 2>/dev/null || true)"
+if [ -n "${SERVER_IP}" ]; then
+  ssh-keygen -R "${SERVER_IP}" >/dev/null 2>&1 || true
+  ssh-keyscan -H "${SERVER_IP}" >> ~/.ssh/known_hosts 2>/dev/null || true
+fi
+conoha server ssh "${SERVER_NAME}" -- bash -lc "
 set -uo pipefail
 export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
 if command -v vcluster >/dev/null 2>&1; then

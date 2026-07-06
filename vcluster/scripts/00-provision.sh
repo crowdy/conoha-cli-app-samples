@@ -38,11 +38,16 @@ if [ "${active}" != 1 ]; then
   exit 1
 fi
 
-echo "==> Waiting for SSH"
-# --insecure: skip host-key prompt for a fresh throwaway lab VPS (no TTY in automation).
-until conoha server ssh --insecure "${SERVER_NAME}" -- echo ok 2>/dev/null; do sleep 5; done
-
 SERVER_IP="$(conoha server show "${SERVER_NAME}" --format json \
   | python3 -c 'import json,sys; d=json.load(sys.stdin); print(d["addresses"][0]["addr"])')"
+
+echo "==> Waiting for SSH on ${SERVER_IP} (registering host key)"
+# conoha's --insecure does not reliably disable host-key checks (CLI v0.7.1), so we
+# pre-seed known_hosts. Drop any stale entry first (public IPs get reused across VPS).
+ssh-keygen -R "${SERVER_IP}" >/dev/null 2>&1 || true
+until ssh-keyscan "${SERVER_IP}" 2>/dev/null | grep -q .; do sleep 5; done
+ssh-keyscan -H "${SERVER_IP}" >> ~/.ssh/known_hosts 2>/dev/null
+until conoha server ssh "${SERVER_NAME}" -- echo ok 2>/dev/null; do sleep 5; done
+
 echo "SERVER_IP=${SERVER_IP}"
 echo "==> Provision complete: ${SERVER_NAME} (${SERVER_IP})"

@@ -21,7 +21,7 @@ bash "${HERE}/scripts/00-provision.sh"
 REMOTE_ENV="K3S_VERSION=${K3S_VERSION} VCLUSTER_VERSION=${VCLUSTER_VERSION} TENANT_A_NS=${TENANT_A_NS} TENANT_B_NS=${TENANT_B_NS}"
 
 echo "==> [1/3] Clone sample + host setup on the VPS"
-conoha server ssh --insecure "${SERVER_NAME}" -- bash -lc "
+conoha server ssh "${SERVER_NAME}" -- bash -lc "
 set -euo pipefail
 sudo apt-get update -qq && sudo apt-get install -y -qq git
 rm -rf ~/conoha-cli-app-samples
@@ -31,14 +31,14 @@ ${REMOTE_ENV} bash scripts/01-setup-host.sh
 "
 
 echo "==> [2/3] Create virtual clusters on the VPS"
-conoha server ssh --insecure "${SERVER_NAME}" -- bash -lc "
+conoha server ssh "${SERVER_NAME}" -- bash -lc "
 set -euo pipefail
 cd ~/conoha-cli-app-samples/vcluster
 ${REMOTE_ENV} bash scripts/02-create-vclusters.sh
 "
 
 echo "==> [3/3] Verify isolation on the VPS"
-conoha server ssh --insecure "${SERVER_NAME}" -- bash -lc "
+conoha server ssh "${SERVER_NAME}" -- bash -lc "
 set -euo pipefail
 cd ~/conoha-cli-app-samples/vcluster
 ${REMOTE_ENV} bash scripts/03-verify.sh
