@@ -4,7 +4,7 @@
 - **対象サンプル:** `buzz/`
 - **想定フレーバー:** `g2l-t-c6m8` (6 vCPU / 8GB)。リレー 5 コンテナに加えて **VM 上で Rust ビルドを行う**ため（§3.1）
 - **上流:** [block/buzz](https://github.com/block/buzz) — Rust / Apache-2.0
-- **ステータス:** Design rev.3 (実装前 / spec-reviewer 指摘反映済み)
+- **ステータス:** Design rev.3.1 (実装前 / spec-reviewer 2 巡目まで反映済み)
 
 ## 0. 改訂履歴
 
@@ -12,7 +12,8 @@
 |---|---|---|
 | 1 | 2026-07-24 | 初版。AI エージェント連携と `buzz-cli` を非目標とし、リレー + Web UI のみを対象とした |
 | 2 | 2026-07-24 | AI エージェント連携を目標に格上げ（利用者判断）。`buzz-acp`/`buzz-cli` の VM 上ビルド追加、4GB → 8GB、上流ドキュメント陳腐化を記載 |
-| **3** | **2026-07-24** | **spec-reviewer の指摘を反映。最大の変更は「ブラウザで使える」という rev 1〜2 の前提が誤りだったこと**（§0.1）。人間側クライアントを `buzz` CLI に確定。危険なフォールバック 1 件を削除、サイレント無応答を招く設定漏れ 1 件を修正、その他 12 件を反映 |
+| 3 | 2026-07-24 | **spec-reviewer 1 巡目**を反映。最大の変更は「ブラウザで使える」という rev 1〜2 の前提が誤りだったこと（§0.1）。人間側クライアントを `buzz` CLI に確定。危険なフォールバック 1 件削除、サイレント無応答を招く設定漏れ 1 件修正、他 12 件 |
+| **3.1** | **2026-07-25** | **spec-reviewer 2 巡目**を反映。1 巡目の指摘は全て RESOLVED 判定、ただし M10（オーナー鍵）修正が新たな矛盾 N1・N2 を生んでいた。オーナー鍵 provenance を §4.0 に一本化、`bootstrap-env.sh` を冪等化して再ブートストラップでの鍵回転を防止（N1・N2）。チャンネル `--visibility open` 明記（N3）、`TYPESENSE_API_KEY` を起動要件として §8.1 へ（N4）、`list-members` 依存性の記述訂正（N5）、`restart`→`start`（N6） |
 
 ### 0.1 rev 2 の誤りと訂正（重要）
 
@@ -74,8 +75,8 @@ rev 1〜2 の §1.1 は次を**断定形**で記していた:
   出典: `crates/buzz-relay/src/router.rs:63,207-213,256,467-469`, `web/src/features/`, `desktop/src/features/`
 - **`buzz-admin` のサブコマンド**: `AddMember` / `RemoveMember` / `ListMembers` / `GenerateKey` / `Migrate` / `ProductFeedback` / `ReconcileChannels`。
   出典: `crates/buzz-admin/src/main.rs:42-96`
-- **`generate-key` は DB を要さないが、`add-member`/`list-members` は要する**: `GenerateKey` は `Keys::generate()` のみ。メンバー系は DB + Redis + `BUZZ_RELAY_PRIVATE_KEY` を要求する。→ **メンバー操作は必ず `run.sh start` 後に `docker compose exec relay` 経由で行う。**
-  出典: `crates/buzz-admin/src/main.rs`（`cmd_add_member` → `connect_member_services`）
+- **`generate-key` は DB を要さない。`list-members` は DB のみ。`add-member` は DB + Redis + `BUZZ_RELAY_PRIVATE_KEY` を要する**: `GenerateKey` は `Keys::generate()` のみ（`main.rs:132`）。`cmd_list_members` は `connect_db()` だけ（`main.rs:261`）。`add-member` のみ `connect_member_services()`（`main.rs:172`）。→ **メンバー操作（add/list とも）は DB が要るため必ず `run.sh start` 後に `docker compose exec relay` 経由で行う。**
+  出典: `crates/buzz-admin/src/main.rs:132,172,261,389`
 - **REST 認証は NIP-98 署名であり、API トークン検証は実装されていない**: `verify_bridge_auth` は NIP-98 を検証する。`BUZZ_REQUIRE_AUTH_TOKEN=false` が有効化するのは**トークン省略ではなく `X-Pubkey` ヘッダによる開発用の身元詐称経路**である。
   出典: `crates/buzz-relay/src/api/bridge.rs:111`（NIP-98）, `:117-119`（`// Dev-mode fallback: X-Pubkey header (only when require_auth_token is false)`）
 - **既定は「閉じたリレー」**: `BUZZ_REQUIRE_AUTH_TOKEN=true` / `BUZZ_REQUIRE_RELAY_MEMBERSHIP=true` / `BUZZ_ALLOW_NIP_OA_AUTH=true`（**これは既に既定値**）/ `RELAY_OWNER_PUBKEY=CHANGE_ME_OWNER_PUBKEY_HEX`。
@@ -222,38 +223,49 @@ git fetch --depth 1 origin "$BUZZ_GIT_REF" && git checkout FETCH_HEAD
 
 フレーバーの DISK 列は `0`（ブートボリューム別建て）なので、**ビルド前に `df -h /` と `free -h` を必ずキャプチャ**して実測値を残す（§7 項目 8）。
 
-## 4. `bootstrap-env.sh` が生成する `.env`
+## 4. 鍵と `.env` の生成
 
-`bootstrap-env.sh` は **VM 内で実行**し、**公開 IPv4 と DNS サフィックスを引数で受け取る**（`bootstrap-env.sh <ipv4> <sslip.io|nip.io>`）。VM 側で IP を再検出しない（メタデータサービス依存を避ける）。ドメイン派生 5 変数は**必ずこの 1 か所でまとめて生成**する（§6 のフォールバックが安全に成立する前提）。
+### 4.0 オーナー鍵の provenance（1 か所に確定 / rev 3.1 で修正）
 
-`buzz-admin` を呼ぶ際は **ENTRYPOINT の上書きが必要**（`Dockerfile:156` が `buzz-relay` に固定）。スタック起動前は `docker run --rm --entrypoint buzz-admin $BUZZ_IMAGE generate-key`、起動後は `docker compose exec relay buzz-admin <cmd>`。**`add-member` / `list-members` は DB + Redis + リレー鍵を要するため、必ず `run.sh start` 後**に実行する（§1.1）。
+再レビュー指摘 N2 のとおり、rev 3 は「`bootstrap-env.sh`（VM 内）が引数 2 つで動く」と「`up.sh`（ローカル）がオーナー鍵を `.secrets/` に書く」を同時に書いており、オーナー鍵をどこで作るのかが矛盾していた。**provenance を 1 か所に固定する:**
 
-| 分類 | 変数 | 生成方法 |
-|---|---|---|
-| ドメイン連動 | `BUZZ_DOMAIN` | `<ip-dashes>.<サフィックス>` |
-| | `RELAY_URL` | `wss://<BUZZ_DOMAIN>` ← **コミュニティ同一性の根拠。§6 参照** |
-| | `BUZZ_MEDIA_BASE_URL` | `https://<BUZZ_DOMAIN>/media` |
-| | `BUZZ_MEDIA_SERVER_DOMAIN` | `<BUZZ_DOMAIN>` |
-| | `BUZZ_CORS_ORIGINS` | `https://<BUZZ_DOMAIN>` |
-| ランダム秘密 | `BUZZ_GIT_HOOK_HMAC_SECRET` | `openssl rand -hex 32` |
-| | `POSTGRES_PASSWORD` / `REDIS_PASSWORD` | `openssl rand -hex 32` |
-| | `TYPESENSE_API_KEY` | `openssl rand -hex 32` |
-| | `BUZZ_S3_ACCESS_KEY` / `BUZZ_S3_SECRET_KEY` | `openssl rand -hex 32` |
-| Nostr 鍵 | `BUZZ_RELAY_PRIVATE_KEY` | `buzz-admin generate-key`（リレー自身の署名鍵） |
-| | `RELAY_OWNER_PUBKEY` | `buzz-admin generate-key`（**オーナー用に別途生成**。公開鍵のみ） |
-| 固定 | `BUZZ_IMAGE` | `.buzz-ref` から |
-| | `BUZZ_AUTO_MIGRATE` | `true`（新規 DB のため） |
-| | `BUZZ_REQUIRE_AUTH_TOKEN` | **`true` のまま変更しない**（§6） |
+- **オーナー鍵は `up.sh`（ローカル）が 1 回だけ生成する**。SSH 越しに VM 上で
+  `docker run --rm --entrypoint buzz-admin $BUZZ_IMAGE generate-key` を実行し、**stdout をローカルで受ける**（この呼び出しは DB 不要 = `run.sh start` 前でよい。§1.1）。
+- 秘密鍵 → `buzz/.secrets/owner.nsec`（`0600`、`.gitignore` 済み）。公開鍵 → `buzz/.secrets/owner.pub`。**どちらも `tee` 対象にしない**（`generate-key` の出力だけは `tee` を通さずファイルへリダイレクト）。
+- 公開鍵を `bootstrap-env.sh` に**第 3 引数で渡す**。→ シグネチャは `bootstrap-env.sh <ipv4> <suffix> <owner_pubkey_hex>`。
+- **§6 の再ブートストラップ時はオーナー鍵を作り直さない**。`up.sh` は既存の `.secrets/owner.pub` を読み、同じ公開鍵を渡す（鍵の回転を防ぐ）。
 
-**オーナー秘密鍵の扱い（重要 / rev 3 で変更）:**
+これで rev 2 の「表示して保存しない」問題（再実行不能 + `tee` 平文流出）も、N2 の矛盾も解ける。`verify.sh` のローカル側は `.secrets/owner.nsec` を読んで `buzz` CLI を実行する。
 
-rev 2 は「標準出力に 1 回だけ表示して保存しない」としていたが、それでは完了条件 3・4（オーナー鍵での投稿）が再実行できず、かつ `tee` で捕捉すると秘密鍵がログに平文で残る（本リポジトリには `gitleaks` ワークフローがある）。
+### 4.1 `bootstrap-env.sh`（VM 内、冪等）
 
-**rev 3 の方針**: オーナー秘密鍵は**運用者のローカルワークステーションに保管し、サーバには置かない**（Nostr の設計思想と一致する）。
+`bootstrap-env.sh <ipv4> <suffix> <owner_pubkey_hex>` は `deploy/compose/.env.example` を基に `.env` を作る。VM 側で IP を再検出しない（メタデータサービス依存を避ける）。
 
-- `up.sh` がローカルの `buzz/.secrets/owner.nsec`（`0600`、`.gitignore` 済み）に書き出す。
-- **キャプチャログには公開鍵のみを出力**し、秘密鍵は出力しない。§7 の証拠規約に「秘密鍵は捕捉対象外とし、その旨をログに残す」という例外を明記する。
-- `verify.sh` のローカル側は `.secrets/owner.nsec` を読んで `buzz` CLI を実行する。
+**冪等性が必須である**（指摘 N1）。上流 `deploy/compose/run.sh:32` が *"these values must not rotate on restart"* と明示し、`run.sh:29` は `.env` に `CHANGE_ME` が 1 つでも残ると起動を拒否する。したがって:
+
+- **秘密・リレー鍵グループ（下表）は「未生成なら生成、既に非 `CHANGE_ME` 値があれば保存」**。`.env` が既存ならこれらを再生成してはならない。
+- **ドメイン派生 5 変数と `RELAY_OWNER_PUBKEY` は毎回（引数から）書き直す**。§6 の再ブートストラップはこれだけを変える。
+
+`buzz-admin` を呼ぶ際は **ENTRYPOINT の上書きが必要**（`Dockerfile:156` が `buzz-relay` に固定）。起動前は `docker run --rm --entrypoint buzz-admin $BUZZ_IMAGE generate-key`、起動後は `docker compose exec relay buzz-admin <cmd>`。
+
+| 分類 | 変数 | 生成方法 | 再ブートストラップ時 |
+|---|---|---|---|
+| ドメイン連動 | `BUZZ_DOMAIN` | `<ip-dashes>.<サフィックス>` | **書き直す** |
+| | `RELAY_URL` | `wss://<BUZZ_DOMAIN>` ← **コミュニティ同一性の根拠。§6** | **書き直す** |
+| | `BUZZ_MEDIA_BASE_URL` | `https://<BUZZ_DOMAIN>/media` | **書き直す** |
+| | `BUZZ_MEDIA_SERVER_DOMAIN` | `<BUZZ_DOMAIN>` | **書き直す** |
+| | `BUZZ_CORS_ORIGINS` | `https://<BUZZ_DOMAIN>` | **書き直す** |
+| オーナー | `RELAY_OWNER_PUBKEY` | **第 3 引数**（§4.0） | 書き直す（同一値） |
+| 秘密（保存） | `BUZZ_GIT_HOOK_HMAC_SECRET` | `openssl rand -hex 32` | **保存** |
+| | `POSTGRES_PASSWORD` / `REDIS_PASSWORD` | `openssl rand -hex 32` | **保存** |
+| | `TYPESENSE_API_KEY` | `openssl rand -hex 32`（**生成必須** — N4） | **保存** |
+| | `BUZZ_S3_ACCESS_KEY` / `BUZZ_S3_SECRET_KEY` | `openssl rand -hex 32` | **保存** |
+| リレー鍵（保存） | `BUZZ_RELAY_PRIVATE_KEY` | `buzz-admin generate-key` | **保存** |
+| 固定 | `BUZZ_IMAGE` | `.buzz-ref` から | — |
+| | `BUZZ_AUTO_MIGRATE` | `true`（新規 DB のため） | — |
+| | `BUZZ_REQUIRE_AUTH_TOKEN` | **`true` のまま変更しない**（§6） | — |
+
+> `TYPESENSE_API_KEY` は `compose.yml` に typesense サービスが無くても**生成必須**である。`run.sh:29` の `CHANGE_ME` ゲートが未生成だと起動を止めるため（指摘 N4 — 「無害な残骸」ではなく起動要件）。
 
 ## 5. 実行フロー
 
@@ -268,9 +280,13 @@ rev 2 は「標準出力に 1 回だけ表示して保存しない」として�
  5. SSH 準備   ssh-keygen -R <ip> ; ssh-keyscan -H <ip> >> ~/.ssh/known_hosts
  6. Docker 導入 (get.docker.com) → docker compose version をキャプチャ（≥ v2.24.4 必須）
  7. 上流取得    git init / fetch --depth 1 <完全SHA> / checkout FETCH_HEAD （§3.1）
- 8. .env 生成   bootstrap-env.sh <公開IPv4> sslip.io
- 9. 起動        BUZZ_COMPOSE_TLS=true ./run.sh start
-10. 検証        verify.sh（リレー部分）
+ 8. オーナー鍵  .secrets/owner.pub が無ければ：SSH 越しに
+                docker run --rm --entrypoint buzz-admin $BUZZ_IMAGE generate-key
+                → nsec を .secrets/owner.nsec(0600), pubkey を .secrets/owner.pub へ（tee 不使用）
+                有れば：既存 .secrets/owner.pub を読む（回転させない。§4.0）
+ 9. .env 生成   bootstrap-env.sh <公開IPv4> sslip.io <owner_pubkey_hex>   （§4.1・冪等）
+10. 起動        BUZZ_COMPOSE_TLS=true ./run.sh start
+11. 検証        verify.sh（リレー部分）
 ```
 
 **手順 3-5 は本リポジトリで蓄積された罠の回避である:**
@@ -304,8 +320,9 @@ rev 2 は「標準出力に 1 回だけ表示して保存しない」として�
                       BUZZ_ACP_SUBSCRIBE=mentions
                       BUZZ_ACP_RESPOND_TO=allowlist              ★必須
                       BUZZ_ACP_RESPOND_TO_ALLOWLIST=<オーナー公開鍵hex>  ★必須
- 7. チャンネル用意   エージェント鍵で buzz channels create（作成者は自動的にメンバー）
-                     → オーナーが join。上流が推奨する唯一の実動線（§1.1）
+ 7. チャンネル用意   エージェント鍵で buzz channels create --name <n> --type stream --visibility open
+                     （★visibility は必須。private だとオーナー self-join が上流の known gap に阻まれる — 指摘 N3）
+                     → オーナーが buzz channels join <uuid>。上流が推奨する唯一の実動線（§1.1）
 ```
 
 **手順 6 の ★ が無いと何が起きるか**: 著者ゲートの既定は `owner-only` で、`agent_owner_pubkey` は `add-member` では作られない。結果として**すべてのイベントが無言で破棄され**、完了条件 1〜7 が緑のまま `@mention` だけ無反応になる（§1.1・§6・§7）。`allowlist` は公開鍵一致だけで通るため、完全開放の `anyone` より安全である。
@@ -330,7 +347,7 @@ rev 2 は「標準出力に 1 回だけ表示して保存しない」として�
 
 | 失敗 | 検出方法 | 処理 |
 |---|---|---|
-| **`sslip.io` の LE レート制限 (429)** — 実績あり | `docker compose logs caddy` に `rateLimited` / `429` | **原子的な再ブートストラップのみ許可**（部分修正は禁止）: `run.sh stop` → `docker compose … down -v`（新規構築なのでデータ損失なし）→ `bootstrap-env.sh <ip> nip.io` で**ドメイン派生 5 変数を同時に再生成** → 再起動。それでも失敗なら `Caddyfile` に `tls internal`。**どの経路で通ったかを `verify.sh` の出力に必ず残す** |
+| **`sslip.io` の LE レート制限 (429)** — 実績あり | `docker compose logs caddy` に `rateLimited` / `429` | **原子的な再ブートストラップのみ許可**（部分修正は禁止）: `docker compose … down -v`（新規構築なのでデータ損失なし）→ `bootstrap-env.sh <ip> nip.io <既存の .secrets/owner.pub>` を再実行 → **ドメイン派生 5 変数と `RELAY_OWNER_PUBKEY`（同一値）だけが変わり、秘密・リレー鍵は保存される**（§4.1 冪等）→ `BUZZ_COMPOSE_TLS=true ./run.sh start`（`restart` は relay だけ再生成するため使わない。全体 up が要る）。それでも失敗なら `Caddyfile` に `tls internal`。**どの経路で通ったかを `verify.sh` の出力に必ず残す**。※ 秘密が回転すると `run.sh:32` の不変条件に反し、オーナー鍵が回転すると `.secrets/owner.nsec` が孤児化する（指摘 N1） |
 | **ドメイン変更後の 404 / 別コミュニティ分裂** | 応答本文に `relay: no community is configured for this host`（上流固定文言） | `verify.sh` が即失敗。`BUZZ_DOMAIN` だけ変えて `RELAY_URL` を放置した典型パターン（§1.1） |
 | **エージェントが `@mention` に無反応** | `journalctl -u buzz-acp` の破棄ログ + `BUZZ_ACP_RESPOND_TO` の実効値 | `verify.sh` が**起動前に**ゲート設定を断言し、未設定なら中断（§5.1 手順 6） |
 | **閉じたリレーで入室できない** | `list-members` にオーナーが居ない | 異常終了 |
@@ -379,9 +396,10 @@ rev 2 は「標準出力に 1 回だけ表示して保存しない」として�
 | rev 2 の項目 | 結論 | 根拠 |
 |---|---|---|
 | `_liveness` は 3000 にもあるか | **ある**（3000・8080 両方） | `router.rs:68,227` |
-| `generate-key` は DB を要するか | **要さない**。ただし `add-member`/`list-members` は要する | `buzz-admin/src/main.rs`（`connect_member_services`） |
-| `BUZZ_API_TOKEN` の取得経路（rev 2 の「最大ブロッカー」） | **問題自体が存在しない**。REST 認証は NIP-98 で、トークン検証は未実装。`mint-token` 文書は単なる陳腐化 | `api/bridge.rs:111,117-119`, `buzz-cli/src/client.rs`, `buzz-acp/src/relay.rs` |
+| `generate-key` は DB を要するか | **要さない**。`list-members` は DB のみ、`add-member` は DB+Redis+リレー鍵 | `buzz-admin/src/main.rs:132,172,261` |
+| `BUZZ_API_TOKEN` の取得経路（rev 2 の「最大ブロッカー」） | **このサンプルの経路では不要**。REST 認証は NIP-98 署名（オーナー/エージェントとも個別鍵で署名して投稿）。`bridge.rs` にトークン検証は無い（`config.rs:718` のレガシー別名と `media.rs:206` の言及は残るが、完了経路は署名で通る）。`mint-token` 文書は陳腐化 | `api/bridge.rs:111,117-119`, `buzz-cli/src/client.rs`, `buzz-acp/src/relay.rs` |
 | リレーは `/` で Web UI を返すか | **返さない**（NIP-11 JSON）。§0.1 で設計ごと訂正 | `router.rs:63,207-213,467-469` |
+| `TYPESENSE_API_KEY` の扱い | `compose.yml` に typesense サービスは無いが**生成は必須**。`run.sh:29` の `CHANGE_ME` ゲートが未生成だと起動を止める（「無害な残骸」ではなく起動要件） | `deploy/compose/compose.yml`（サービス不在）, `deploy/compose/run.sh:29` |
 
 ### 8.2 実機でしか確定できない仮定（実装フェーズで潰す）
 
@@ -393,7 +411,6 @@ rev 2 は「標準出力に 1 回だけ表示して保存しない」として�
 6. NIP-42 認証後、エージェント鍵が実際にイベントを投稿できるか（メンバーシップゲート通過）→ 完了条件 5・7。
 7. GHCR の `sha-` タグ保持ポリシー。タグが消えるとサンプルが静かに再現不能になる → §9 の定期確認で扱う。
 8. `conoha` CLI v0.8.0 で `server ssh --insecure` が実動作するか → **依存しない設計**にしているためブロッカーにはならない。
-9. `TYPESENSE_API_KEY` は `.env.example` にあるが `compose.yml` に typesense サービスが無い。無害な残骸と**推測**（未確認）。値は生成しておく。
 
 ## 9. 将来の拡張（本 PR では扱わない）
 
