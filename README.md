@@ -91,6 +91,7 @@ conoha app deploy myserver
 | [outline](outline/) | Outline + PostgreSQL + Redis + Dex | セルフホスティングチーム Wiki（OIDC認証付き） | g2l-t-2 (2GB) |
 | [meilisearch](meilisearch/) | Meilisearch | セルフホスティング全文検索エンジン | g2l-t-1 (1GB) |
 | [vcluster](vcluster/) | k3s + vCluster (loft-sh) | 1 台の VPS 上で 2 つの隔離された仮想 Kubernetes クラスタをマルチテナントで動かす（`conoha app deploy` 非使用の scripts 主体サンプル） | g2l-t-c4m4 (4GB) |
+| [buzz](buzz/) | Buzz relay (Rust) + PostgreSQL + Redis + MinIO + Caddy | 人間 + AI エージェント協働ワークスペース（Nostr リレー）をセルフホスト。Claude エージェントを独自の鍵を持つ参加者として常駐させ `@mention` 応答まで実測（`buzz` CLI + `buzz-acp` + `claude-agent-acp`）。`conoha.yml` なし（Caddy が sslip.io + LE で 80/443 を直接終端、scripts 主体） | g2l-t-c6m8 (8GB) |
 | [opencascade-fem](opencascade-fem/) | OpenCascade + gmsh + scikit-fem (FastAPI + vtk.js) | パラメトリック CAD → メッシュ → 線形弾性 FEM → ブラウザ 3D 可視化 | g2l-t-2 (2GB) |
 | [slurm-rest-api](slurm-rest-api/) | Slurm + slurmrestd + slurmdbd + MariaDB | Slurm 単一ノードクラスター + REST API (JWT 認証、Python CLI + NumPy/sklearn ワークロード例) | g2l-t-2 (2GB) |
 | [kubevirt-provisioner](kubevirt-provisioner/) | k3s + KubeVirt + FastAPI | KubeVirt API で Ubuntu VM をプロビジョニング (Web シリアルコンソール付き、ハードウェア KVM) | g2l-t-c6m8 (8GB) |
