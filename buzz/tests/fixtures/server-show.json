@@ -1,0 +1,10 @@
+{
+  "id": "vm-abc123",
+  "status": "ACTIVE",
+  "addresses": {
+    "ext-net": [
+      {"addr": "203.0.113.42", "version": 4},
+      {"addr": "2001:db8::1", "version": 6}
+    ]
+  }
+}
