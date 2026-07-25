@@ -63,5 +63,65 @@ else
   echo "FAIL owner not in members"; pass=1
 fi
 
-if [ "$pass" = 0 ]; then echo "== relay checks: ALL PASS =="; else echo "== relay checks: HAS FAILURES =="; fi
+if [ "${1:-}" = "--agent" ]; then
+  AGENT_PUB="$(cat "$SECRETS/agent.pub")"; CH="$(cat "$SECRETS/channel")"
+  { [ -n "$AGENT_PUB" ] && [ -n "$CH" ]; } || { echo "FAIL agent.pub/channel missing (run agent-up.sh first)"; exit 1; }
+
+  echo "== 5. agent registered (VM) =="
+  if ssh_vm "$DC exec -T relay buzz-admin list-members" | grep -qi "$AGENT_PUB"; then
+    echo "OK agent in members ($AGENT_PUB)"
+  else
+    echo "FAIL agent not in members"; pass=1
+  fi
+
+  echo "== 6. harness active + allowlist gate (VM) =="
+  if ssh_vm 'systemctl is-active buzz-acp' | grep -q active \
+     && ssh_vm 'systemctl show buzz-acp -p Environment' | grep -q 'BUZZ_ACP_RESPOND_TO=allowlist'; then
+    echo "OK buzz-acp active + respond_to=allowlist"
+  else
+    echo "FAIL harness/gate"; pass=1
+  fi
+  echo "-- drop/dead-letter counter (spec §7 項目6, informational) --"
+  ssh_vm 'journalctl -u buzz-acp --no-pager | grep -ic "drop\|dead-letter" || true'
+
+  # 送信=オーナー（/root/.buzz-owner.env, nsec 非ログ）。検出=作成者 pubkey==AGENT_PUB かつトークン包含。
+  # messages get の実測 JSON: 配列 [{pubkey, content, id, kind, ...}]。--format フラグは無い（既定 JSON）。
+  send_owner() { # <content>
+    ssh_vm "set -a; . /root/.buzz-owner.env; set +a; buzz messages send --channel $CH --content '$1'" >/dev/null
+  }
+  detect() {     # <token> → agent(pubkey==AGENT_PUB) 作成の当該トークン投稿があれば 0
+    ssh_vm "set -a; . /root/.buzz-owner.env; set +a; buzz messages get --channel $CH --limit 50" \
+      | python3 -c 'import sys,json
+tok=sys.argv[1]; ap=sys.argv[2].lower()
+try: d=json.load(sys.stdin)
+except Exception: sys.exit(1)
+msgs=d if isinstance(d,list) else d.get("messages",[])
+sys.exit(0 if any((m.get("pubkey") or "").lower()==ap and tok in (m.get("content") or "") for m in msgs) else 1)' "$1" "$AGENT_PUB"
+  }
+
+  # 7-N 偽陰性対照（reviewer N5）: @mention を含まない本文を送る。subscribe=mentions なので配信されず応答は起きない。
+  # 検出器が壊れていれば（作成者フィルタ不良で）オーナー投稿に誤マッチして FAIL する。ゲート反転も restart も伴わない真の陰性対照。
+  echo "== 7-N. negative control: non-mention body must yield NO agent reply =="
+  TOKN="NEG$(openssl rand -hex 3)"
+  send_owner "plain note without mention, token $TOKN"
+  neg=0; for _ in $(seq 1 7); do sleep 10; if detect "$TOKN"; then neg=1; break; fi; done
+  if [ "$neg" = 1 ]; then
+    echo "FAIL negative control matched — detector/mention-filter not discriminating"; pass=1
+  else
+    echo "OK no agent reply to non-mention (detector discriminates)"
+  fi
+
+  # 7 本検証: 同一 detect でエージェント作成の応答を要求。成立=閉リレーで NIP-42＋メンバーシップ＋mention 経路を実証。
+  echo "== 7. agent replies to @mention (CORE; proves NIP-42 + membership + routing) =="
+  TOK="CORE$(openssl rand -hex 3)"
+  send_owner "@agent Reply in this channel with exactly this token and nothing else: $TOK"
+  ok7=0; for _ in $(seq 1 15); do sleep 8; if detect "$TOK"; then ok7=1; break; fi; done
+  if [ "$ok7" = 1 ]; then
+    echo "OK agent authored a reply containing the token ($TOK)"
+  else
+    echo "FAIL no agent-authored reply in ~120s"; pass=1
+  fi
+fi
+
+if [ "$pass" = 0 ]; then echo "== checks: ALL PASS =="; else echo "== checks: HAS FAILURES =="; fi
 exit "$pass"
