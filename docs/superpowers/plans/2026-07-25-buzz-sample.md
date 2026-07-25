@@ -10,6 +10,8 @@
 
 **親スペック:** `docs/superpowers/specs/2026-07-24-buzz-sample-design.md`（rev 3.1）。**plan-reviewer にはこのスペックパスを必ず添付すること。**
 
+**改訂:** rev 2 — plan-reviewer 1 巡目（F1–F11 + 秘密ログ漏れ）を反映。詳細は末尾「plan-reviewer 指摘の反映」表。
+
 ## Global Constraints
 
 スペックの全タスク共通制約。値はスペックから逐語コピー。
@@ -140,7 +142,8 @@ git commit -m "feat(buzz): scaffold sample with pinned upstream ref"
   - `pubip` — **stdin から `conoha server show --format json` を読み**、公開 IPv4 を 1 個 stdout に出す（無ければ空）
   - `ip_to_dashes IP` — `203.0.113.42` → `203-0-113-42`
   - `load_ref` — `.buzz-ref` を source し `BUZZ_GIT_REF` / `BUZZ_IMAGE` を export（無ければ die）
-  - `ssh_vm IP CMD...` — `ssh -o BatchMode=yes root@IP CMD`（Task 5 以降が使う）
+  - `ssh_vm CMD...` — `conoha server ssh "$SERVER" -- CMD`（**検証済み先例 `vcluster` と同じく key 自動検出**。raw `ssh root@ip` は使わない ← reviewer F2）。`SERVER` はグローバル。
+  - `put_file LOCAL REMOTE` — `conoha server ssh "$SERVER" -- "cat > REMOTE" < LOCAL`（scp を避けキー不一致を回避）
 
 - [ ] **Step 1: fixture を作る（実形状に基づく負の対照つき）**
 
@@ -246,7 +249,9 @@ load_ref() {
   export BUZZ_GIT_REF BUZZ_IMAGE
 }
 
-ssh_vm() { local ip="$1"; shift; ssh -o BatchMode=yes -o StrictHostKeyChecking=accept-new "root@${ip}" "$@"; }
+# 検証済み先例（vcluster）と同じく conoha server ssh を使う（key 自動検出）。SERVER はグローバル。
+ssh_vm()   { conoha server ssh "${SERVER:?SERVER unset}" -- "$@"; }
+put_file() { conoha server ssh "${SERVER:?SERVER unset}" -- "cat > $2" < "$1"; }
 ```
 
 - [ ] **Step 5: テストが通ることを確認**
@@ -254,16 +259,32 @@ ssh_vm() { local ip="$1"; shift; ssh -o BatchMode=yes -o StrictHostKeyChecking=a
 Run: `bash buzz/scripts/selftest.sh`
 Expected: PASS（`ok - pubip picks public v4` / `ok - pubip empty when no public` / `ok - ip_to_dashes`、exit 0）
 
-- [ ] **Step 6: shellcheck（あれば）**
+- [ ] **Step 6: 静的検査ゲートを selftest に追加（reviewer F4 — 全スクリプトを課金前に検査）**
 
-Run: `command -v shellcheck && shellcheck buzz/scripts/lib.sh buzz/scripts/selftest.sh || echo "shellcheck not installed — skipped"`
-Expected: 警告なし、または未インストールでスキップ
+`selftest.sh` の `exit "$fail"` の直前に追記:
 
-- [ ] **Step 7: コミット**
+```bash
+# --- 全スクリプトの静的検査（bash -n + shellcheck）。過金 VM の前にここで潰す ---
+for s in "$HERE"/*.sh; do
+  bash -n "$s" || { echo "FAIL - bash -n $s"; fail=1; }
+done
+if command -v shellcheck >/dev/null; then
+  shellcheck -e SC1090,SC1091 "$HERE"/*.sh || { echo "FAIL - shellcheck"; fail=1; }
+else
+  echo "note - shellcheck not installed; bash -n only"
+fi
+```
+
+- [ ] **Step 7: 実行して緑を確認**
+
+Run: `bash buzz/scripts/selftest.sh`
+Expected: 既存の `ok` に加え、`bash -n` が全 `.sh` で通る（この時点では lib.sh/selftest.sh のみ）。exit 0。
+
+- [ ] **Step 8: コミット**
 
 ```bash
 git add buzz/scripts/lib.sh buzz/scripts/selftest.sh buzz/tests/fixtures/server-show.json buzz/tests/fixtures/server-show-priv.json
-git commit -m "feat(buzz): shared lib with tested pubip parser + negative control"
+git commit -m "feat(buzz): shared lib (conoha-ssh wrapper), tested pubip + static-check gate"
 ```
 
 ---
@@ -399,8 +420,22 @@ set_kv BUZZ_AUTO_MIGRATE true
 set_kv BUZZ_REQUIRE_AUTH_TOKEN true
 [ -n "${BUZZ_IMAGE:-}" ] && set_kv BUZZ_IMAGE "$BUZZ_IMAGE"
 
+# --- 残存 CHANGE_ME を動的に掃討（reviewer F7: 上流が日次で新変数を足すため固定目録では漏れる） ---
+# run.sh:29 の CHANGE_ME ゲートは 1 件でも残ると起動を拒否する。既知キー以外もランダムで埋める。
+while IFS= read -r line; do
+  k="${line%%=*}"
+  set_kv "$k" "$(openssl rand -hex 32)"
+  echo "note: filled unlisted CHANGE_ME var $k with random hex" >&2
+done < <(grep -E '^[A-Za-z_][A-Za-z0-9_]*=.*CHANGE_ME' "$OUT")
+
+# 最終ガード: CHANGE_ME が 1 件でも残れば失敗（起動前に loud に）
+if grep -Eq '^[A-Za-z_][A-Za-z0-9_]*=.*CHANGE_ME' "$OUT"; then
+  echo "ERROR: CHANGE_ME placeholders remain in $OUT" >&2; exit 1
+fi
 echo "wrote $OUT (domain=$DOMAIN)"
 ```
+
+> **注（reviewer F7）:** fixture は上流 `.env.example` の一部の写しだが、実 VM では clone 内の完全な `.env.example` を使う。上の掃討ループが目録に無い新規 `CHANGE_ME_*` も埋めるため、上流が変数を足しても `run.sh:29` の起動拒否を回避できる。selftest の "no CHANGE_ME remains" 検証がこの掃討も併せて確認する。
 
 - [ ] **Step 5: テスト用に relay 鍵生成を迂回して実行し、通ることを確認**
 
@@ -500,13 +535,26 @@ git commit -m "feat(buzz): teardown script (deletes boot volume, idempotent)"
 **Files:**
 - Create: `buzz/scripts/up.sh`
 
+**前提（Phase B・reviewer F2）:** `KEY_NAME` は **ConoHa に登録済みのキーペア名**（`conoha keypair list` で確認）。`up.sh` はキーペアを新規作成しない — 作成すると出力（秘密鍵）と `conoha server ssh` の自動検出がずれて SSH 不能になる（検証済み先例 `vcluster/scripts/00-provision.sh:12` と同じ方針）。
+
 **Interfaces:**
-- Consumes: `lib.sh`（`pubip`/`ip_to_dashes`/`load_ref`/`ssh_vm`/`die`/`log`）, `.buzz-ref`, `bootstrap-env.sh`
-- Produces: 起動済みリレースタック。ローカル `buzz/.secrets/owner.nsec`（`0600`）と `owner.pub`。`buzz/.secrets/fqdn` に確定 FQDN を書く（verify.sh がローカル正本として読む）。
+- Consumes: `lib.sh`（`pubip`/`ip_to_dashes`/`load_ref`/`ssh_vm`/`put_file`/`die`/`log`）, `.buzz-ref`, `bootstrap-env.sh`, 環境変数 `KEY_NAME`（必須）
+- Produces: 起動済みリレースタック。ローカル `buzz/.secrets/owner.nsec`（`0600`）と `owner.pub`。`buzz/.secrets/fqdn` に確定 FQDN。
 
-- [ ] **Step 1: `up.sh` を実装**
+- [ ] **Step 1: Phase A で conoha フラグを `--help` ゲート（reviewer F2/F11 — 過金前に確定）**
 
-`buzz/scripts/up.sh`（spec §5.0 の 11 手順を反映）:
+Run:
+```bash
+conoha network security-group create --help 2>&1 | grep -E '\--name|\--description'
+conoha network security-group-rule create --help 2>&1 | grep -E '\--security-group-id|\--direction|\--ethertype|\--protocol|\--port-min|\--port-max|\--remote-ip'
+conoha server create --help 2>&1 | grep -E '\--key-name|\--security-group|\--wait|\--no-input|\--yes'
+conoha server ssh --help 2>&1 | grep -E 'command|identity'
+```
+Expected: 使用する全フラグが実在する。**`server create` に `--wait` が無ければ**、選例（`vcluster` L27–41）の「`server show` の status が ACTIVE になるまでポーリング」に置換する（決め打ち禁止）。
+
+- [ ] **Step 2: `up.sh` を実装**
+
+`buzz/scripts/up.sh`（spec §5.0 反映 + reviewer F2 で先例パターンに合わせる）:
 
 ```bash
 #!/usr/bin/env bash
@@ -517,25 +565,37 @@ HERE="$(cd "$(dirname "$0")" && pwd)"
 # shellcheck source=/dev/null
 . "$HERE/lib.sh"
 load_ref
-SERVER="${SERVER:-buzz-sample}"; SG="${SERVER}-sg"; KEY="${SERVER}-key"
+SERVER="${SERVER:-buzz-sample}"; SG="${SERVER}-sg"
+KEY_NAME="${KEY_NAME:?set KEY_NAME to a registered keypair (conoha keypair list)}"
 FLAVOR="${FLAVOR:-g2l-t-c6m8}"
 SECRETS="$HERE/../.secrets"; mkdir -p "$SECRETS"; chmod 700 "$SECRETS"
 
-log "1. keypair / security-group..."
-conoha keypair create "$KEY" 2>/dev/null || log "  keypair exists"
+log "1. security-group（keypair は登録済み $KEY_NAME を再利用。作成しない）..."
 conoha network security-group create --name "$SG" --description "buzz sample" 2>/dev/null || log "  sg exists"
-log "2. SG rules: 22 / 80 / 443..."
+SGID="$(conoha network security-group show "$SG" --format json | python3 -c 'import sys,json;print(json.load(sys.stdin)["id"])')"
+[ -n "$SGID" ] || die "could not resolve SG id for $SG"
+
+log "2. SG rules: 22 / 80 / 443（生成後に存在を検証。silent 失敗を許さない — spec §6）..."
 for p in 22 80 443; do
-  conoha network security-group-rule create --security-group-id \
-    "$(conoha network security-group show "$SG" --format json | python3 -c 'import sys,json;print(json.load(sys.stdin)["id"])')" \
-    --direction ingress --ethertype IPv4 --protocol tcp --port-min "$p" --port-max "$p" --remote-ip 0.0.0.0/0 2>/dev/null || true
+  conoha network security-group-rule create --security-group-id "$SGID" \
+    --direction ingress --ethertype IPv4 --protocol tcp --port-min "$p" --port-max "$p" --remote-ip 0.0.0.0/0 2>/dev/null \
+    || log "  rule tcp/$p may already exist"
+done
+# 22/80/443 が実在することをアサート（無ければ中断）
+RULES_JSON="$(conoha network security-group show "$SG" --format json)"
+for p in 22 80 443; do
+  echo "$RULES_JSON" | python3 -c 'import sys,json
+d=json.load(sys.stdin); p=int(sys.argv[1])
+rs=d.get("security_group_rules", d.get("rules", []))
+ok=any(r.get("port_range_min")==p and (r.get("protocol") or "").lower()=="tcp" for r in rs)
+sys.exit(0 if ok else 1)' "$p" || die "SG rule tcp/$p missing after create"
 done
 
 log "3. image 確認 + VM 作成 (課金開始)..."
 IMAGE="${IMAGE:-ubuntu-26.04}"
 conoha image list 2>/dev/null | grep -q "$IMAGE" || die "image $IMAGE not in catalog; run 'conoha image list'"
 conoha server create --name "$SERVER" --flavor "$FLAVOR" --image "$IMAGE" \
-  --key-name "$KEY" --security-group "$SG" --no-input --yes --wait
+  --key-name "$KEY_NAME" --security-group "$SG" --no-input --yes --wait
 
 log "4. 公開 IPv4 抽出 (ローカル正本)..."
 IP="$(conoha server show "$SERVER" --format json | pubip)"
@@ -543,24 +603,28 @@ IP="$(conoha server show "$SERVER" --format json | pubip)"
 FQDN="$(ip_to_dashes "$IP").sslip.io"; printf '%s' "$FQDN" > "$SECRETS/fqdn"
 log "   IP=$IP  FQDN=$FQDN"
 
-log "5. SSH 準備 (ssh-keyscan — 版依存の --insecure に頼らない)..."
+log "5. SSH 準備（先例と同じ: keyscan → conoha server ssh で疎通ループ）..."
 ssh-keygen -R "$IP" >/dev/null 2>&1 || true
-until ssh-keyscan -H "$IP" >> ~/.ssh/known_hosts 2>/dev/null && ssh_vm "$IP" true 2>/dev/null; do
-  log "   waiting for sshd..."; sleep 10
-done
+ssh-keyscan -H "$IP" >> ~/.ssh/known_hosts 2>/dev/null || true
+ok=0; for _ in $(seq 1 60); do if ssh_vm echo ok >/dev/null 2>&1; then ok=1; break; fi; sleep 5; done
+[ "$ok" = 1 ] || die "SSH to $SERVER not reachable (check SG / port 22)"
 
 log "6. Docker 導入..."
-ssh_vm "$IP" 'curl -fsSL https://get.docker.com | sh >/dev/null'
-ssh_vm "$IP" 'docker compose version' | tee -a "$SECRETS/up.log"   # ≥ v2.24.4 必須
+ssh_vm 'curl -fsSL https://get.docker.com | sh >/dev/null'
+CV="$(ssh_vm 'docker compose version --short' 2>/dev/null || true)"
+log "   docker compose version=$CV"
+# ≥ v2.24.4 必須（compose.caddy.yml の !reset タグ）。満たさなければ中断（reviewer F11）
+ssh_vm 'docker compose version --short | awk -F. "{ exit !(\$1>2 || (\$1==2 && (\$2>24 || (\$2==24 && \$3>=4)))) }"' \
+  || die "docker compose >= v2.24.4 required (got $CV)"
 
 log "7. 上流取得 (完全 SHA で fetch)..."
-ssh_vm "$IP" "rm -rf /opt/buzz && mkdir -p /opt/buzz && cd /opt/buzz && \
+ssh_vm "rm -rf /opt/buzz && mkdir -p /opt/buzz && cd /opt/buzz && \
   git init -q && git remote add origin https://github.com/block/buzz.git && \
   git fetch --depth 1 -q origin $BUZZ_GIT_REF && git checkout -q FETCH_HEAD"
 
-log "8. オーナー鍵 (無ければ 1 回だけ生成。回転させない)..."
+log "8. オーナー鍵 (無ければ 1 回だけ生成。回転させない。DB 不要 = 起動前でよい)..."
 if [ ! -f "$SECRETS/owner.pub" ]; then
-  ssh_vm "$IP" "docker run --rm --entrypoint buzz-admin $BUZZ_IMAGE generate-key" > "$SECRETS/owner.raw"
+  ssh_vm "docker run --rm --entrypoint buzz-admin $BUZZ_IMAGE generate-key" > "$SECRETS/owner.raw"
   grep -oiE 'nsec1[0-9a-z]+' "$SECRETS/owner.raw" | head -1 > "$SECRETS/owner.nsec"
   grep -oiE '[0-9a-f]{64}'   "$SECRETS/owner.raw" | head -1 > "$SECRETS/owner.pub"
   rm -f "$SECRETS/owner.raw"; chmod 600 "$SECRETS/owner.nsec"
@@ -570,32 +634,33 @@ OWNER_PUB="$(cat "$SECRETS/owner.pub")"
 log "   owner pubkey=$OWNER_PUB (nsec kept local only, not logged)"
 
 log "9. .env 生成 (VM 上, 冪等)..."
-ssh_vm "$IP" "mkdir -p /opt/buzz/deploy/compose"
-scp -q "$HERE/bootstrap-env.sh" "root@${IP}:/opt/buzz/scripts-bootstrap-env.sh"
-ssh_vm "$IP" "cd /opt/buzz/deploy/compose && BUZZ_IMAGE=$BUZZ_IMAGE \
+put_file "$HERE/bootstrap-env.sh" /opt/buzz/scripts-bootstrap-env.sh
+ssh_vm "cd /opt/buzz/deploy/compose && BUZZ_IMAGE=$BUZZ_IMAGE \
   bash /opt/buzz/scripts-bootstrap-env.sh .env.example .env $IP sslip.io $OWNER_PUB"
 
 log "10. 起動 (TLS)..."
-ssh_vm "$IP" 'cd /opt/buzz/deploy/compose && BUZZ_COMPOSE_TLS=true ./run.sh start' | tee -a "$SECRETS/up.log"
+ssh_vm 'cd /opt/buzz/deploy/compose && BUZZ_COMPOSE_TLS=true ./run.sh start' | tee -a "$SECRETS/up.log"
 
 log "done. FQDN=$FQDN  次: ./verify.sh"
 ```
 
-- [ ] **Step 2: 実行して起動まで到達**
+> **冪等でない点（reviewer F11）:** 部分失敗時は `./down.sh` で全破棄してから再実行する（再過金）。`SERVER` が既存だと手順 3 で失敗する。
 
-Run: `cd buzz/scripts && ./up.sh 2>&1 | tee -a ../.secrets/up.log`
-Expected: 手順 1–10 が通り、最後に `done. FQDN=<ip>.sslip.io`。手順 10 の `run.sh start` が `compose up -d --wait` で healthy まで待って戻る。
+- [ ] **Step 3: 実行して起動まで到達**
 
-- [ ] **Step 3: 起動状態を目視確認**
+Run: `cd buzz/scripts && KEY_NAME=<登録済みキー名> ./up.sh 2>&1 | tee -a ../.secrets/up.log`
+Expected: 手順 1–10 が通り、`done. FQDN=<ip>.sslip.io`。手順 10 の `run.sh start` が `compose up -d --wait` で healthy まで待って戻る。
 
-Run: `ssh root@<IP> 'cd /opt/buzz/deploy/compose && docker compose ps'`
+- [ ] **Step 4: 起動状態を目視確認**
+
+Run: `conoha server ssh buzz-sample -- 'cd /opt/buzz/deploy/compose && docker compose ps'`
 Expected: relay / postgres / redis / minio / caddy が `running`（relay は healthy）。
 
-- [ ] **Step 4: コミット**
+- [ ] **Step 5: コミット**
 
 ```bash
 git add buzz/scripts/up.sh
-git commit -m "feat(buzz): up.sh — provision VM, pin fetch, bootstrap, start relay"
+git commit -m "feat(buzz): up.sh — reuse registered keypair, conoha-ssh, asserted SG rules"
 ```
 
 ---
@@ -624,43 +689,51 @@ load_ref
 SERVER="${SERVER:-buzz-sample}"
 SECRETS="$HERE/../.secrets"
 FQDN="$(cat "$SECRETS/fqdn")"; OWNER_PUB="$(cat "$SECRETS/owner.pub")"
-IP="$(conoha server show "$SERVER" --format json | pubip)"
 DC="cd /opt/buzz/deploy/compose && docker compose"
+CURL_K="${CURL_K:-}"   # tls internal フォールバック時は CURL_K=-k を渡す（自己署名経路の明示）
 pass=0
 
 echo "== 0. image↔source identity =="
-SRC="$(ssh_vm "$IP" 'cd /opt/buzz && git rev-parse --short=7 HEAD')"
+SRC="$(ssh_vm 'cd /opt/buzz && git rev-parse --short=7 HEAD')"
 TAG="${BUZZ_IMAGE##*:sha-}"
 [ "$SRC" = "$TAG" ] && echo "OK  src=$SRC == image=$TAG" || { echo "FAIL src=$SRC image=$TAG"; pass=1; }
 
-echo "== 1. relay liveness (VM) =="
-ssh_vm "$IP" "$DC exec -T relay sh -c 'curl -fsS http://127.0.0.1:8080/_liveness || curl -fsS http://127.0.0.1:3000/_liveness'" \
+echo "== 1. relay liveness (VM, 3000/8080 両方に存在) =="
+ssh_vm "$DC exec -T relay sh -c 'curl -fsS http://127.0.0.1:8080/_liveness || curl -fsS http://127.0.0.1:3000/_liveness'" \
   && echo "OK liveness" || { echo "FAIL liveness"; pass=1; }
 
-echo "== 2. external reachability (local) — NIP-11 JSON, NOT chat UI =="
-curl -fsSI "https://${FQDN}/" | grep -iE 'content-type: application/json' \
-  && echo "OK NIP-11 served" || { echo "FAIL / not JSON (tls internal ならこの行はスキップ理由を明記)"; pass=1; }
+echo "== 2. external reachability (local) — NIP-11 (nostr+json), NOT chat UI =="
+# router.rs:275 は Accept: application/nostr+json のとき NIP-11 を返す。content-type も nostr+json。
+CT="$(curl -fsS $CURL_K -H 'Accept: application/nostr+json' -o /dev/null -w '%{content_type}' "https://${FQDN}/")"
+echo "   content-type=$CT ($([ -n "$CURL_K" ] && echo 'self-signed path (tls internal)' || echo 'LE path'))"
+printf '%s' "$CT" | grep -qiE 'application/nostr\+json' \
+  && echo "OK NIP-11 served (nostr+json)" || { echo "FAIL / not nostr+json"; pass=1; }
 
-echo "== 3. WSS upgrade (local) =="
-curl -fsS -i -N --http1.1 -H "Connection: Upgrade" -H "Upgrade: websocket" \
+echo "== 3. WSS + NIP-42 (local) =="
+# curl の 101 は「認証前」の upgrade にすぎない（spec §7: 全拒否リレーでも 101）。
+# NIP-42 の実証はエージェント応答（Task 8 項目 7）が担う。ここは 101 の有無のみ参考出力。
+curl -fsS $CURL_K -i -N --http1.1 -H "Connection: Upgrade" -H "Upgrade: websocket" \
   -H "Sec-WebSocket-Version: 13" -H "Sec-WebSocket-Key: $(openssl rand -base64 16)" \
-  "https://${FQDN}/" 2>&1 | grep -iE '101 Switching Protocols' \
-  && echo "OK 101 (注: NIP-42 認証は別途 §7 項目 3 で確認)" || { echo "WARN no 101 via curl"; }
+  "https://${FQDN}/" 2>&1 | grep -qiE '101 Switching Protocols' \
+  && echo "OK 101 upgrade (NIP-42 の実証は Task 8 項目 7)" || echo "WARN no 101 via curl (NIP-42 は Task 8 で判定)"
 
-echo "== 4. owner registered (VM) =="
-ssh_vm "$IP" "$DC exec -T relay buzz-admin list-members" | grep -qi "$OWNER_PUB" \
+echo "== 4. owner registered (VM, bootstrap_owner による自動登録) =="
+# 起動時 bootstrap_owner が RELAY_OWNER_PUBKEY をメンバー登録する（relay-main.rs:294）。add-member 不要。
+ssh_vm "$DC exec -T relay buzz-admin list-members" | grep -qi "$OWNER_PUB" \
   && echo "OK owner in members ($OWNER_PUB)" || { echo "FAIL owner not in members"; pass=1; }
 
 echo "== relay checks: $([ $pass = 0 ] && echo ALL PASS || echo HAS FAILURES) =="
 exit "$pass"
 ```
 
-> **注（spec §7 の警告を反映）:** 項目 2 は `tls internal` フォールバック時に証明書検証で落ちる。その場合は `curl -k` に切替え、「自己署名経路だった」ことをログに明記する（検証コマンドが変わる点を隠さない）。
+> **注（spec §7 / reviewer F5・F8）:**
+> - 項目 2 の content-type は `application/nostr+json`（`router.rs:275`）。`application/json` では**マッチしない**。`tls internal` フォールバック時は `CURL_K=-k` を渡し、「自己署名経路だった」ことを出力に残す。
+> - 項目 3 の curl-101 は認証前の upgrade にすぎず、NIP-42 の成否は示さない。**NIP-42 の実証は Task 8 項目 7（エージェント応答）に一本化**する（それが実際に署名付きイベントの往復を通すため）。
 
 - [ ] **Step 2: 実測（原文キャプチャ）**
 
 Run: `cd buzz/scripts && ./verify.sh 2>&1 | tee -a ../.secrets/verify-relay.log`
-Expected: 項目 0/1/2/4 が OK。3 は 101 が出れば OK（curl での WS 確認は環境依存のため WARN 許容、§7 項目 3 の NIP-42 は Task 8 で確認）。
+Expected: 項目 0/1/2/4 が OK。3 は 101 が出れば参考 OK（NIP-42 は Task 8 で判定）。項目 2 が FAIL なら content-type を原文確認（`curl -v`）し、`nostr+json` 以外の実値なら grep を実値に合わせる（spec §8.2 の [仮定] 消し込み）。
 
 - [ ] **Step 3: コミット**
 
@@ -684,6 +757,10 @@ git commit -m "feat(buzz): verify.sh relay checks (image==source, liveness, NIP-
 
 `buzz/scripts/agent-up.sh`（spec §5.1 の 7 手順を反映）:
 
+> **秘密の扱い（reviewer/Global Constraint）:** nsec を `ssh_vm "... BUZZ_PRIVATE_KEY=$NSEC buzz ..."` のようにコマンド行へ置くと、VM の `ps` と**ローカルの tee ログの両方に平文で残る**。本タスクは nsec を **stdin パイプで VM の root-only env ファイルに書き**、`buzz` 呼び出しは `set -a; . <envfile>; set +a` で読む。コマンド行にもログにも nsec を出さない。
+>
+> **⚠️ spec §4.0 との緊張（人間の判断が要る点）:** 完了条件 7 は「**オーナー identity で @mention** → エージェント応答」を要する（allowlist=オーナー pubkey のため送信者はオーナーでなければならない）。オーナー nsec は §4.0 で「サーバに置かない」と定めたが、`buzz` はVM 上でビルドされるためオーナー送信を VM 上で行うにはオーナー nsec が一時的に VM に要る。**本プランは「使い捨て VM に root-only・ログ非出力で一時配置し、`down.sh` で VM ごと破棄」する経路を既定とする**が、これは §4.0 の文言からの意図的な逸脱である。厳密に §4.0 を守るなら「`buzz` をローカルにもビルドしオーナー送信をローカルから wss で行う」ことになる（ローカル Rust ツールチェーンが要る）。**どちらを採るかは実装着手前に人間へ確認する**（silent に緩めない）。以下は既定（VM 一時配置）経路で書く。
+
 ```bash
 #!/usr/bin/env bash
 # VM 上で buzz-acp/buzz をビルドし、エージェントを systemd 常駐させる。
@@ -694,85 +771,89 @@ HERE="$(cd "$(dirname "$0")" && pwd)"
 load_ref
 SERVER="${SERVER:-buzz-sample}"
 SECRETS="$HERE/../.secrets"
-IP="$(conoha server show "$SERVER" --format json | pubip)"
 FQDN="$(cat "$SECRETS/fqdn")"; OWNER_PUB="$(cat "$SECRETS/owner.pub")"
 DC="cd /opt/buzz/deploy/compose && docker compose"
 
-log "1. ビルド依存 + ツールチェーン..."
-ssh_vm "$IP" 'apt-get update -qq && DEBIAN_FRONTEND=noninteractive apt-get install -y -qq \
+log "1. ビルド依存 + ツールチェーン (spec §5.1: build-essential/pkg-config/libssl-dev/cmake)..."
+ssh_vm 'apt-get update -qq && DEBIAN_FRONTEND=noninteractive apt-get install -y -qq \
   build-essential pkg-config libssl-dev cmake ca-certificates git nodejs npm >/dev/null'
-ssh_vm "$IP" 'command -v cargo >/dev/null || (curl -fsSL https://sh.rustup.rs | sh -s -- -y >/dev/null)'
-ssh_vm "$IP" 'df -h / && free -h' | tee -a "$SECRETS/agent.log"
+ssh_vm 'command -v cargo >/dev/null || (curl -fsSL https://sh.rustup.rs | sh -s -- -y >/dev/null)'
+ssh_vm 'df -h / && free -h' | tee -a "$SECRETS/agent.log"
 
 log "2. buzz-acp / buzz をビルド (数十分。rust-toolchain.toml が 1.95.0 を固定)..."
-ssh_vm "$IP" 'cd /opt/buzz && . "$HOME/.cargo/env" && cargo build --release --locked -p buzz-acp -p buzz-cli' \
+ssh_vm 'cd /opt/buzz && . "$HOME/.cargo/env" && cargo build --release --locked -p buzz-acp -p buzz-cli' \
   | tee -a "$SECRETS/agent.log"
-ssh_vm "$IP" 'install -m755 /opt/buzz/target/release/buzz-acp /opt/buzz/target/release/buzz /usr/local/bin/'
-ssh_vm "$IP" 'command -v buzz && buzz --help | head -1'   # 成果物名は buzz（buzz-cli ではない）
+ssh_vm 'install -m755 /opt/buzz/target/release/buzz-acp /opt/buzz/target/release/buzz /usr/local/bin/'
+ssh_vm 'command -v buzz && buzz --help | head -1'   # 成果物名は buzz（buzz-cli ではない）
 
-log "3. ACP アダプタ..."
-ssh_vm "$IP" 'npm install -g @agentclientprotocol/claude-agent-acp >/dev/null 2>&1'
+log "3. ACP アダプタ + claude CLI (O-1 OAuth に必要。reviewer F6)..."
+ssh_vm 'npm install -g @agentclientprotocol/claude-agent-acp @anthropic-ai/claude-code >/dev/null 2>&1'
+ssh_vm 'command -v claude && command -v claude-agent-acp' | tee -a "$SECRETS/agent.log"
 
-log "4. エージェント鍵 (スタック起動後なので exec 経由)..."
-ssh_vm "$IP" "$DC exec -T relay buzz-admin generate-key" > "$SECRETS/agent.raw"
+log "4. エージェント鍵 (スタック起動後なので exec 経由。generate-key は DB 不要だが exec で統一)..."
+ssh_vm "$DC exec -T relay buzz-admin generate-key" > "$SECRETS/agent.raw"
 grep -oiE 'nsec1[0-9a-z]+' "$SECRETS/agent.raw" | head -1 > "$SECRETS/agent.nsec"
 grep -oiE '[0-9a-f]{64}'   "$SECRETS/agent.raw" | head -1 > "$SECRETS/agent.pub"
 rm -f "$SECRETS/agent.raw"; chmod 600 "$SECRETS/agent.nsec"
-AGENT_PUB="$(cat "$SECRETS/agent.pub")"; AGENT_NSEC="$(cat "$SECRETS/agent.nsec")"
-ssh_vm "$IP" "$DC exec -T relay buzz-admin add-member --pubkey $AGENT_PUB --role member"
-log "   agent pubkey=$AGENT_PUB (nsec local only)"
+AGENT_PUB="$(cat "$SECRETS/agent.pub")"
+[ -n "$AGENT_PUB" ] || die "agent pubkey empty"
+ssh_vm "$DC exec -T relay buzz-admin add-member --pubkey $AGENT_PUB --role member"
+log "   agent pubkey=$AGENT_PUB (nsec local only, not logged)"
 
-log "5. Claude 認証 (O-1 サブスクリプション OAuth を先に試す)..."
-cat <<EOF
+log "5. nsec を VM root-only env へ stdin で配置（コマンド行にもログにも出さない）..."
+# エージェント nsec（systemd と CLI 用）
+printf 'BUZZ_PRIVATE_KEY=%s\nBUZZ_RELAY_URL=wss://%s\n' "$(cat "$SECRETS/agent.nsec")" "$FQDN" \
+  | ssh_vm 'umask 077; cat > /root/.buzz-agent.env'
+# オーナー nsec（テスト送信用。§4.0 逸脱 — VM 破棄で消える。上の緊張ノート参照）
+printf 'BUZZ_PRIVATE_KEY=%s\nBUZZ_RELAY_URL=wss://%s\n' "$(cat "$SECRETS/owner.nsec")" "$FQDN" \
+  | ssh_vm 'umask 077; cat > /root/.buzz-owner.env'
+
+log "6. Claude 認証 (O-1 サブスクリプション OAuth を先に。§5.2)..."
+cat <<'EOF'
 ────────────────────────────────────────────────────────────
-[手動ステップ / spec §5.2] VM に SSH して claude ログインを試みてください:
-    ssh -t root@$IP 'claude login'   # 表示 URL をローカルブラウザで開きコードを貼る
+[手動ステップ / spec §5.2 O-1] 別端末で VM に入り claude ログインを試す:
+    conoha server ssh buzz-sample          # PTY 付きシェル（key 自動検出）
+    # シェル内で:  claude login            # 表示 URL をローカルブラウザで開きコード貼付
 成功したら空 Enter。失敗するなら ANTHROPIC_API_KEY を入力（O-3 フォールバック）。
-どちらで通したかは README と PR に必ず記録すること。
+どちらで通したかを README と PR に必ず記録すること（silent に O-3 へ落ちない）。
 ────────────────────────────────────────────────────────────
 EOF
 read -r -p "ANTHROPIC_API_KEY (OAuth 成功なら空 Enter): " APIKEY
 
-log "6. systemd 登録 (RESPOND_TO=allowlist は必須。既定 owner-only は無言破棄)..."
-ssh_vm "$IP" "cat > /etc/systemd/system/buzz-acp.service" <<UNIT
-[Unit]
-Description=Buzz ACP harness (Claude agent)
-After=network-online.target
-[Service]
-Environment=BUZZ_PRIVATE_KEY=${AGENT_NSEC}
-Environment=BUZZ_RELAY_URL=wss://${FQDN}
-Environment=BUZZ_ACP_AGENT_COMMAND=claude-agent-acp
-Environment=BUZZ_ACP_SUBSCRIBE=mentions
-Environment=BUZZ_ACP_RESPOND_TO=allowlist
-Environment=BUZZ_ACP_RESPOND_TO_ALLOWLIST=${OWNER_PUB}
-$( [ -n "$APIKEY" ] && echo "Environment=ANTHROPIC_API_KEY=${APIKEY}" )
-ExecStart=/usr/local/bin/buzz-acp
-Restart=on-failure
-RestartSec=5
-[Install]
-WantedBy=multi-user.target
-UNIT
-ssh_vm "$IP" 'systemctl daemon-reload && systemctl enable --now buzz-acp'
+log "7. systemd 登録 (RESPOND_TO=allowlist 必須。既定 owner-only は無言破棄。HOME=/root で OAuth 資格を参照)..."
+{
+  printf '[Unit]\nDescription=Buzz ACP harness (Claude agent)\nAfter=network-online.target\n\n'
+  printf '[Service]\n'
+  printf 'EnvironmentFile=/root/.buzz-agent.env\n'          # BUZZ_PRIVATE_KEY / BUZZ_RELAY_URL
+  printf 'Environment=HOME=/root\n'                          # claude OAuth 資格の探索先（reviewer F6）
+  printf 'Environment=BUZZ_ACP_AGENT_COMMAND=claude-agent-acp\n'
+  printf 'Environment=BUZZ_ACP_SUBSCRIBE=mentions\n'
+  printf 'Environment=BUZZ_ACP_RESPOND_TO=allowlist\n'
+  printf 'Environment=BUZZ_ACP_RESPOND_TO_ALLOWLIST=%s\n' "$OWNER_PUB"
+  [ -n "$APIKEY" ] && printf 'Environment=ANTHROPIC_API_KEY=%s\n' "$APIKEY"
+  printf 'ExecStart=/usr/local/bin/buzz-acp\nRestart=on-failure\nRestartSec=5\n\n'
+  printf '[Install]\nWantedBy=multi-user.target\n'
+} | ssh_vm 'umask 077; cat > /etc/systemd/system/buzz-acp.service'
+ssh_vm 'systemctl daemon-reload && systemctl enable --now buzz-acp'
 sleep 5
-ssh_vm "$IP" 'systemctl is-active buzz-acp && journalctl -u buzz-acp --no-pager -n 20' | tee -a "$SECRETS/agent.log"
+ssh_vm 'systemctl is-active buzz-acp && journalctl -u buzz-acp --no-pager -n 20' | tee -a "$SECRETS/agent.log"
 
-log "7. オープンチャンネル作成 (エージェント鍵) → オーナー join..."
-CH="$(ssh_vm "$IP" "BUZZ_PRIVATE_KEY=$AGENT_NSEC BUZZ_RELAY_URL=wss://${FQDN} \
-  buzz channels create --name demo --type stream --visibility open --format json" \
+log "8. オープンチャンネル作成 (エージェント鍵) → オーナー join..."
+CH="$(ssh_vm 'set -a; . /root/.buzz-agent.env; set +a; buzz channels create --name demo --type stream --visibility open --format json' \
   | python3 -c 'import sys,json;print(json.load(sys.stdin).get("id",""))')"
 [ -n "$CH" ] || die "channel create failed"
 printf '%s' "$CH" > "$SECRETS/channel"
-OWNER_NSEC="$(cat "$SECRETS/owner.nsec")"
-ssh_vm "$IP" "BUZZ_PRIVATE_KEY=$OWNER_NSEC BUZZ_RELAY_URL=wss://${FQDN} buzz channels join $CH"
+ssh_vm "set -a; . /root/.buzz-owner.env; set +a; buzz channels join $CH"
 log "done. channel=$CH  次: ./verify.sh --agent"
 ```
 
-> **注:** `buzz channels create` の正確なフラグ/JSON 出力キー（`id`）は実機の `buzz channels create --help` で確認してから確定する（spec §8.2, 上流ドキュメント陳腐化の前例あり）。`--visibility open` は必須（private だとオーナー self-join が known gap に阻まれる）。
+> **注（reviewer F6・spec §8.2）:** `claude-agent-acp` が OAuth を自前で扱うか `claude` CLI 資格を読むかは未確認 [仮定]。本プランは (a) `claude` CLI を入れ、(b) `HOME=/root` を渡し、(c) O-1 が動くかを**実測**する。動かなければ O-3（APIKEY）。この測定結果自体が spec の求める成果。
+> **注:** `buzz channels create` / `channels join` の正確なフラグ・JSON キー（`id`）・`--visibility open` の要否は実機の `buzz channels create --help` で確認して確定（spec §8.2, 上流ドキュメント陳腐化の前例）。
 
 - [ ] **Step 2: 実行してエージェント常駐まで到達**
 
 Run: `cd buzz/scripts && ./agent-up.sh 2>&1 | tee -a ../.secrets/agent.log`
-Expected: ビルド完走、`systemctl is-active buzz-acp` = `active`、ログに relay 接続成功、`channel=<uuid>`。
+Expected: ビルド完走、`claude` と `claude-agent-acp` が PATH に、`systemctl is-active buzz-acp` = `active`、ログに relay 接続成功、`channel=<uuid>`。ログに nsec が含まれないこと（`grep -c nsec1 ../.secrets/agent.log` = 0）。
 
 - [ ] **Step 3: コミット**
 
@@ -792,59 +873,87 @@ git commit -m "feat(buzz): agent-up.sh — build, agent key, systemd (allowlist 
 - Consumes: `.secrets/{owner.nsec,agent.pub,channel,fqdn}`
 - Produces: 完了条件 5/6/7/7-N の合否
 
+**F1 の要点（reviewer）:** rev1 の検出は「オーナー自身が送った本文の `$TOK`」に必ずマッチし、エージェントが死んでいても PASS した。かつ 7 と 7-N で**別の grep**を使い、その非判別性を隠していた。修正:
+1. 検出は「**作成者 pubkey == AGENT_PUB** かつ本文にトークン」を JSON でフィルタ（オーナー自身の投稿は除外）。
+2. **7 と 7-N は完全に同一の検出関数**を使い、**ゲートだけを反転**（allowlist ↔ nobody）。7-N でエージェントを `nobody` に一時ミュートして「応答が来ないこと」を確認 → 検出関数が本物の応答だけを見ることを保証。
+3. オーナー送信は `/root/.buzz-owner.env`（Task 7 で配置）を source し、nsec をコマンド行/ログに出さない。
+
 - [ ] **Step 1: `--agent` 分を追記**
 
-`verify.sh` の `exit "$pass"` の直前に、`if [ "${1:-}" = "--agent" ]; then ... fi` ブロックを追加:
+`verify.sh` の `exit "$pass"` の直前に追加:
 
 ```bash
 if [ "${1:-}" = "--agent" ]; then
   AGENT_PUB="$(cat "$SECRETS/agent.pub")"; CH="$(cat "$SECRETS/channel")"
-  OWNER_NSEC="$(cat "$SECRETS/owner.nsec")"
-  RENV="BUZZ_PRIVATE_KEY=$OWNER_NSEC BUZZ_RELAY_URL=wss://${FQDN}"
 
   echo "== 5. agent registered (VM) =="
-  ssh_vm "$IP" "$DC exec -T relay buzz-admin list-members" | grep -qi "$AGENT_PUB" \
+  ssh_vm "$DC exec -T relay buzz-admin list-members" | grep -qi "$AGENT_PUB" \
     && echo "OK agent in members" || { echo "FAIL agent not in members"; pass=1; }
 
-  echo "== 6. harness active + gate=allowlist (VM) =="
-  ssh_vm "$IP" 'systemctl is-active buzz-acp' | grep -q active \
-    && ssh_vm "$IP" 'systemctl show buzz-acp -p Environment' | grep -q 'BUZZ_ACP_RESPOND_TO=allowlist' \
+  echo "== 6. harness active + gate + drop counter (VM) =="
+  ssh_vm 'systemctl is-active buzz-acp' | grep -q active \
+    && ssh_vm 'systemctl show buzz-acp -p Environment' | grep -q 'BUZZ_ACP_RESPOND_TO=allowlist' \
     && echo "OK active + allowlist" || { echo "FAIL harness/gate"; pass=1; }
+  echo "-- drop counter (spec §7 項目6) --"
+  ssh_vm 'journalctl -u buzz-acp --no-pager | grep -ic drop || true'   # 破棄カウンタを原文で残す
 
-  # 7-N 偽陰性対照: mention 無し本文は「応答なし」であるべき（検証が失敗を検出できるか先に確認）
-  echo "== 7-N. negative control (must NOT get token back) =="
-  TOKN="NEG$(openssl rand -hex 3)"
-  ssh_vm "$IP" "$RENV buzz messages send --channel $CH --content 'no mention here $TOKN'"
-  sleep 30
-  if ssh_vm "$IP" "$RENV buzz messages thread --channel $CH --format json" | grep -q "$TOKN.*reply\|reply.*$TOKN"; then
-    echo "FAIL negative control got a reply — verification is not discriminating"; pass=1
+  # 送信＝オーナー（/root/.buzz-owner.env, nsec 非ログ）、検出＝作成者 AGENT_PUB かつトークン包含。
+  # send_and_detect <token> → 応答があれば 0、無ければ 1（最大 120s ポーリング）。7 と 7-N で共通。
+  send_and_detect() {
+    local tok="$1"
+    ssh_vm "set -a; . /root/.buzz-owner.env; set +a; buzz messages send --channel $CH --content '@agent reply with token $tok'" >/dev/null
+    local i
+    for i in $(seq 1 12); do
+      if ssh_vm "set -a; . /root/.buzz-owner.env; set +a; buzz messages thread --channel $CH --format json" \
+         | python3 -c 'import sys,json
+tok=sys.argv[1]; ap=sys.argv[2].lower()
+d=json.load(sys.stdin)
+msgs=d if isinstance(d,list) else d.get("messages",d.get("thread",[]))
+def au(m): return (m.get("author") or m.get("pubkey") or m.get("author_pubkey") or "").lower()
+def ct(m): return m.get("content") or m.get("text") or ""
+sys.exit(0 if any(au(m)==ap and tok in ct(m) for m in msgs) else 1)' "$tok" "$AGENT_PUB"; then
+        return 0
+      fi
+      sleep 10
+    done
+    return 1
+  }
+
+  # 7-N 偽陰性対照: ゲートを nobody に一時反転 → 同一検出で「応答が来ないこと」を確認。
+  echo "== 7-N. negative control: gate=nobody must yield NO agent reply =="
+  ssh_vm "systemctl set-environment X=1; sed -i 's/RESPOND_TO=allowlist/RESPOND_TO=nobody/' /etc/systemd/system/buzz-acp.service; systemctl daemon-reload; systemctl restart buzz-acp"; sleep 5
+  if send_and_detect "NEG$(openssl rand -hex 3)"; then
+    echo "FAIL negative control got an agent reply — detector is not discriminating"; pass=1
   else
-    echo "OK no reply to non-mention (control passes)"
+    echo "OK no agent reply when muted (detector discriminates)"
   fi
+  # ゲートを allowlist に戻す
+  ssh_vm "sed -i 's/RESPOND_TO=nobody/RESPOND_TO=allowlist/' /etc/systemd/system/buzz-acp.service; systemctl daemon-reload; systemctl restart buzz-acp"; sleep 5
 
-  # 7 本検証: @mention + token → N 秒内に token を含む応答
-  echo "== 7. agent replies to @mention (CORE) =="
-  TOK="DEAD$(openssl rand -hex 3)"
-  ssh_vm "$IP" "$RENV buzz messages send --channel $CH --content '@agent reply with token $TOK'"
-  ok=1
-  for i in $(seq 1 12); do
-    if ssh_vm "$IP" "$RENV buzz messages thread --channel $CH --format json" | grep -q "$TOK"; then ok=0; break; fi
-    sleep 10
-  done
-  [ "$ok" = 0 ] && echo "OK agent echoed token $TOK" || { echo "FAIL no reply containing $TOK in 120s"; pass=1; }
+  # 7 本検証: 同一検出でエージェント作成の応答を要求。これが NIP-42 往復も実証する（reviewer F5）。
+  echo "== 7. agent replies to @mention (CORE; also proves NIP-42) =="
+  if send_and_detect "DEAD$(openssl rand -hex 3)"; then
+    echo "OK agent authored a reply containing the token"
+  else
+    echo "FAIL no agent-authored reply in 120s"; pass=1
+  fi
 fi
 ```
 
-> **注:** `buzz messages send` / `buzz messages thread` の正確なフラグ・JSON 形状・応答の格納場所は実機の `buzz messages --help` で確認して確定する。`@agent` のメンション記法（pubkey か表示名か）も実機で確認（spec §8.2）。トークン照合が「応答本文」を確実に見るよう grep 対象を調整する。
+> **注（reviewer F1・F5・spec §8.2）:**
+> - 検出は**作成者 pubkey が AGENT_PUB** の投稿に限る。オーナー自身の @mention 投稿は除外されるため、rev1 の自己エコー誤判定は起きない。
+> - 7-N は 7 と**同一の `send_and_detect`** を使い、ゲートを `nobody` にして「応答なし」を確認する真の陰性対照。7-N が「応答あり」になるなら検出器が壊れている（本リポジトリ CLAUDE.md 準拠）。
+> - `buzz messages thread` の JSON 実形状（作成者キー名・メッセージ配列の場所）は実機の `buzz messages thread --help` と 1 回の実出力で確認し、`au()`/`ct()`/`msgs` のキー候補を実値に合わせる（spec §8.2 の [仮定] 消し込み。候補を複数持たせてあるが、実キーが違えば追加する）。
+> - `@agent` のメンション記法（pubkey か表示名か）も実機で確認。エージェントが反応しない場合、まず記法を疑う（gate は 7-N で切り分け済み）。
 
-- [ ] **Step 2: 偽陰性対照 → 本検証の順で実測**
+- [ ] **Step 2: 陰性対照 → 本検証の順で実測**
 
 Run: `cd buzz/scripts && ./verify.sh --agent 2>&1 | tee -a ../.secrets/verify-agent.log`
-Expected: `7-N` が **OK（応答なし）** → `7` が **OK（token エコー）**。7-N が「応答あり」で FAIL するなら検証が判別できていないので、メンション記法・grep 対象を直して再実行（本リポジトリ CLAUDE.md: 検証命令を陰性対照で先に検証する）。
+Expected: `7-N` が **OK（ミュート時に応答なし）** → `7` が **OK（エージェント作成の応答）**。7-N が FAIL するなら検出器がオーナー投稿等に誤マッチしている → キー名・メンション記法を実値に直して再実行。`grep -c nsec1 ../.secrets/verify-agent.log` = 0 を確認。
 
 - [ ] **Step 3: 資源実測を残す（完了条件 8）**
 
-Run: `ssh root@<IP> 'df -h / && free -h && cd /opt/buzz/deploy/compose && docker compose stats --no-stream' 2>&1 | tee -a ../.secrets/verify-agent.log`
+Run: `conoha server ssh buzz-sample -- 'df -h / && free -h && cd /opt/buzz/deploy/compose && docker compose stats --no-stream' 2>&1 | tee -a ../.secrets/verify-agent.log`
 Expected: 8GB での実使用量とビルド後ディスクが記録される。
 
 - [ ] **Step 4: コミット**
@@ -858,24 +967,47 @@ git commit -m "feat(buzz): verify.sh --agent with mandatory negative control (co
 
 ## Task 9: 後始末の実測（完了条件 9）— Phase B
 
-- [ ] **Step 1: 破棄して残存 0 を確認**
+- [ ] **Step 1: 破棄前にボリューム ID を記録（reviewer F10 — 名前依存を避ける）**
+
+削除前に、サーバに紐づくブートボリューム ID を控える（削除後にその ID の不在で判定するため。名前 grep は自動命名のボリュームを取りこぼす）。
+
+Run:
+```bash
+conoha volume list --help 2>&1 | grep -iE 'format|json'   # コマンド/フラグ実在を確認
+VOLID="$(conoha server show buzz-sample --format json | python3 -c 'import sys,json
+d=json.load(sys.stdin)
+vs=d.get("volumes_attached") or d.get("os-extended-volumes:volumes_attached") or []
+print(" ".join(v.get("id","") for v in vs))' 2>/dev/null)"
+echo "boot volume id(s)=$VOLID" | tee -a buzz/.secrets/down.log
+```
+Expected: 1 個以上のボリューム ID（空なら `server show` の実キー名を確認して合わせる）。
+
+- [ ] **Step 2: 破棄して残存 0 を確認**
 
 Run: `cd buzz/scripts && ./down.sh 2>&1 | tee -a ../.secrets/down.log`
 Expected: server 削除（`--delete-boot-volume`）、SG/keypair 削除、`remaining buzz-sample* servers: (none)`。
 
-- [ ] **Step 2: ボリューム残存も確認（負の対照）**
+- [ ] **Step 3: 記録した ID の不在で判定（負の対照）**
 
-Run: `conoha volume list 2>&1 | grep -i buzz-sample || echo "no buzz-sample volumes"`
-Expected: `no buzz-sample volumes`（ブートボリュームが残っていない）。実フラグ/コマンド名は `conoha volume list --help` で確認。
+Run:
+```bash
+for v in $VOLID; do
+  conoha volume list --format json | python3 -c 'import sys,json;print("\n".join(x.get("id","") for x in json.load(sys.stdin)))' \
+    | grep -qx "$v" && { echo "FAIL volume $v still exists"; false; } || echo "OK volume $v gone"
+done
+```
+Expected: 記録した各 ID が `OK ... gone`。1 個でも残れば `--delete-boot-volume` が効いていない → loud に失敗。
 
-- [ ] **Step 3: 証拠ログをまとめてコミット（秘密除外を確認）**
+- [ ] **Step 4: 証拠ログをまとめてコミット（秘密除外を確認）**
 
 ```bash
 # .secrets/ は .gitignore 済み。証拠は docs へ手動転記（秘密鍵を含めない）。
 grep -rIl 'nsec1' buzz/.secrets/ 2>/dev/null && echo "WARNING: nsec present, do NOT commit these files"
+# 追跡対象に nsec が紛れていないことを最終ガード
+git diff --cached --name-only | xargs -r grep -l 'nsec1' 2>/dev/null && { echo "ABORT: nsec in staged files"; false; } || true
 git add -A && git commit -m "chore(buzz): phase B live-run complete (teardown verified, 0 residual)" --allow-empty
 ```
-Expected: `nsec` を含むファイルは `.secrets/` 内のみ（git 追跡外）。コミットに秘密が入らない。
+Expected: `nsec` を含むファイルは `.secrets/` 内のみ（git 追跡外）。ステージにも秘密が入らない。
 
 ---
 
@@ -931,7 +1063,18 @@ bash scripts/selftest.sh          # ① ローカル検証（課金なし）
 ## トラブルシュート
 
 - **`/` が JSON を返す**: 正常です。チャットは `buzz` CLI かデスクトップアプリで。
-- **Let's Encrypt 429（`docker compose logs caddy`）**: `sslip.io` は共有ドメインで LE 週次上限に当たることがあります。`down -v` → `bootstrap-env.sh <ip> nip.io <owner.pub>` で**ドメインだけ**差し替えて再起動（秘密は保存されます）。それでも駄目なら `Caddyfile` を `tls internal` に。
+- **Let's Encrypt 429（`docker compose logs caddy`）**: `sslip.io` は共有ドメインで LE 週次上限に当たることがあります。VM 上で原子的に再ブートストラップしてドメインだけ差し替えます（秘密・鍵は保存されます。spec §6）:
+
+  ```bash
+  IP=$(cat buzz/.secrets/fqdn | sed 's/.sslip.io//;s/-/./g')   # or conoha server show ... | pubip
+  OWNER_PUB=$(cat buzz/.secrets/owner.pub)
+  conoha server ssh buzz-sample -- "cd /opt/buzz/deploy/compose && docker compose down -v && \
+    BUZZ_IMAGE=$(sed -n 's/^BUZZ_IMAGE=//p' buzz/.buzz-ref) \
+    bash /opt/buzz/scripts-bootstrap-env.sh .env.example .env $IP nip.io $OWNER_PUB && \
+    BUZZ_COMPOSE_TLS=true ./run.sh start"
+  ```
+
+  `restart` ではなく `start`（`restart` は relay だけ再生成）。それでも駄目なら `Caddyfile` を `tls internal` に（verify は `CURL_K=-k` で自己署名経路を明示）。
 - **エージェントが無反応**: `journalctl -u buzz-acp`。`BUZZ_ACP_RESPOND_TO=allowlist` と allowlist にオーナー pubkey が入っているか確認。
 - **ビルドが OOM**: 8GB でも落ちるならリレーを一時停止してからビルド。
 - **Claude 認証**: サブスクリプション OAuth は上流未文書（動くかは実測）。動かなければ `ANTHROPIC_API_KEY`。
@@ -983,19 +1126,39 @@ git commit -m "docs: list buzz sample in top-level README"
 
 ---
 
+## plan-reviewer 指摘の反映（1 巡目）
+
+| # | 判定 | 反映 |
+|---|---|---|
+| **F1** 中核完了条件の偽 PASS | 修正 | Task 8: 検出を**作成者==AGENT_PUB**でフィルタ、7 と 7-N で**同一 `send_and_detect`**、7-N はゲートを `nobody` に反転する真の陰性対照 |
+| **F2** up.sh の keypair/SG/SSH | 修正 | 登録済み `KEY_NAME:?` 再利用（作成しない）、全リモートを `conoha server ssh`（`ssh_vm`/`put_file`）、SG ルールを生成後にアサート、フラグを Phase A で `--help` ゲート |
+| **F3** bootstrap 引数不一致 | 修正 | README 429 復旧を実 5 引数（`down -v`＋`start` 込み）に統一 |
+| **F4** 静的検査ゲート欠如 | 修正 | selftest が全 `.sh` に `bash -n`＋`shellcheck`（Task 2 Step 6） |
+| **F5** NIP-42 未検証 | 修正 | curl-101 は参考に降格、NIP-42 実証を Task 8 項目 7（エージェント作成の応答）へ一本化 |
+| **F6** claude CLI 欠如 | 修正 | Task 7 で `@anthropic-ai/claude-code` も導入、systemd に `HOME=/root` |
+| **F7** CHANGE_ME 掃討漏れ | 修正 | bootstrap-env.sh に残存 CHANGE_ME の動的掃討＋最終ガード |
+| **F8** content-type 誤り | 修正 | `application/nostr+json` ＋ `Accept` ヘッダ、`tls internal` 用 `CURL_K=-k` |
+| **F9** オーナー自動登録/破棄カウンタ | 修正 | 自動登録を `relay-main.rs:294` で**検証済み**と明記、Task 8 項目 6 に drop カウンタ捕捉 |
+| **F10** ボリューム名依存 | 修正 | Task 9: 破棄前に**ボリューム ID を記録**し ID 不在で判定 |
+| **F11** 雑多 | 修正 | compose 版数を**アサート**、`--wait` 不在時のポーリング代替を明記、非冪等/エージェント鍵再生成の注記 |
+| 秘密のログ漏れ（Global Constraint） | 修正 | nsec を **stdin で VM root-only env に配置**、`buzz` は env source 経由。コマンド行/tee ログに出さない |
+
+**人間の判断が要る残点（silent に決めない）:** Task 7 の「オーナー nsec を使い捨て VM に一時配置」は spec §4.0「サーバに置かない」からの意図的逸脱。厳密順守はローカル `buzz` ビルド。**着手前に人間へ確認**（Task 7 のノートに明記）。
+
 ## Self-Review
 
 **1. Spec coverage（スペック各節 → タスク対応）:**
-- §0.1 Web UI 誤り訂正 → Task 6 項目 2（JSON 期待）, Task 10 冒頭の注意書き
+- §0.1 Web UI 誤り訂正 → Task 6 項目 2（nostr+json 期待）, Task 10 冒頭注意
 - §3.1 ピン + 機械照合 → Task 1, Task 6 項目 0
 - §4.0 オーナー鍵 provenance → Task 5 手順 8, §4.1 冪等 .env → Task 3
-- §5.0 リレー構築 → Task 5 / §5.1 エージェント → Task 7 / §5.2 OAuth O-1→O-3 → Task 7 手順 5
+- §5.0 リレー構築 → Task 5 / §5.1 エージェント → Task 7 / §5.2 OAuth O-1→O-3 → Task 7 手順 6
 - §6 失敗処理（LE 429 原子的再ブートストラップ, restart→start, RESPOND_TO） → Task 3（冪等）, Task 7（gate）, Task 10（トラブルシュート）
-- §7 完了条件 0–9 → Task 6（0/1/2/4）, Task 8（5/6/7/7-N/8）, Task 9（9）
-- §8.2 実機仮定 → Phase B 各タスクの「注」で実機確認を明示
+- §7 完了条件 0–9 → Task 6（0/1/2/3-参考/4）, Task 8（5/6/7/7-N + 資源8）, Task 9（9）
+- §8.2 実機仮定 → Phase B 各タスクの「注」で実機確認を明示（content-type, messages/channels JSON キー, claude-agent-acp 認証, `--wait`, volume キー）
+- Global Constraints（秘密不変・nsec 非ログ・allowlist・buzz バイナリ名・conoha.yml なし・証拠規約・陰性対照）→ 各タスクに反映
 - 非目標（ブラウザチャット, 複数エージェント, デスクトップ導入）→ どのタスクも作らない（範囲通り）
-- **ギャップ:** 無し。
+- **ギャップ:** 実行前に閉じられない [仮定] は §8.2 と各「注」に集約済み。これらは実 VM の最初のステップで実値に消し込む前提であり、外れた場合は該当タスクを再検討する（reviewer の「限界」節と同旨）。
 
-**2. Placeholder scan:** 各コードステップは実コードで埋めた。`<40-HEX>`/`<7>`/`<IP>` は「実測で置換する外部値」であり、置換手順（Task 1 Step 1, Task 5 が動的取得）を明示済み。上流 CLI のフラグ確定を要する箇所（down/channels/messages/volume）は各タスクの「注」で `--help` 確認を必須化 — これは陳腐化した上流ドキュメントに対する意図的な実機確認であり、プレースホルダではない。
+**2. Placeholder scan:** 各コードステップは実コードで埋めた。`<40-HEX>`/`<7>` は Task 1 Step 1 で実測置換、`<IP>` 等は実行時に動的取得。上流 CLI のフラグ/JSON キー確定を要する箇所は各タスクの「注」で `--help`＋1 回の実出力での確認を必須化（陳腐化した上流ドキュメントへの意図的な実機確認）。JSON パーサはキー候補を複数持たせ、外れたら追加する方針を明記。
 
-**3. Type consistency:** `pubip`（stdin→IP）, `ip_to_dashes`, `load_ref`（`BUZZ_GIT_REF`/`BUZZ_IMAGE`）, `ssh_vm` の名前と引数は Task 2 定義と Task 5/6/7/8 使用で一致。`.secrets/` のファイル名（`owner.nsec`/`owner.pub`/`agent.nsec`/`agent.pub`/`fqdn`/`channel`）は生成（Task 5/7）と消費（Task 6/8）で一致。`bootstrap-env.sh` の引数順（example, out, ip, suffix, owner_pub）は Task 3 定義・selftest・Task 5 手順 9 で一致。
+**3. Type consistency:** `pubip`（stdin→IP）, `ip_to_dashes`, `load_ref`, `ssh_vm`（SERVER グローバル）, `put_file` の名前・引数は Task 2 定義と Task 5/6/7/8 使用で一致。`.secrets/` のファイル名（`owner.nsec`/`owner.pub`/`agent.nsec`/`agent.pub`/`fqdn`/`channel`）は生成（Task 5/7）と消費（Task 6/8）で一致。VM 側 `/root/.buzz-{agent,owner}.env` は Task 7 で生成し Task 8 で source。`bootstrap-env.sh` は 5 引数（example, out, ip, suffix, owner_pub）で Task 3 定義・selftest・Task 5 手順 9・Task 10 復旧で一致。
