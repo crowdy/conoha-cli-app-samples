@@ -10,7 +10,7 @@
 
 **親スペック:** `docs/superpowers/specs/2026-07-24-buzz-sample-design.md`（rev 3.1）。**plan-reviewer にはこのスペックパスを必ず添付すること。**
 
-**改訂:** rev 3 — plan-reviewer 2 巡目（1 巡目 F1–F11 は全 RESOLVED 判定、新規 N1–N8）を反映。詳細は末尾「plan-reviewer 指摘の反映」表。
+**改訂:** rev 4 — plan-reviewer 3 巡目（N1/N2/N3/N5/N7/N8 RESOLVED、N4/N6 PARTIAL→指摘A/B、任意C）を反映。詳細は末尾「plan-reviewer 指摘の反映」表。
 
 ## Global Constraints
 
@@ -958,8 +958,9 @@ fi
 
 - [ ] **Step 2: 陰性対照 → 本検証の順で実測**
 
-Run: `cd buzz/scripts && ./verify.sh --agent 2>&1 | tee -a ../.secrets/verify-agent.log`
-Expected: `7-N` が **OK（non-mention に応答なし）** → `7` が **OK（エージェント作成の応答）**。7-N が FAIL するなら検出器がオーナー投稿に誤マッチ → キー名を実値に直して再実行。`grep -c nsec1 ../.secrets/verify-agent.log` = 0 を確認。
+Run: `cd buzz/scripts && bash selftest.sh && ./verify.sh --agent 2>&1 | tee -a ../.secrets/verify-agent.log`
+（`--agent` 追記後の verify.sh を課金実行前に静的検査 — reviewer 指摘B）
+Expected: `7-N` が **OK（non-mention に応答なし）** → `7` が **OK（エージェント作成の応答）**。7-N が FAIL したら: まず検出器がオーナー投稿に誤マッチ（著者フィルタのキー名）を疑い、**検出器単体が健全なら `subscribe=mentions` が実際に非 mention を配信していないか**を疑う（§8.2 の実機確認事項）。`grep -c nsec1 ../.secrets/verify-agent.log` = 0 を確認。
 
 - [ ] **Step 3: 資源実測を残す（完了条件 8）**
 
@@ -988,10 +989,11 @@ conoha volume list --help 2>&1 | grep -iE 'format|json'   # コマンド/フラ�
 conoha server show buzz-sample --format json | python3 -c 'import sys,json
 d=json.load(sys.stdin)
 vs=d.get("volumes_attached") or d.get("os-extended-volumes:volumes_attached") or []
-print("\n".join(v.get("id","") for v in vs))' > buzz/.secrets/volids
+ids=[v.get("id","") for v in vs if v.get("id")]
+print("\n".join(ids))' | grep . > buzz/.secrets/volids || true   # 空行を残さない（reviewer 指摘A）
 echo "boot volume id(s):"; cat buzz/.secrets/volids
 ```
-Expected: `buzz/.secrets/volids` に 1 個以上のボリューム ID（空なら `server show` の実キー名を確認して合わせる。空のまま進むと Step 3 が空振りするので**空なら中断**）。
+Expected: `buzz/.secrets/volids` に 1 個以上のボリューム ID（空なら `server show` の実キー名を確認して合わせる。**空のまま進むと Step 3 が空振りするので、次の内容ガードが中断させる**）。
 
 - [ ] **Step 2: 破棄して残存 0 を確認**
 
@@ -1002,14 +1004,15 @@ Expected: server 削除（`--delete-boot-volume`）、SG/keypair 削除、`remai
 
 Run:
 ```bash
-[ -s buzz/.secrets/volids ] || { echo "ABORT: no recorded volume ids (Step 1 空振り)"; false; }
+# 内容ガード（reviewer 指摘A）: [ -s ] は改行1バイトを非空と誤認するため、実トークンの有無で判定し exit で確実に止める
+grep -q '[^[:space:]]' buzz/.secrets/volids || { echo "ABORT: no recorded volume ids (Step 1 空振り — server show の volume キー名を確認)"; exit 1; }
 while read -r v; do
   [ -n "$v" ] || continue
   conoha volume list --format json | python3 -c 'import sys,json;print("\n".join(x.get("id","") for x in json.load(sys.stdin)))' \
-    | grep -qx "$v" && { echo "FAIL volume $v still exists"; false; } || echo "OK volume $v gone"
+    | grep -qx "$v" && { echo "FAIL volume $v still exists"; exit 1; } || echo "OK volume $v gone"
 done < buzz/.secrets/volids
 ```
-Expected: 記録した各 ID が `OK ... gone`。1 個でも残れば `--delete-boot-volume` が効いていない → loud に失敗。`volids` が空なら Step 1 をやり直す（空振り PASS を防ぐ）。
+Expected: 記録した各 ID が `OK ... gone`。1 個でも残れば `--delete-boot-volume` が効いていない → loud に失敗。`volids` が空（無内容）なら ABORT で中断し Step 1 をやり直す（空振り PASS を防ぐ）。
 
 - [ ] **Step 4: 証拠ログをまとめてコミット（秘密除外を確認）**
 
@@ -1144,6 +1147,14 @@ git commit -m "docs: list buzz sample in top-level README"
 ---
 
 ## plan-reviewer 指摘の反映
+
+### 3 巡目（N1/N2/N3/N5/N7/N8 = RESOLVED 判定。N4/N6 が PARTIAL だったため下記を追加修正）
+
+| # | 判定 | 反映 |
+|---|---|---|
+| **指摘A** N4 の空ガードが `[ -s ]` で破れる（改行1バイトを非空と誤認 → 空振り PASS 再開通） | 修正 | Task 9: Step 1 の python を `| grep .` で空行除去、Step 3 ガードを `grep -q '[^[:space:]]'` 内容判定＋`exit 1`（`false` から強化） |
+| **指摘B** N6 が Task 8 Step 2 を素通り（表は「5/6/7/8」と過大主張） | 修正 | Task 8 Step 2 の Run に `bash selftest.sh &&` 前置。これで表の主張と実体が一致 |
+| **指摘C**（任意） 7-N FAIL 診断が subscribe=mentions 前提を織り込まず | 修正 | Task 8 Step 2 Expected に「検出器が健全なら subscribe=mentions 実挙動を疑え」を追記 |
 
 ### 2 巡目（新規 N1–N8。判定は全 F1–F11 + 秘密ログ = RESOLVED、F10 のみ PARTIAL→N4）
 
