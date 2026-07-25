@@ -47,9 +47,11 @@ if grep -q '^BUZZ_RELAY_PRIVATE_KEY=CHANGE_ME' "$OUT" || ! grep -q '^BUZZ_RELAY_
   if [ -n "${BUZZ_RELAY_KEY_OVERRIDE:-}" ]; then
     set_kv BUZZ_RELAY_PRIVATE_KEY "$BUZZ_RELAY_KEY_OVERRIDE"   # テスト用
   else
+    # generate-key は「Public key: <hex>」「Secret key: <hex>」形式（実測 2026-07-25）。
+    # 先頭 hex は Public。Secret 行から取らないとリレー秘密鍵に公開鍵を入れてしまう。
     key="$(docker run --rm --entrypoint buzz-admin "${BUZZ_IMAGE:?BUZZ_IMAGE required}" generate-key \
-           | grep -oiE '[0-9a-f]{64}' | head -1)"
-    [ -n "$key" ] || { echo "generate-key produced no hex key" >&2; exit 1; }
+           | sed -n 's/^[[:space:]]*Secret key:[[:space:]]*//p' | grep -oiE '[0-9a-f]{64}' | head -1)"
+    [ -n "$key" ] || { echo "generate-key produced no hex secret key" >&2; exit 1; }
     set_kv BUZZ_RELAY_PRIVATE_KEY "$key"
   fi
 fi
