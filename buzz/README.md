@@ -53,6 +53,8 @@ CLAUDE_CODE_OAUTH_TOKEN=sk-ant-oat... ./scripts/agent-up.sh   # ⑤ ビルド→
   - トークンの取り違えに注意: ブラウザ側に出る**認証コード**ではなく、`setup-token` が**最後に出力するトークン**（`sk-ant-oat...`）を使います。誤った値だと `claude auth status` は `loggedIn:true` に見えても、実 API 呼び出しが `401 Invalid bearer token` になります。`claude -p "reply READY"` が `READY` を返せば有効です。
 - **O-3 フォールバック**: `ANTHROPIC_API_KEY=... ./scripts/agent-up.sh`（console.anthropic.com のキー。API 従量課金）。
 
+> **注（シェル履歴）**: `CLAUDE_CODE_OAUTH_TOKEN=... ./scripts/agent-up.sh` のように機密を環境変数でコマンド行に置くと、ローカルのシェル履歴に残ります。気になる場合は VM の root-only ファイルに直接追記してから再起動してください: `printf 'CLAUDE_CODE_OAUTH_TOKEN=%s\n' 'sk-ant-oat...' >> /root/.buzz-agent.env && systemctl restart buzz-acp`。
+
 ## 仕組みの要点（実測で確定した事項）
 
 - `buzz-admin generate-key` の出力は bech32 ではなく **`Public key: <64hex>` / `Secret key: <64hex>`**。`BUZZ_PRIVATE_KEY` には hex 秘密鍵をそのまま使えます。
