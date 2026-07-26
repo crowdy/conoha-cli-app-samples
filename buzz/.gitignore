@@ -1,0 +1,6 @@
+# ローカルのみ。git に入れない。
+.secrets/
+.env
+upstream/
+*.log
+__pycache__/

@@ -1,0 +1,6 @@
+# 上流の完全コミット SHA と、それを発行元とするイメージタグ。
+# 必ず「イメージタグ → コミット SHA」の順に決めること（spec §3.1）。
+# 更新時は両方を同じコミットに揃え、verify.sh 項目 0 で機械照合される。
+# 確定: 2026-07-25, GHCR :main の amd64 digest と sha-ab3af82 が一致（sha256:4e486a9e…）。
+BUZZ_GIT_REF=ab3af828714ab699dfc87644d234014987a4fe6b
+BUZZ_IMAGE=ghcr.io/block/buzz:sha-ab3af82

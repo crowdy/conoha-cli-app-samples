@@ -1,0 +1,10 @@
+{
+  "id": "vm-def456",
+  "status": "ACTIVE",
+  "addresses": {
+    "priv-net": [
+      {"addr": "10.0.0.5", "version": 4},
+      {"addr": "192.168.1.9", "version": 4}
+    ]
+  }
+}
