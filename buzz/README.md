@@ -61,6 +61,22 @@ CLAUDE_CODE_OAUTH_TOKEN=sk-ant-oat... ./scripts/agent-up.sh   # ⑤ ビルド→
 - `buzz-acp` の `--agent-command` 既定は `goose`。Claude では `BUZZ_ACP_AGENT_COMMAND=claude-agent-acp` かつ `BUZZ_ACP_AGENT_ARGS=`（空。goose 用の `acp` を上書き）。
 - オーナー秘密鍵の正本は**ローカル `.secrets/owner.nsec`**（ログに出さない）。既定経路ではテスト送信のため使い捨て VM の root-only env に一時配置し、`down.sh` で VM ごと破棄します（spec §4.0 からの意図的逸脱。厳密順守はローカル `buzz` ビルド）。
 
+## デスクトップ GUI（任意）で使う
+
+`buzz` CLI の代わりに GUI で使いたい場合は、上流のデスクトップアプリ（Tauri）を使います。**ビルド不要** — [GitHub Releases](https://github.com/block/buzz/releases) に各 OS のプリビルドがあります（Windows は `Buzz_<ver>_x64-setup_alpha-unsigned.exe`。未署名 alpha のため SmartScreen は「詳細情報 → 実行」で回避。Tauri なので WebView2 ランタイムが要る）。
+
+1. **identity key**: 「use existing key」を選び、このリレーのオーナー鍵を入れます。オーナー鍵は hex 保存なので nsec(bech32) に変換して貼り付けます（`buzz/` で）:
+
+   ```bash
+   python3 scripts/hex2nsec.py "$(cat .secrets/owner.nsec)"   # nsec1... を出力（NIP-19 ベクタで検証済み）
+   ```
+
+   これでオーナー（リレー所有者・`demo` チャンネル参加・エージェント allowlist）として GUI にログインでき、GUI から `@agent` に話せます。**オーナー鍵はマスター鍵。共有しないこと。**
+2. **"Set up your agent harnesses" 画面**は、この PC 上でローカルにエージェントを動かすためのものです。エージェントは VM 上で常駐しているので **「Skip for now」で構いません**。
+3. **community / relay の追加**: リレー URL `wss://<ip-dashes>.sslip.io`（`.secrets/fqdn` の値）を登録すると `demo` チャンネルが見えます。
+
+> オーナー鍵を GUI に置きたくなければ、GUI で新規 identity を作り、その npub を `buzz-admin add-member` でメンバー登録 + systemd の `BUZZ_ACP_RESPOND_TO_ALLOWLIST` に追加 + `buzz channels join` すれば、その鍵でも `@agent` が応答します（オーナー鍵はサーバ/ローカルだけに残す）。
+
 ## トラブルシュート
 
 - **`/` が JSON を返す**: 正常です。チャットは `buzz` CLI かデスクトップアプリで。
