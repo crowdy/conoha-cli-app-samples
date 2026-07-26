@@ -187,3 +187,4 @@ GUI で community を追加すると `Failed to fetch`。Tauri webview の origi
 - [claude-agent-acp（npm）](https://www.npmjs.com/package/@agentclientprotocol/claude-agent-acp) — ACP アダプタ
 - [Claude Code](https://github.com/anthropics/claude-code) — `claude` CLI（`setup-token`）
 - [crowdy/conoha-cli - GitHub](https://github.com/crowdy/conoha-cli)
+- [CLIひとつでVPSデプロイ完了 — conoha-cliとClaude Code Skillで変わるインフラ構築（note.com）](https://note.com/kim_tonghyun/n/n77b464a61dc0)
