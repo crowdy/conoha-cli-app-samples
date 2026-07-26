@@ -4,7 +4,9 @@
 
 このサンプルは、ConoHa VPS 1 台に Buzz リレーを立て、**Claude エージェントを独自の Nostr 鍵を持つ参加者として常駐**させ、`buzz` CLI からの `@mention` に応答するところまでを**実測で**示します（2026-07-25 に ConoHa 実機で全工程を検証済み）。
 
-> **重要:** バンドルされる Web にチャット UI はありません（`/` は NIP-11 JSON を返す Nostr リレーのエンドポイント）。**人間側の操作は `buzz` CLI** で行います。チャット GUI が要る場合は上流のデスクトップアプリ（Tauri）を使ってください。
+> **重要:** バンドルされる Web にチャット UI はありません（`/` は NIP-11 JSON を返す Nostr リレーのエンドポイント）。**人間側の操作は `buzz` CLI** で行います。チャット GUI が要る場合は上流のデスクトップアプリ（Tauri、プリビルドあり）を使ってください（「デスクトップ GUI」節）。
+
+![ConoHa VPS 上のセルフホスト Buzz にデスクトップアプリで接続した様子（左下 `133-117-74-17` が自前リレー、`demo` チャンネルにエージェントが常駐）](https://raw.githubusercontent.com/crowdy/conoha-cli-app-samples/main/buzz/docs/screenshot.png)
 
 ## 構成
 
@@ -100,6 +102,7 @@ CLAUDE_CODE_OAUTH_TOKEN=sk-ant-oat... ./scripts/agent-up.sh   # ⑤ ビルド→
 
   それでも駄目なら `Caddyfile` を `tls internal` にし、`verify.sh` は `CURL_K=-k ./scripts/verify.sh` で自己署名経路を明示します。
 - **エージェントが無反応**: `journalctl -u buzz-acp`。`BUZZ_ACP_RESPOND_TO=allowlist` と allowlist にオーナー pubkey が入っているか、エージェントがチャンネルのメンバーか（`buzz channels members --channel <id>`）を確認。
+- **デスクトップアプリで community 追加時に `Failed to fetch`**: CORS です。アプリ（Tauri webview）の origin が relay の `BUZZ_CORS_ORIGINS` に無いと、NIP-11 の fetch がブラウザ側でブロックされます。`bootstrap-env.sh` は Tauri の標準 origin（`https://tauri.localhost` / `http://tauri.localhost` / `tauri://localhost`）を既定で許可済み。別 origin のクライアントを使う場合は VM の `.env` の `BUZZ_CORS_ORIGINS` に追記して `systemctl` ではなく `./run.sh restart` で relay を再起動してください。**`*` は不可**（relay の CORS 層が panic します）— origin を明示列挙します。
 
 ## 参考
 

@@ -34,7 +34,10 @@ set_kv BUZZ_DOMAIN "$DOMAIN"
 set_kv RELAY_URL "wss://${DOMAIN}"
 set_kv BUZZ_MEDIA_BASE_URL "https://${DOMAIN}/media"
 set_kv BUZZ_MEDIA_SERVER_DOMAIN "$DOMAIN"
-set_kv BUZZ_CORS_ORIGINS "https://${DOMAIN}"
+# デスクトップ GUI（Tauri）が NIP-11 を fetch する際の origin を許可する。
+# 実測 2026-07-26: BUZZ_CORS_ORIGINS=* は relay の tower-http CORS 層が panic する（allow_origin.rs）ため使えない。
+# ドメイン（Web）+ Tauri の各 origin（Windows は http/https tauri.localhost、mac/linux は tauri://localhost）を明示列挙。
+set_kv BUZZ_CORS_ORIGINS "https://${DOMAIN},https://tauri.localhost,http://tauri.localhost,tauri://localhost"
 set_kv RELAY_OWNER_PUBKEY "$OWNER_PUB"
 
 # --- 秘密・リレー鍵: 未生成のみ生成、既存は保存 ---
