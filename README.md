@@ -159,4 +159,4 @@ accessories:
 ## 関連リンク
 
 - [conoha-cli](https://github.com/crowdy/conoha-cli) — ConoHa VPS3 CLI ツール
-- [ドキュメント](https://conoha-cli.jp) — チュートリアル・コマンドリファレンス
+- [ドキュメント](https://conoha-cli.crowdy.dev) — チュートリアル・コマンドリファレンス
